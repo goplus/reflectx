@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/goplusjs/reflectx"
+	"github.com/goplus/reflectx"
 )
 
 type Point struct {
