@@ -63,6 +63,30 @@ func typeName(typ reflect.Type) string {
 	return typ.Name()
 }
 
+var (
+	named          = make(map[string]reflect.Type)
+	typEmptyStruct = reflect.StructOf(nil)
+)
+
+func NamedStructOf(name string, fields []reflect.StructField) reflect.Type {
+	typ := StructOf(append(append([]reflect.StructField{}, fields...),
+		reflect.StructField{
+			PkgPath: "_",
+			Name:    "__named_" + name,
+			Type:    typEmptyStruct,
+		}))
+	str := typ.String()
+	if t, ok := named[str]; ok {
+		return t
+	}
+	named[str] = typ
+	v := reflect.Zero(typ)
+	rt := (*Value)(unsafe.Pointer(&v)).typ
+	st := toStructType(rt)
+	st.fields = st.fields[:len(st.fields)-1]
+	return typ
+}
+
 func StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
 	fs := make([]reflect.StructField, len(fields))

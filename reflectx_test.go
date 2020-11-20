@@ -113,3 +113,24 @@ func TestStructOfX(t *testing.T) {
 	reflectx.CanSet(v.Elem().Field(1)).SetInt(100)
 	t.Log(v.Interface())
 }
+
+func TestNamed(t *testing.T) {
+	fs := []reflect.StructField{
+		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
+		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
+	}
+	t1 := reflect.StructOf(fs)
+	t2 := reflect.StructOf(fs)
+	if t1 != t2 {
+		t.Fatalf("reflect.StructOf %v != %v", t1, t2)
+	}
+	t3 := reflectx.NamedStructOf("Point", fs)
+	t4 := reflectx.NamedStructOf("Point", fs)
+	t5 := reflectx.NamedStructOf("Point2", fs)
+	if t3 != t4 {
+		t.Fatalf("NamedStructOf %v != %v", t3, t4)
+	}
+	if t3 == t5 {
+		t.Fatalf("NamedStructOf %v == %v", t3, t5)
+	}
+}
