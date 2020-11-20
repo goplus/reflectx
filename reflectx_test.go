@@ -133,4 +133,7 @@ func TestNamed(t *testing.T) {
 	if t3 == t5 {
 		t.Fatalf("NamedStructOf %v == %v", t3, t5)
 	}
+	if t3.NumField() != 2 {
+		t.Fatalf("t3.NumField %v", t3.NumField())
+	}
 }

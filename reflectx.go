@@ -64,7 +64,7 @@ func typeName(typ reflect.Type) string {
 }
 
 var (
-	namedMagic     = "ReflectX"
+	namedMagic     = "Gop_Temp_"
 	named          = make(map[string]reflect.Type)
 	typEmptyStruct = reflect.StructOf(nil)
 )
