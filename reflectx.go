@@ -64,6 +64,7 @@ func typeName(typ reflect.Type) string {
 }
 
 var (
+	namedMagic     = "ReflectX"
 	named          = make(map[string]reflect.Type)
 	typEmptyStruct = reflect.StructOf(nil)
 )
@@ -71,9 +72,8 @@ var (
 func NamedStructOf(name string, fields []reflect.StructField) reflect.Type {
 	typ := StructOf(append(append([]reflect.StructField{}, fields...),
 		reflect.StructField{
-			PkgPath: "_",
-			Name:    "__named_" + name,
-			Type:    typEmptyStruct,
+			Name: namedMagic + name,
+			Type: typEmptyStruct,
 		}))
 	str := typ.String()
 	if t, ok := named[str]; ok {
