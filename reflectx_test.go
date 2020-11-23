@@ -76,9 +76,7 @@ func TestStructOf(t *testing.T) {
 	defer func() {
 		v := recover()
 		if v == nil {
-			t.Failed()
-		} else {
-			t.Log("reflect.StructOf panic", v)
+			t.Fatalf("reflect.StructOf panic")
 		}
 	}()
 	typ := reflect.TypeOf((*Buffer)(nil)).Elem()
@@ -111,7 +109,6 @@ func TestStructOfX(t *testing.T) {
 	v := reflect.New(dst)
 	v.Elem().Field(0).Set(reflect.ValueOf(bytes.NewBufferString("hello")))
 	reflectx.CanSet(v.Elem().Field(1)).SetInt(100)
-	t.Log(v.Interface())
 }
 
 func TestNamed(t *testing.T) {
@@ -124,16 +121,22 @@ func TestNamed(t *testing.T) {
 	if t1 != t2 {
 		t.Fatalf("reflect.StructOf %v != %v", t1, t2)
 	}
-	t3 := reflectx.NamedStructOf("Point", fs)
-	t4 := reflectx.NamedStructOf("Point", fs)
-	t5 := reflectx.NamedStructOf("Point2", fs)
+	t3 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point", fs)
+	t4 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point", fs)
+	t5 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point2", fs)
 	if t3 != t4 {
 		t.Fatalf("NamedStructOf %v != %v", t3, t4)
 	}
 	if t3 == t5 {
 		t.Fatalf("NamedStructOf %v == %v", t3, t5)
 	}
-	if t3.NumField() != 2 {
-		t.Fatalf("t3.NumField %v", t3.NumField())
+	if t5.String() != "reflectx_test.Point2" {
+		t.Fatalf("t5.String=%v", t5.String())
+	}
+	if t5.Name() != "Point2" {
+		t.Fatalf("t5.Name=%v", t5.Name())
+	}
+	if t5.PkgPath() != "github.com/goplus/reflectx_test" {
+		t.Fatalf("t5.PkgPath=%v", t5.PkgPath())
 	}
 }
