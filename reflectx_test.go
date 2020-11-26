@@ -2,6 +2,7 @@ package reflectx_test
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -37,13 +38,13 @@ func TestFieldCanSet(t *testing.T) {
 	}
 }
 
-type MyPoint struct {
+type Rect struct {
 	pt1 Point
 	pt2 *Point
 }
 
 func TestField(t *testing.T) {
-	x := &MyPoint{Point{1, 2}, &Point{3, 4}}
+	x := &Rect{Point{1, 2}, &Point{3, 4}}
 	v := reflect.ValueOf(x).Elem()
 	reflectx.Field(v, 0).Set(reflect.ValueOf(Point{10, 20}))
 	if x.pt1.x != 10 || x.pt1.y != 20 {
@@ -111,7 +112,7 @@ func TestStructOfX(t *testing.T) {
 	reflectx.CanSet(v.Elem().Field(1)).SetInt(100)
 }
 
-func TestNamed(t *testing.T) {
+func TestNamedStruct(t *testing.T) {
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
@@ -138,5 +139,61 @@ func TestNamed(t *testing.T) {
 	}
 	if t5.PkgPath() != "github.com/goplus/reflectx_test" {
 		t.Fatalf("t5.PkgPath=%v", t5.PkgPath())
+	}
+}
+
+var (
+	testBase = []interface{}{
+		true,
+		uint8(1),
+		uint16(2),
+		uint32(3),
+		uint64(4),
+		int8(1),
+		int16(2),
+		int32(3),
+		int64(4),
+		float32(1.1),
+		float64(1.2),
+		100,
+		1.23,
+		"hello",
+		//	[]byte("hello"),
+	}
+)
+
+func TestNamedTypeBase(t *testing.T) {
+	for _, v := range testBase {
+		value := reflect.ValueOf(v)
+		typ := value.Type()
+		nt := reflectx.NamedTypeOf("github.com/goplus/reflectx", "My"+typ.Name(), typ)
+		if nt.Kind() != typ.Kind() {
+			t.Errorf("kind: have %v, want %v", nt.Kind(), typ.Kind())
+		}
+		nv := reflect.New(nt).Elem()
+		reflectx.SetValue(nv, value)
+		s1 := fmt.Sprintf("%v", nv)
+		s2 := fmt.Sprintf("%v", v)
+		if s1 != s2 {
+			t.Errorf("%v: have %v, want %v", nt.Kind(), s1, s2)
+		}
+	}
+}
+
+func TestNamedType(t *testing.T) {
+	typ := reflect.TypeOf((*Point)(nil)).Elem()
+	pkgpath := typ.PkgPath()
+	nt := reflectx.NamedTypeOf(pkgpath, "MyPoint", typ)
+	if nt.NumField() != typ.NumField() {
+		t.Fatal("NumField != 2", nt.NumField())
+	}
+	if nt.Name() != "MyPoint" {
+		t.Fatal("Name != MyPoint", nt.Name())
+	}
+	v := reflect.New(nt).Elem()
+	reflectx.Field(v, 0).SetInt(100)
+	reflectx.Field(v, 1).SetInt(200)
+	if v.FieldByName("x").Int() != 100 || v.FieldByName("y").Int() != 200 {
+		t.Fatal("Value != {100 200},", v)
 	}
 }

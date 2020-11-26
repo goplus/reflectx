@@ -3,21 +3,70 @@
 package reflectx
 
 import (
+	"reflect"
 	"unsafe"
 )
 
-func toStructType(typ *rtype) *structType {
-	return (*structType)(unsafe.Pointer(typ))
+func toStructType(t *rtype) *structType {
+	return (*structType)(unsafe.Pointer(t))
 }
 
-func toUncommonType(typ *rtype) *uncommonType {
-	return &(*structTypeUncommon)(unsafe.Pointer(typ)).u
-}
-
-func setUncommonTypePkgPath(typ *rtype, n nameOff) {
-	ut := toUncommonType(typ)
-	ut.pkgPath = n
-	typ.tflag |= tflagUncommon
+func toUncommonType(t *rtype) *uncommonType {
+	if t.tflag&tflagUncommon == 0 {
+		return nil
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		return &(*structTypeUncommon)(unsafe.Pointer(t)).u
+	case reflect.Ptr:
+		type u struct {
+			ptrType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	case reflect.Func:
+		type u struct {
+			funcType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	case reflect.Slice:
+		type u struct {
+			sliceType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	case reflect.Array:
+		type u struct {
+			arrayType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	case reflect.Chan:
+		type u struct {
+			chanType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	case reflect.Map:
+		type u struct {
+			mapType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	case reflect.Interface:
+		type u struct {
+			interfaceType
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	default:
+		type u struct {
+			rtype
+			u uncommonType
+		}
+		return &(*u)(unsafe.Pointer(t)).u
+	}
 }
 
 // uncommonType is present only for defined types or types with methods

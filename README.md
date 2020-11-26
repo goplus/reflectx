@@ -74,3 +74,4 @@ t3 := reflectx.NamedStructOf("github.com/goplus/reflectx", "Point2", fs)
 // t1.Name() == Point
 // t1.PkgPath() == github.com/goplus/reflectx
 ```
+* reflectx.NamedTypeOf
