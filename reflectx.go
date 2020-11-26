@@ -68,51 +68,108 @@ func typeName(typ reflect.Type) string {
 }
 
 var (
-	namedMagic     = "Gop_Temp_"
-	named          = make(map[string]reflect.Type)
+	namedMap       = make(map[string]*NamedType)
+	ntypeMap       = make(map[reflect.Type]*NamedType)
 	typEmptyStruct = reflect.StructOf(nil)
 )
 
-// fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
-func fnv1(x uint32, list string) uint32 {
-	for _, b := range list {
-		x = x*16777619 ^ uint32(b)
-	}
-	return x
+type TypeKind int
+
+const (
+	TkNone TypeKind = iota
+	TkStruct
+	TkType
+	TkInterface
+)
+
+type NamedType struct {
+	Type reflect.Type
+	From reflect.Type
+	Kind TypeKind
 }
 
-func hashName(pkgpath string, name string) string {
-	return fmt.Sprintf("Gop_Unused_%d_%d", fnv1(0, pkgpath), fnv1(0, name))
+func IsNamedType(typ reflect.Type) bool {
+	for _, v := range namedMap {
+		if v.Type == typ {
+			return true
+		}
+	}
+	return false
+}
+
+func ToNamedType(typ reflect.Type) (t *NamedType, ok bool) {
+	t, ok = ntypeMap[typ]
+	return
+}
+
+func storeType(named string, typ reflect.Type, nt *NamedType) {
+	namedMap[named] = nt
+	ntypeMap[typ] = nt
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	typ := StructOf(append(append([]reflect.StructField{}, fields...),
-		reflect.StructField{
-			Name: hashName(pkgpath, name),
-			Type: typEmptyStruct,
-		}))
-	str := typ.String()
-	if t, ok := named[str]; ok {
-		return t
+	named := hashName(pkgpath, name)
+	if t, ok := namedMap[named]; ok {
+		return t.Type
 	}
-	named[str] = typ
-	v := reflect.Zero(typ)
-	rt := (*Value)(unsafe.Pointer(&v)).typ
-	st := toStructType(rt)
-	st.fields = st.fields[:len(st.fields)-1]
-	rt.str = toNameOff(pkgpath, name, "")
-	rt.tflag |= tflagNamed
-	setUncommonTypePkgPath(rt, toNameOff("", pkgpath, ""))
+	typ := namedStructOf(pkgpath, name, named, fields)
+	storeType(named, typ, &NamedType{Type: typ, Kind: TkStruct})
+	rt := totype(typ)
+	setTypeName(rt, pkgpath, name)
 	return typ
 }
 
-func toNameOff(pkgpath string, name string, tag string) nameOff {
+func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
+	named := hashName(pkgpath, name)
+	if t, ok := namedMap[named]; ok {
+		return t.Type
+	}
+	var fs []reflect.StructField
+	if from.Kind() == reflect.Struct {
+		for i := 0; i < from.NumField(); i++ {
+			fs = append(fs, from.Field(i))
+		}
+	}
+	typ := namedStructOf(pkgpath, name, named, fs)
+	storeType(named, typ, &NamedType{Type: typ, From: from, Kind: TkType})
+	rt := totype(typ)
+	copyType(rt, totype(from))
+	setTypeName(rt, pkgpath, name)
+	return typ
+}
+
+func setTypeName(t *rtype, pkgpath string, name string) {
+	t.tflag |= tflagNamed | tflagUncommon | tflagExtraStar
 	exported := isExported(name)
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
 	}
-	return resolveReflectName(newName(name, tag, exported))
+	t.str = resolveReflectName(newName("*"+name, "", exported))
+	toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
+}
+
+func namedStructOf(pkgpath string, name string, named string, fields []reflect.StructField) reflect.Type {
+	typ := StructOf(append(append([]reflect.StructField{}, fields...),
+		reflect.StructField{
+			Name: named,
+			Type: typEmptyStruct,
+		}))
+	v := reflect.Zero(typ)
+	rt := (*Value)(unsafe.Pointer(&v)).typ
+	st := toStructType(rt)
+	st.fields = st.fields[:len(st.fields)-1]
+	return typ
+}
+
+func copyType(dst *rtype, src *rtype) {
+	dst.size = src.size
+	dst.kind = src.kind
+	dst.equal = src.equal
+	dst.align = src.align
+	dst.fieldAlign = src.fieldAlign
+	dst.tflag = src.tflag
+	dst.gcdata = src.gcdata
 }
 
 func isExported(name string) bool {
@@ -122,8 +179,8 @@ func isExported(name string) bool {
 
 func totype(typ reflect.Type) *rtype {
 	v := reflect.Zero(typ)
-	rt := (*Value)(unsafe.Pointer(&v)).typ
-	return rt
+	rt1 := (*Value)(unsafe.Pointer(&v)).typ
+	return rt1
 }
 
 func StructOf(fields []reflect.StructField) reflect.Type {
@@ -148,4 +205,16 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 		st.fields[i].offsetEmbed |= 1
 	}
 	return typ
+}
+
+// fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
+func fnv1(x uint32, list string) uint32 {
+	for _, b := range list {
+		x = x*16777619 ^ uint32(b)
+	}
+	return x
+}
+
+func hashName(pkgpath string, name string) string {
+	return fmt.Sprintf("Gop_Named_%d_%d", fnv1(0, pkgpath), fnv1(0, name))
 }

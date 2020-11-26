@@ -16,7 +16,10 @@
 
 package reflectx
 
-import "unsafe"
+import (
+	"reflect"
+	"unsafe"
+)
 
 // resolveNameOff resolves a name offset from a base pointer.
 // The (*rtype).nameOff method is a convenience wrapper for this function.
@@ -54,6 +57,14 @@ func (t *rtype) nameOff(off nameOff) name {
 	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
 }
 
+func (t *rtype) typeOff(off typeOff) *rtype {
+	return (*rtype)(resolveTypeOff(unsafe.Pointer(t), int32(off)))
+}
+
+func (t *rtype) textOff(off textOff) unsafe.Pointer {
+	return resolveTextOff(unsafe.Pointer(t), int32(off))
+}
+
 type nameOff int32
 type typeOff int32
 type textOff int32
@@ -66,22 +77,9 @@ type method struct {
 	tfn  textOff // fn used for normal method call
 }
 
-type structType struct {
-	rtype
-	pkgPath name
-	fields  []structField // sorted by offset
-}
-
 type structTypeUncommon struct {
 	structType
 	u uncommonType
-}
-
-// Struct field
-type structField struct {
-	name        name    // name is always non-empty
-	typ         *rtype  // type of field
-	offsetEmbed uintptr // byte offset of field<<1 | isEmbedded
 }
 
 type tflag uint8
@@ -130,6 +128,16 @@ type rtype struct {
 	ptrToThis typeOff // type for pointer to this type, may be zero
 }
 
+const (
+	kindDirectIface = 1 << 5
+	kindGCProg      = 1 << 6 // Type.gc points to GC program
+	kindMask        = (1 << 5) - 1
+)
+
+func (t *rtype) Kind() reflect.Kind {
+	return reflect.Kind(t.kind & kindMask)
+}
+
 // add returns p+x.
 //
 // The whySafe string is ignored, so that the function still inlines
@@ -172,4 +180,106 @@ type name struct {
 type stringHeader struct {
 	Data unsafe.Pointer
 	Len  int
+}
+
+// ChanDir represents a channel type's direction.
+type ChanDir int
+
+const (
+	RecvDir ChanDir             = 1 << iota // <-chan
+	SendDir                                 // chan<-
+	BothDir = RecvDir | SendDir             // chan
+)
+
+// arrayType represents a fixed array type.
+type arrayType struct {
+	rtype
+	elem  *rtype // array element type
+	slice *rtype // slice type
+	len   uintptr
+}
+
+// chanType represents a channel type.
+type chanType struct {
+	rtype
+	elem *rtype  // channel element type
+	dir  uintptr // channel direction (ChanDir)
+}
+
+// funcType represents a function type.
+//
+// A *rtype for each in and out parameter is stored in an array that
+// directly follows the funcType (and possibly its uncommonType). So
+// a function type with one method, one input, and one output is:
+//
+//	struct {
+//		funcType
+//		uncommonType
+//		[2]*rtype    // [0] is in, [1] is out
+//	}
+type funcType struct {
+	rtype
+	inCount  uint16
+	outCount uint16 // top bit is set if last input parameter is ...
+}
+
+// imethod represents a method on an interface type
+type imethod struct {
+	name nameOff // name of method
+	typ  typeOff // .(*FuncType) underneath
+}
+
+// interfaceType represents an interface type.
+type interfaceType struct {
+	rtype
+	pkgPath name      // import path
+	methods []imethod // sorted by hash
+}
+
+// mapType represents a map type.
+type mapType struct {
+	rtype
+	key    *rtype // map key type
+	elem   *rtype // map element (value) type
+	bucket *rtype // internal bucket structure
+	// function for hashing keys (ptr to key, seed) -> hash
+	hasher     func(unsafe.Pointer, uintptr) uintptr
+	keysize    uint8  // size of key slot
+	valuesize  uint8  // size of value slot
+	bucketsize uint16 // size of bucket
+	flags      uint32
+}
+
+// ptrType represents a pointer type.
+type ptrType struct {
+	rtype
+	elem *rtype // pointer element (pointed at) type
+}
+
+// sliceType represents a slice type.
+type sliceType struct {
+	rtype
+	elem *rtype // slice element type
+}
+
+// struct field
+type structField struct {
+	name        name    // name is always non-empty
+	typ         *rtype  // type of field
+	offsetEmbed uintptr // byte offset of field<<1 | isEmbedded
+}
+
+func (f *structField) offset() uintptr {
+	return f.offsetEmbed >> 1
+}
+
+func (f *structField) embedded() bool {
+	return f.offsetEmbed&1 != 0
+}
+
+// structType represents a struct type.
+type structType struct {
+	rtype
+	pkgPath name
+	fields  []structField // sorted by offset
 }

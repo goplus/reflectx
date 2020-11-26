@@ -74,3 +74,14 @@ t3 := reflectx.NamedStructOf("github.com/goplus/reflectx", "Point2", fs)
 // t1.Name() == Point
 // t1.PkgPath() == github.com/goplus/reflectx
 ```
+* reflectx.NamedTypeOf
+```
+typ := reflectx.NamedTypeOf("main","Int",reflect.TypeOf(int(0)))
+// typ.Kind() == reflect.Int
+// typ.String() == "main.Int"
+// typ.Name() == "Int"
+// typ.PkgPath() == "main"
+```
+
+* reflectx.IsNamedType
+* reflectx.ToNamedType
