@@ -88,7 +88,7 @@ type NamedType struct {
 	Kind TypeKind
 }
 
-func IsNamed(typ reflect.Type) bool {
+func IsNamedType(typ reflect.Type) bool {
 	for _, v := range namedMap {
 		if v.Type == typ {
 			return true
@@ -97,7 +97,7 @@ func IsNamed(typ reflect.Type) bool {
 	return false
 }
 
-func ToNamed(typ reflect.Type) (t *NamedType, ok bool) {
+func ToNamedType(typ reflect.Type) (t *NamedType, ok bool) {
 	t, ok = ntypeMap[typ]
 	return
 }
