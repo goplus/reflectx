@@ -73,6 +73,11 @@ var (
 	typEmptyStruct = reflect.StructOf(nil)
 )
 
+func ClearCache() {
+	namedMap = make(map[string]*NamedType)
+	ntypeMap = make(map[reflect.Type]*NamedType)
+}
+
 type TypeKind int
 
 const (
