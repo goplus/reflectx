@@ -65,7 +65,7 @@ const (
 )
 
 func SetValue(v reflect.Value, x reflect.Value) {
-	switch x.Kind() {
+	switch v.Kind() {
 	case reflect.Bool:
 		v.SetBool(x.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:

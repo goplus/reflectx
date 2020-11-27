@@ -108,31 +108,47 @@ func storeType(named string, typ reflect.Type, nt *NamedType) {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	named := hashName(pkgpath, name)
-	if t, ok := namedMap[named]; ok {
+	typ := StructOf(append(append([]reflect.StructField{}, fields...),
+		reflect.StructField{
+			Name: hashName(pkgpath, name),
+			Type: typEmptyStruct,
+		}))
+	str := typ.String()
+	if t, ok := namedMap[str]; ok {
 		return t.Type
 	}
-	typ := namedStructOf(pkgpath, name, named, fields)
-	storeType(named, typ, &NamedType{Type: typ, Kind: TkStruct})
+	nt := &NamedType{Type: typ, Kind: TkStruct}
+	namedMap[str] = nt
+	ntypeMap[typ] = nt
 	rt := totype(typ)
+	st := toStructType(rt)
+	st.fields = st.fields[:len(st.fields)-1]
 	setTypeName(rt, pkgpath, name)
 	return typ
 }
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
-	named := hashName(pkgpath, name)
-	if t, ok := namedMap[named]; ok {
-		return t.Type
-	}
-	var fs []reflect.StructField
+	var fields []reflect.StructField
 	if from.Kind() == reflect.Struct {
 		for i := 0; i < from.NumField(); i++ {
-			fs = append(fs, from.Field(i))
+			fields = append(fields, from.Field(i))
 		}
 	}
-	typ := namedStructOf(pkgpath, name, named, fs)
-	storeType(named, typ, &NamedType{Type: typ, From: from, Kind: TkType})
+	typ := StructOf(append(append([]reflect.StructField{}, fields...),
+		reflect.StructField{
+			Name: hashName(pkgpath, name),
+			Type: typEmptyStruct,
+		}))
+	str := typ.String()
+	if t, ok := namedMap[str]; ok {
+		return t.Type
+	}
+	nt := &NamedType{Type: typ, Kind: TkStruct}
+	namedMap[str] = nt
+	ntypeMap[typ] = nt
 	rt := totype(typ)
+	st := toStructType(rt)
+	st.fields = st.fields[:len(st.fields)-1]
 	copyType(rt, totype(from))
 	setTypeName(rt, pkgpath, name)
 	return typ
