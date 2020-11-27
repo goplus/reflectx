@@ -73,11 +73,6 @@ var (
 	typEmptyStruct = reflect.StructOf(nil)
 )
 
-func ClearCache() {
-	namedMap = make(map[string]*NamedType)
-	ntypeMap = make(map[reflect.Type]*NamedType)
-}
-
 type TypeKind int
 
 const (
@@ -148,7 +143,7 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	if t, ok := namedMap[str]; ok {
 		return t.Type
 	}
-	nt := &NamedType{Type: typ, Kind: TkStruct}
+	nt := &NamedType{Type: typ, From: from, Kind: TkType}
 	namedMap[str] = nt
 	ntypeMap[typ] = nt
 	rt := totype(typ)
@@ -168,19 +163,6 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	}
 	t.str = resolveReflectName(newName("*"+name, "", exported))
 	toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
-}
-
-func namedStructOf(pkgpath string, name string, named string, fields []reflect.StructField) reflect.Type {
-	typ := StructOf(append(append([]reflect.StructField{}, fields...),
-		reflect.StructField{
-			Name: named,
-			Type: typEmptyStruct,
-		}))
-	v := reflect.Zero(typ)
-	rt := (*Value)(unsafe.Pointer(&v)).typ
-	st := toStructType(rt)
-	st.fields = st.fields[:len(st.fields)-1]
-	return typ
 }
 
 func copyType(dst *rtype, src *rtype) {
