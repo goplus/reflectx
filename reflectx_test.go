@@ -170,7 +170,7 @@ func TestNamedTypeBase(t *testing.T) {
 		if nt.Kind() != typ.Kind() {
 			t.Errorf("kind: have %v, want %v", nt.Kind(), typ.Kind())
 		}
-		tt, ok := reflectx.ToNamedType(nt)
+		tt, ok := reflectx.ToNamed(nt)
 		if !ok {
 			t.Errorf("ToNamedType failed, %v", typ)
 		}

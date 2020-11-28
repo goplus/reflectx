@@ -83,5 +83,5 @@ typ := reflectx.NamedTypeOf("main","Int",reflect.TypeOf(int(0)))
 // typ.PkgPath() == "main"
 ```
 
-* reflectx.IsNamedType
-* reflectx.ToNamedType
+* reflectx.IsNamed
+* reflectx.ToNamed
