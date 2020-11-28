@@ -68,8 +68,8 @@ func typeName(typ reflect.Type) string {
 }
 
 var (
-	namedMap       = make(map[string]*NamedType)
-	ntypeMap       = make(map[reflect.Type]*NamedType)
+	namedMap       = make(map[string]*Named)
+	ntypeMap       = make(map[reflect.Type]*Named)
 	typEmptyStruct = reflect.StructOf(nil)
 )
 
@@ -82,27 +82,23 @@ const (
 	TkInterface
 )
 
-type NamedType struct {
+type Named struct {
 	Type reflect.Type
 	From reflect.Type
 	Kind TypeKind
 }
 
-func IsNamedType(typ reflect.Type) bool {
-	for _, v := range namedMap {
-		if v.Type == typ {
-			return true
-		}
-	}
-	return false
+func IsNamed(typ reflect.Type) bool {
+	_, ok := ntypeMap[typ]
+	return ok
 }
 
-func ToNamedType(typ reflect.Type) (t *NamedType, ok bool) {
+func ToNamed(typ reflect.Type) (t *Named, ok bool) {
 	t, ok = ntypeMap[typ]
 	return
 }
 
-func storeType(named string, typ reflect.Type, nt *NamedType) {
+func storeType(named string, typ reflect.Type, nt *Named) {
 	namedMap[named] = nt
 	ntypeMap[typ] = nt
 }
@@ -117,7 +113,7 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	if t, ok := namedMap[str]; ok {
 		return t.Type
 	}
-	nt := &NamedType{Type: typ, Kind: TkStruct}
+	nt := &Named{Type: typ, Kind: TkStruct}
 	namedMap[str] = nt
 	ntypeMap[typ] = nt
 	rt := totype(typ)
@@ -143,7 +139,7 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	if t, ok := namedMap[str]; ok {
 		return t.Type
 	}
-	nt := &NamedType{Type: typ, From: from, Kind: TkType}
+	nt := &Named{Type: typ, From: from, Kind: TkType}
 	namedMap[str] = nt
 	ntypeMap[typ] = nt
 	rt := totype(typ)
