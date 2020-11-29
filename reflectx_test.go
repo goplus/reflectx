@@ -123,28 +123,29 @@ func TestNamedStruct(t *testing.T) {
 		t.Fatalf("reflect.StructOf %v != %v", t1, t2)
 	}
 	t3 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point", fs)
-	t4 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point", fs)
-	t5 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point2", fs)
-	if t3 != t4 {
-		t.Fatalf("NamedStructOf %v != %v", t3, t4)
+	t4 := reflectx.NamedStructOf("github.com/goplus/reflectx_test", "Point2", fs)
+	if t3 == t4 {
+		t.Fatalf("NamedStructOf %v == %v", t3, t4)
 	}
-	if t3 == t5 {
-		t.Fatalf("NamedStructOf %v == %v", t3, t5)
+	if t4.String() != "reflectx_test.Point2" {
+		t.Fatalf("t4.String=%v", t4.String())
 	}
-	if t5.String() != "reflectx_test.Point2" {
-		t.Fatalf("t5.String=%v", t5.String())
+	if t4.Name() != "Point2" {
+		t.Fatalf("t4.Name=%v", t4.Name())
 	}
-	if t5.Name() != "Point2" {
-		t.Fatalf("t5.Name=%v", t5.Name())
-	}
-	if t5.PkgPath() != "github.com/goplus/reflectx_test" {
-		t.Fatalf("t5.PkgPath=%v", t5.PkgPath())
+	if t4.PkgPath() != "github.com/goplus/reflectx_test" {
+		t.Fatalf("t4.PkgPath=%v", t4.PkgPath())
 	}
 }
 
 var (
+	ch = make(chan bool)
+	fn = func(int, string) (bool, int) {
+		return true, 0
+	}
 	testBase = []interface{}{
 		true,
+		false,
 		uint8(1),
 		uint16(2),
 		uint32(3),
@@ -158,15 +159,21 @@ var (
 		100,
 		1.23,
 		"hello",
-		//	[]byte("hello"),
+		[]byte("hello"),
+		[5]byte{'a', 'b', 'c', 'd', 'e'},
+		[]string{"a", "b"},
+		map[int]string{1: "hello", 2: "world"},
+		new(uint8),
+		ch,
+		fn,
 	}
 )
 
 func TestNamedTypeBase(t *testing.T) {
-	for _, v := range testBase {
+	for i, v := range testBase {
 		value := reflect.ValueOf(v)
 		typ := value.Type()
-		nt := reflectx.NamedTypeOf("github.com/goplus/reflectx", "My"+typ.Name(), typ)
+		nt := reflectx.NamedTypeOf("github.com/goplus/reflectx", fmt.Sprintf("MyType%v", i), typ)
 		if nt.Kind() != typ.Kind() {
 			t.Errorf("kind: have %v, want %v", nt.Kind(), typ.Kind())
 		}
@@ -177,6 +184,7 @@ func TestNamedTypeBase(t *testing.T) {
 		if s1 != s2 {
 			t.Errorf("%v: have %v, want %v", nt.Kind(), s1, s2)
 		}
+		t.Log(s1)
 	}
 }
 
