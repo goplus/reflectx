@@ -75,7 +75,7 @@ var (
 type TypeKind int
 
 const (
-	TkNone TypeKind = iota
+	TkInvalid TypeKind = iota
 	TkStruct
 	TkType
 	TkInterface
