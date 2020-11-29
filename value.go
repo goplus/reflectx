@@ -76,10 +76,6 @@ func SetValue(v reflect.Value, x reflect.Value) {
 		v.SetFloat(x.Float())
 	case reflect.String:
 		v.SetString(x.String())
-	// case reflect.Slice, reflect.Array:
-	// 	if x.Type().Elem().Kind() == reflect.Uint8 {
-	// 		v.SetBytes(x.Bytes())
-	// 	}
 	default:
 		v.Set(x)
 	}
