@@ -82,9 +82,11 @@ const (
 )
 
 type Named struct {
-	Type reflect.Type
-	From reflect.Type
-	Kind TypeKind
+	Name    string
+	PkgPath string
+	Type    reflect.Type
+	From    reflect.Type
+	Kind    TypeKind
 }
 
 func IsNamed(typ reflect.Type) bool {
@@ -103,7 +105,7 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 			Name: unusedName(),
 			Type: typEmptyStruct,
 		}))
-	nt := &Named{Type: typ, Kind: TkStruct}
+	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, Kind: TkStruct}
 	ntypeMap[typ] = nt
 	rt := totype(typ)
 	st := toStructType(rt)
@@ -230,7 +232,7 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 		copyType(rt, totype(from))
 		setTypeName(rt, pkgpath, name)
 	}
-	nt := &Named{Type: typ, From: from, Kind: TkType}
+	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
 	ntypeMap[typ] = nt
 	return typ
 }

@@ -64,12 +64,8 @@ fs := []reflect.StructField{
 	reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
 }
 t1 := reflectx.NamedStructOf("github.com/goplus/reflectx","Point", fs)
-t2 := reflectx.NamedStructOf("github.com/goplus/reflectx","Point", fs)
-t3 := reflectx.NamedStructOf("github.com/goplus/reflectx", "Point2", fs)
+t2 := reflectx.NamedStructOf("github.com/goplus/reflectx","Point2", fs)
 
-// t1 == t2
-// t1 != t3
-//
 // t1.String() == reflectx.Point
 // t1.Name() == Point
 // t1.PkgPath() == github.com/goplus/reflectx
