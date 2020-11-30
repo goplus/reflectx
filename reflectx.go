@@ -152,8 +152,8 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 		dst := totype(typ)
 		src := totype(from)
 		copyType(dst, src)
-		d := (*arrayType)(unsafe.Pointer(dst))
-		s := (*arrayType)(unsafe.Pointer(src))
+		d := (*sliceType)(unsafe.Pointer(dst))
+		s := (*sliceType)(unsafe.Pointer(src))
 		d.elem = s.elem
 		setTypeName(dst, pkgpath, name)
 	case reflect.Map:
@@ -171,6 +171,7 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 		d.valuesize = s.valuesize
 		d.bucketsize = s.bucketsize
 		d.flags = s.flags
+		dst.str = resolveReflectName(newName(name, "", isExported(name)))
 		setTypeName(dst, pkgpath, name)
 	case reflect.Ptr:
 		typ = reflect.PtrTo(emptyType())
@@ -210,8 +211,7 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 		s := (*funcType)(unsafe.Pointer(src))
 		d.inCount = s.inCount
 		d.outCount = s.outCount
-		dst.str = resolveReflectName(newName(name, "", isExported(name)))
-		//setTypeName(dst, pkgpath, name)
+		setTypeName(dst, pkgpath, name)
 	default:
 		var fields []reflect.StructField
 		if from.Kind() == reflect.Struct {
@@ -236,14 +236,24 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 }
 
 func setTypeName(t *rtype, pkgpath string, name string) {
-	t.tflag |= tflagNamed | tflagUncommon | tflagExtraStar
 	exported := isExported(name)
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
 	}
+	t.tflag |= tflagNamed | tflagExtraStar
 	t.str = resolveReflectName(newName("*"+name, "", exported))
-	toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
+	switch t.Kind() {
+	case reflect.Array:
+	case reflect.Slice:
+	case reflect.Map:
+	case reflect.Ptr:
+	case reflect.Func:
+	case reflect.Chan:
+	default:
+		t.tflag |= tflagUncommon
+		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
+	}
 }
 
 func copyType(dst *rtype, src *rtype) {
