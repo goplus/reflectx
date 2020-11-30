@@ -211,7 +211,6 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 		s := (*funcType)(unsafe.Pointer(src))
 		d.inCount = s.inCount
 		d.outCount = s.outCount
-		dst.str = resolveReflectName(newName(name, "", isExported(name)))
 		setTypeName(dst, pkgpath, name)
 	default:
 		var fields []reflect.StructField
