@@ -143,6 +143,9 @@ var (
 	fn = func(int, string) (bool, int) {
 		return true, 0
 	}
+	fn2 = func(*Point, int, bool, []byte) int {
+		return 0
+	}
 	testNamedType = []interface{}{
 		true,
 		false,
@@ -167,6 +170,7 @@ var (
 		new(uint8),
 		ch,
 		fn,
+		fn2,
 	}
 )
 
@@ -192,7 +196,11 @@ func TestNamedType(t *testing.T) {
 		if s1 != s2 {
 			t.Errorf("%v: have %v, want %v", nt.Kind(), s1, s2)
 		}
-		t.Log(s1)
+		named, ok := reflectx.ToNamed(nt)
+		if !ok {
+			t.Errorf("ToNamed error, %v", nt)
+		}
+		t.Log(named)
 	}
 }
 
