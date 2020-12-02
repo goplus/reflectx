@@ -136,107 +136,6 @@ func emptyType() reflect.Type {
 	return typ
 }
 
-func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
-	switch from.Kind() {
-	case reflect.Array:
-		typ = reflect.ArrayOf(from.Len(), emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*arrayType)(unsafe.Pointer(dst))
-		s := (*arrayType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		d.slice = s.slice
-		d.len = s.len
-		setTypeName(dst, pkgpath, name)
-	case reflect.Slice:
-		typ = reflect.SliceOf(emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*sliceType)(unsafe.Pointer(dst))
-		s := (*sliceType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		setTypeName(dst, pkgpath, name)
-	case reflect.Map:
-		typ = reflect.MapOf(emptyType(), emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*mapType)(unsafe.Pointer(dst))
-		s := (*mapType)(unsafe.Pointer(src))
-		d.key = s.key
-		d.elem = s.elem
-		d.bucket = s.bucket
-		d.hasher = s.hasher
-		d.keysize = s.keysize
-		d.valuesize = s.valuesize
-		d.bucketsize = s.bucketsize
-		d.flags = s.flags
-		dst.str = resolveReflectName(newName(name, "", isExported(name)))
-		setTypeName(dst, pkgpath, name)
-	case reflect.Ptr:
-		typ = reflect.PtrTo(emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*ptrType)(unsafe.Pointer(dst))
-		s := (*ptrType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		setTypeName(dst, pkgpath, name)
-	case reflect.Chan:
-		typ = reflect.ChanOf(from.ChanDir(), emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*chanType)(unsafe.Pointer(dst))
-		s := (*chanType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		d.dir = s.dir
-		setTypeName(dst, pkgpath, name)
-	case reflect.Func:
-		numIn := from.NumIn()
-		in := make([]reflect.Type, numIn, numIn)
-		for i := 0; i < numIn; i++ {
-			in[i] = from.In(i)
-		}
-		numOut := from.NumOut()
-		out := make([]reflect.Type, numOut, numOut)
-		for i := 0; i < numOut; i++ {
-			out[i] = from.Out(i)
-		}
-		out = append(out, emptyType())
-		typ = reflect.FuncOf(in, out, from.IsVariadic())
-		dst := totype(typ)
-		src := totype(from)
-		d := (*funcType)(unsafe.Pointer(dst))
-		s := (*funcType)(unsafe.Pointer(src))
-		d.inCount = s.inCount
-		d.outCount = s.outCount
-		setTypeName(dst, pkgpath, name)
-	default:
-		var fields []reflect.StructField
-		if from.Kind() == reflect.Struct {
-			for i := 0; i < from.NumField(); i++ {
-				fields = append(fields, from.Field(i))
-			}
-		}
-		fields = append(fields, reflect.StructField{
-			Name: hashName(pkgpath, name),
-			Type: typEmptyStruct,
-		})
-		typ = StructOf(fields)
-		rt := totype(typ)
-		st := toStructType(rt)
-		st.fields = st.fields[:len(st.fields)-1]
-		copyType(rt, totype(from))
-		setTypeName(rt, pkgpath, name)
-	}
-	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
-	ntypeMap[typ] = nt
-	return typ
-}
-
 func setTypeName(t *rtype, pkgpath string, name string) {
 	exported := isExported(name)
 	if pkgpath != "" {
@@ -266,17 +165,12 @@ func copyType(dst *rtype, src *rtype) {
 	dst.fieldAlign = src.fieldAlign
 	dst.tflag = src.tflag
 	dst.gcdata = src.gcdata
+	dst.ptrdata = src.ptrdata
 }
 
 func isExported(name string) bool {
 	ch, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(ch)
-}
-
-func totype(typ reflect.Type) *rtype {
-	v := reflect.Zero(typ)
-	rt1 := (*Value)(unsafe.Pointer(&v)).typ
-	return rt1
 }
 
 func StructOf(fields []reflect.StructField) reflect.Type {
@@ -313,4 +207,27 @@ func fnv1(x uint32, list string) uint32 {
 
 func hashName(pkgpath string, name string) string {
 	return fmt.Sprintf("Gop_Named_%d_%d", fnv1(0, pkgpath), fnv1(0, name))
+}
+
+func SetValue(v reflect.Value, x reflect.Value) {
+	switch v.Kind() {
+	case reflect.Bool:
+		v.SetBool(x.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v.SetInt(x.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		v.SetUint(x.Uint())
+	case reflect.Uintptr:
+		v.SetUint(x.Uint())
+	case reflect.Float32, reflect.Float64:
+		v.SetFloat(x.Float())
+	case reflect.Complex64, reflect.Complex128:
+		v.SetComplex(x.Complex())
+	case reflect.String:
+		v.SetString(x.String())
+	case reflect.UnsafePointer:
+		v.SetPointer(unsafe.Pointer(x.Pointer()))
+	default:
+		v.Set(x)
+	}
 }

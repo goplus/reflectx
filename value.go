@@ -17,7 +17,6 @@
 package reflectx
 
 import (
-	"reflect"
 	"unsafe"
 )
 
@@ -63,20 +62,3 @@ const (
 	flagMethodShift      = 10
 	flagRO          flag = flagStickyRO | flagEmbedRO
 )
-
-func SetValue(v reflect.Value, x reflect.Value) {
-	switch v.Kind() {
-	case reflect.Bool:
-		v.SetBool(x.Bool())
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v.SetInt(x.Int())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v.SetUint(x.Uint())
-	case reflect.Float32, reflect.Float64:
-		v.SetFloat(x.Float())
-	case reflect.String:
-		v.SetString(x.String())
-	default:
-		v.Set(x)
-	}
-}
