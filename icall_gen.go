@@ -12,6 +12,8 @@ import (
 
 var head = `package reflectx
 
+import "unsafe"
+
 func icall(i int, bytes int, ret bool, ptrto bool) (index int, v interface{}) {
 	if i > max_icall_index || bytes > max_icall_bytes {
 		index = -1
@@ -35,13 +37,13 @@ func icall(i int, bytes int, ret bool, ptrto bool) (index int, v interface{}) {
 }
 `
 
-var templ_0 = `	func(p uintptr) []byte { return i_x($index, p, nil, $ptr) },
+var templ_0 = `	func(p unsafe.Pointer) []byte { return i_x($index, p, nil, $ptr) },
 `
-var templ = `	func(p uintptr, a [$bytes]byte) []byte { return i_x($index, p, a[:], $ptr) },
+var templ = `	func(p unsafe.Pointer, a [$bytes]byte) []byte { return i_x($index, p, a[:], $ptr) },
 `
-var templ_n_0 = `	func(p uintptr) { i_x($index, p, nil, $ptr) },
+var templ_n_0 = `	func(p unsafe.Pointer) { i_x($index, p, nil, $ptr) },
 `
-var templ_n = `	func(p uintptr, a [$bytes]byte) { i_x($index, p, a[:], $ptr) },
+var templ_n = `	func(p unsafe.Pointer, a [$bytes]byte) { i_x($index, p, a[:], $ptr) },
 `
 
 func main() {

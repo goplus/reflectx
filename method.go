@@ -342,9 +342,7 @@ func foundTypeByPtr(ptr unsafe.Pointer, index int, insize int) reflect.Type {
 	return nil
 }
 
-//go:nosplit
-func i_x(i int, this uintptr, p []byte, ptrto bool) []byte {
-	ptr := unsafe.Pointer(this)
+func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
 	typ := foundTypeByPtr(ptr, i, len(p))
 	if typ == nil {
 		log.Println("cannot found ptr type", ptr)
