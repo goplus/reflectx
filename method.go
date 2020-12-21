@@ -9,6 +9,10 @@ import (
 	"unsafe"
 )
 
+// memmove copies size bytes to dst from src. No write barriers are used.
+//go:linkname memmove reflect.memmove
+func memmove(dst, src unsafe.Pointer, size uintptr)
+
 const (
 	VerifyFieldName = "_reflectx_verify"
 )
@@ -396,7 +400,10 @@ func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
 		for i, v := range r {
 			out.Field(i).Set(v)
 		}
-		return *(*[]byte)(tovalue(&out).ptr)
+		osz := info.outTyp.Size()
+		data := make([]byte, osz, osz)
+		memmove(unsafe.Pointer(&data), unsafe.Pointer(out.UnsafeAddr()), osz)
+		return data
 	}
 	return nil
 }
