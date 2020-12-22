@@ -82,14 +82,14 @@ func MethodOf(styp reflect.Type, methods []Method, addVerifyField bool) reflect.
 			styp = NamedStructOf(styp.PkgPath(), styp.Name(), fs)
 		}
 	}
-	rt, _ := premakeMethodType(styp, mcount, mcount)
-	prt, _ := premakeMethodType(reflect.PtrTo(styp), pcount, pcount)
+	rt, tt := premakeMethodType(styp, mcount, mcount)
+	prt, ptt := premakeMethodType(reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	typ := toType(rt)
 	ptyp := reflect.PtrTo(typ)
-	ms := rt.methods()
-	pms := prt.methods()
+	ms := make([]method, mcount, mcount)
+	pms := make([]method, pcount, pcount)
 	var infos []*methodInfo
 	var pinfos []*methodInfo
 	var index int
@@ -167,9 +167,11 @@ func MethodOf(styp reflect.Type, methods []Method, addVerifyField bool) reflect.
 			index++
 		}
 	}
+	copy(tt.Elem().Field(2).Slice(0, len(ms)).Interface().([]method), ms)
+	copy(ptt.Elem().Field(2).Slice(0, len(pms)).Interface().([]method), pms)
 	typInfoMap[typ] = infos
 	typInfoMap[ptyp] = pinfos
-	nt := &Named{Name: styp.Name(), PkgPath: styp.PkgPath(), Type: typ, Kind: TkStruct}
+	nt := &Named{Name: styp.Name(), PkgPath: styp.PkgPath(), Type: typ, Kind: TkMethod}
 	ntypeMap[typ] = nt
 	return typ
 }
@@ -228,6 +230,13 @@ func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt
 		}))
 		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		rt = (*rtype)(unsafe.Pointer(st))
+	default:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(rtype{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 	}
 	ut := (*uncommonType)(unsafe.Pointer(tt.Elem().Field(1).UnsafeAddr()))
 	// copy(tt.Elem().Field(2).Slice(0, len(methods)).Interface().([]method), methods)
@@ -240,6 +249,8 @@ func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt
 	rt.kind = ort.kind
 	rt.align = ort.align
 	rt.fieldAlign = ort.fieldAlign
+	rt.gcdata = ort.gcdata
+	rt.ptrdata = ort.ptrdata
 	rt.str = resolveReflectName(ort.nameOff(ort.str))
 	return
 }
@@ -285,7 +296,7 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 
 func New(typ reflect.Type) reflect.Value {
 	v := reflect.New(typ)
-	if IsNamed(typ) {
+	if IsMethod(typ) {
 		storeValue(v)
 	}
 	return v
@@ -322,11 +333,39 @@ func foundTypeByPtr(ptr unsafe.Pointer, index int, insize int) reflect.Type {
 	checkMap := make(map[reflect.Type]bool)
 	var matches []reflect.Type
 	for p, typ := range ptrTypeMap {
+		if typ.Kind() != reflect.Struct {
+			continue
+		}
 		v2 := reflect.NewAt(typ, ptr).Elem()
 		v1 := reflect.NewAt(typ, p).Elem()
 		if reflect.DeepEqual(v1.Interface(), v2.Interface()) {
 			if _, ok := typ.FieldByName(VerifyFieldName); ok {
 				return typ
+			}
+			if !checkMap[typ] {
+				checkMap[typ] = true
+				infos := typInfoMap[typ]
+				if len(infos) > index && int(infos[index].inTyp.Size()) == insize {
+					matches = append(matches, typ)
+				}
+			}
+		}
+	}
+	if len(matches) == 0 {
+		for p, typ := range ptrTypeMap {
+			v2 := reflect.NewAt(typ, ptr).Elem()
+			v1 := reflect.NewAt(typ, p).Elem()
+			var check bool
+			switch typ.Kind() {
+			default:
+				continue
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				if v1.Int() == v2.Int() {
+					check = true
+				}
+			}
+			if !check {
+				continue
 			}
 			if !checkMap[typ] {
 				checkMap[typ] = true
