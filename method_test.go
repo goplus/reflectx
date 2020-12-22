@@ -55,7 +55,7 @@ func TestIntMethodOf(t *testing.T) {
 		mString,
 		mSet,
 		mAppend,
-	}, false)
+	})
 	ptrType := reflect.PtrTo(typ)
 
 	if n := typ.NumMethod(); n != 2 {
@@ -69,10 +69,10 @@ func TestIntMethodOf(t *testing.T) {
 
 	pv.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100)})
 
-	if v := fmt.Sprint(pv); v != "(100)" {
+	if v := fmt.Sprint(reflectx.Interface(pv)); v != "(100)" {
 		t.Fatalf("String(): have %v, want (100)", v)
 	}
-	if v := fmt.Sprint(pv.Addr()); v != "(100)" {
+	if v := fmt.Sprint(reflectx.Interface(pv.Addr())); v != "(100)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100)", v)
 	}
 
@@ -144,7 +144,7 @@ func TestMethodOf(t *testing.T) {
 		mString,
 		mSet,
 		mTestv,
-	}, false)
+	})
 	ptrType := reflect.PtrTo(typ)
 
 	if n := typ.NumMethod(); n != 3 {
@@ -163,43 +163,43 @@ func TestMethodOf(t *testing.T) {
 	pt2.Field(1).SetInt(400)
 
 	// String
-	if v := fmt.Sprint(pt1); v != "(100,200)" {
+	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(100,200)" {
 		t.Fatalf("String(): have %v, want (100,200)", v)
 	}
-	if v := fmt.Sprint(pt1.Addr()); v != "(100,200)" {
+	if v := fmt.Sprint(reflectx.Interface(pt1.Addr())); v != "(100,200)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100,200)", v)
 	}
 
 	// typ Add
 	m, _ := reflectx.MethodByName(typ, "Add")
 	r0 := m.Func.Call([]reflect.Value{pt1, pt2})
-	if v := fmt.Sprint(r0[0]); v != "(400,600)" {
+	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
 		t.Fatalf("type reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 	r0 = pt1.MethodByName("Add").Call([]reflect.Value{pt2})
-	if v := fmt.Sprint(r0[0]); v != "(400,600)" {
+	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
 		t.Fatalf("value.MethodByName Add: have %v, want (400,600)", v)
 	}
 
 	// ptrtyp Add
 	m, _ = reflectx.MethodByName(ptrType, "Add")
 	r0 = m.Func.Call([]reflect.Value{pt1.Addr(), pt2})
-	if v := fmt.Sprint(r0[0]); v != "(400,600)" {
+	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
 		t.Fatalf("ptrType reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 	r0 = pt1.Addr().MethodByName("Add").Call([]reflect.Value{pt2})
-	if v := fmt.Sprint(r0[0]); v != "(400,600)" {
+	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
 		t.Fatalf("ptrType value.reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 
 	// Set
 	m0, _ := reflectx.MethodByName(ptrType, "Set")
 	m0.Func.Call([]reflect.Value{pt1.Addr(), reflect.ValueOf(-100), reflect.ValueOf(-200)})
-	if v := fmt.Sprint(pt1); v != "(-100,-200)" {
+	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(-100,-200)" {
 		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (-100,-200)", v)
 	}
 	pt1.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(1), reflect.ValueOf(2)})
-	if v := fmt.Sprint(pt1); v != "(1,2)" {
+	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(1,2)" {
 		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (1,2)", v)
 	}
 

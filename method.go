@@ -13,13 +13,8 @@ import (
 //go:linkname memmove reflect.memmove
 func memmove(dst, src unsafe.Pointer, size uintptr)
 
-const (
-	VerifyFieldName = "_reflectx_verify"
-)
-
-var (
-	verifyFieldType = reflect.TypeOf(unsafe.Pointer(nil))
-)
+//go:linkname checkptrBase runtime.checkptrBase
+func checkptrBase(p unsafe.Pointer) uintptr
 
 type Method struct {
 	Name    string        // method Name
@@ -44,7 +39,7 @@ func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []refl
 	}
 }
 
-func MethodOf(styp reflect.Type, methods []Method, addVerifyField bool) reflect.Type {
+func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 {
@@ -62,26 +57,6 @@ func MethodOf(styp reflect.Type, methods []Method, addVerifyField bool) reflect.
 		}
 	}
 	orgtyp := styp
-	if addVerifyField && styp.Kind() == reflect.Struct {
-		var fs []reflect.StructField
-		var skip bool
-		for i := 0; i < styp.NumField(); i++ {
-			field := styp.Field(i)
-			if field.Name == VerifyFieldName {
-				skip = true
-				break
-			}
-			fs = append(fs, field)
-		}
-		if !skip {
-			fs = append(fs, reflect.StructField{
-				Name:    VerifyFieldName,
-				PkgPath: "main",
-				Type:    verifyFieldType,
-			})
-			styp = NamedStructOf(styp.PkgPath(), styp.Name(), fs)
-		}
-	}
 	rt, tt := premakeMethodType(styp, mcount, mcount)
 	prt, ptt := premakeMethodType(reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
@@ -297,9 +272,17 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 func New(typ reflect.Type) reflect.Value {
 	v := reflect.New(typ)
 	if IsMethod(typ) {
-		storeValue(v)
+		storeMethodValue(v)
 	}
 	return v
+}
+
+func Interface(v reflect.Value) interface{} {
+	i := v.Interface()
+	if i != nil && IsMethod(v.Type()) {
+		storeMethodValue(reflect.ValueOf(i))
+	}
+	return i
 }
 
 func toElem(typ reflect.Type) reflect.Type {
@@ -309,85 +292,14 @@ func toElem(typ reflect.Type) reflect.Type {
 	return typ
 }
 
-func storeValue(v reflect.Value) {
+func storeMethodValue(v reflect.Value) {
 	ptr := tovalue(&v).ptr
 	ptrTypeMap[ptr] = toElem(v.Type())
-
-	// check verify field
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Struct {
-		item := FieldByName(v, VerifyFieldName)
-		if item.IsValid() {
-			item.SetPointer(ptr)
-		}
-	}
-}
-
-func foundTypeByPtr(ptr unsafe.Pointer, index int, insize int) reflect.Type {
-	typ, ok := ptrTypeMap[ptr]
-	if ok {
-		return typ
-	}
-	checkMap := make(map[reflect.Type]bool)
-	var matches []reflect.Type
-	for p, typ := range ptrTypeMap {
-		if typ.Kind() != reflect.Struct {
-			continue
-		}
-		v2 := reflect.NewAt(typ, ptr).Elem()
-		v1 := reflect.NewAt(typ, p).Elem()
-		if reflect.DeepEqual(v1.Interface(), v2.Interface()) {
-			if _, ok := typ.FieldByName(VerifyFieldName); ok {
-				return typ
-			}
-			if !checkMap[typ] {
-				checkMap[typ] = true
-				infos := typInfoMap[typ]
-				if len(infos) > index && int(infos[index].inTyp.Size()) == insize {
-					matches = append(matches, typ)
-				}
-			}
-		}
-	}
-	if len(matches) == 0 {
-		for p, typ := range ptrTypeMap {
-			v2 := reflect.NewAt(typ, ptr).Elem()
-			v1 := reflect.NewAt(typ, p).Elem()
-			var check bool
-			switch typ.Kind() {
-			default:
-				continue
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				if v1.Int() == v2.Int() {
-					check = true
-				}
-			}
-			if !check {
-				continue
-			}
-			if !checkMap[typ] {
-				checkMap[typ] = true
-				infos := typInfoMap[typ]
-				if len(infos) > index && int(infos[index].inTyp.Size()) == insize {
-					matches = append(matches, typ)
-				}
-			}
-		}
-	}
-	n := len(matches)
-	if n == 1 {
-		return matches[0]
-	} else if n > 1 {
-		log.Println("warring, multiple matches found, please add verify field.", matches)
-	}
-	return nil
 }
 
 func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
-	typ := foundTypeByPtr(ptr, i, len(p))
-	if typ == nil {
+	typ, ok := ptrTypeMap[ptr]
+	if !ok || typ == nil {
 		log.Println("cannot found ptr type", ptr)
 		return nil
 	}
