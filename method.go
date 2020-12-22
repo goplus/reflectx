@@ -205,6 +205,15 @@ func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt
 		}))
 		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Slice:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(sliceType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*sliceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		st.elem = totype(styp.Elem())
+		rt = (*rtype)(unsafe.Pointer(st))
 	default:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(rtype{})},
