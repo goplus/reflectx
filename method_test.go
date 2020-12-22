@@ -164,6 +164,76 @@ func TestSliceMethodOf(t *testing.T) {
 	}
 }
 
+func TestArrayMethodOf(t *testing.T) {
+	styp := reflectx.NamedTypeOf("main", "Point", reflect.TypeOf([2]int{}))
+	var typ reflect.Type
+	mString := reflectx.MakeMethod(
+		"String",
+		false,
+		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+		func(args []reflect.Value) []reflect.Value {
+			v := args[0]
+			info := fmt.Sprintf("(%v,%v)", v.Index(0), v.Index(1))
+			return []reflect.Value{reflect.ValueOf(info)}
+		},
+	)
+	mSet := reflectx.MakeMethod(
+		"Set",
+		true,
+		reflect.FuncOf([]reflect.Type{intTyp, intTyp}, nil, false),
+		func(args []reflect.Value) (result []reflect.Value) {
+			v := args[0].Elem()
+			v.Index(0).Set(args[1])
+			v.Index(1).Set(args[2])
+			return
+		},
+	)
+	mGet := reflectx.MakeMethod(
+		"Get",
+		false,
+		reflect.FuncOf(nil, []reflect.Type{intTyp, intTyp}, false),
+		func(args []reflect.Value) (result []reflect.Value) {
+			v := args[0]
+			return []reflect.Value{v.Index(0), v.Index(1)}
+		},
+	)
+	typ = reflectx.MethodOf(styp, []reflectx.Method{
+		mString,
+		mSet,
+		mGet,
+	})
+	ptrType := reflect.PtrTo(typ)
+
+	if n := typ.NumMethod(); n != 2 {
+		t.Fatal("typ.NumMethod()", n)
+	}
+	if n := ptrType.NumMethod(); n != 3 {
+		t.Fatal("ptrTyp.NumMethod()", n)
+	}
+
+	pv := reflectx.New(typ).Elem()
+
+	pv.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+
+	if v := fmt.Sprint(reflectx.Interface(pv)); v != "(100,200)" {
+		t.Fatalf("String(): have %v, want (100,200)", v)
+	}
+	if v := fmt.Sprint(reflectx.Interface(pv.Addr())); v != "(100,200)" {
+		t.Fatalf("ptrTyp String(): have %v, want (100,200)", v)
+	}
+
+	// Get
+	m0, _ := reflectx.MethodByName(typ, "Get")
+	r0 := m0.Func.Call([]reflect.Value{pv})
+	if len(r0) != 2 || r0[0].Int() != 100 || r0[1].Int() != 200 {
+		t.Fatalf("typ reflectx.MethodByName Get: have %v, want 100 200", r0)
+	}
+	r0 = pv.MethodByName("Get").Call(nil)
+	if len(r0) != 2 || r0[0].Int() != 100 || r0[1].Int() != 200 {
+		t.Fatalf("typ value.MethodByName Get: have %v, want 100 200", r0)
+	}
+}
+
 func TestStructMethodOf(t *testing.T) {
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
