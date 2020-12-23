@@ -373,7 +373,7 @@ func (i Point) Scale(v ...int) (ar []Point) {
 }
 
 func TestStructMethodOf(t *testing.T) {
-	// tPoint
+	// Point
 	var i Point
 	i.Set(100, 200)
 	if v := fmt.Sprint(i); v != "(100,200)" {

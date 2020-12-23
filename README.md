@@ -81,3 +81,9 @@ typ := reflectx.NamedTypeOf("main","Int",reflect.TypeOf(int(0)))
 
 * reflectx.IsNamed
 * reflectx.ToNamed
+
+* reflect.MethodOf
+* reflect.MakeMethod
+* reflect.IsMethod
+* reflect.New
+* reflect.Interface
