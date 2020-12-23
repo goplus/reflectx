@@ -9,16 +9,43 @@ import (
 )
 
 var (
-	byteTyp      = reflect.TypeOf(byte('a'))
-	boolTyp      = reflect.TypeOf(true)
-	intTyp       = reflect.TypeOf(0)
-	strTyp       = reflect.TypeOf("")
-	iType        = reflect.TypeOf((*interface{})(nil)).Elem()
-	intSliceType = reflect.TypeOf([]int{})
+	byteTyp = reflect.TypeOf(byte('a'))
+	boolTyp = reflect.TypeOf(true)
+	intTyp  = reflect.TypeOf(0)
+	strTyp  = reflect.TypeOf("")
+	iType   = reflect.TypeOf((*interface{})(nil)).Elem()
 )
 
+type Int int
+
+func (i Int) String() string {
+	return fmt.Sprintf("(%v)", int(i))
+}
+
+func (i *Int) Set(v int) {
+	*(*int)(i) = v
+}
+
+func (i Int) Append(v ...int) int {
+	sum := int(i)
+	for _, n := range v {
+		sum += n
+	}
+	return sum
+}
+
 func TestIntMethodOf(t *testing.T) {
-	styp := reflectx.NamedTypeOf("main", "MyInt", intTyp)
+	// Int type
+	var i Int
+	i.Set(100)
+	if v := fmt.Sprint(i); v != "(100)" {
+		t.Fatalf("String(): have %v, want (100)", v)
+	}
+	if v := i.Append(200, 300, 400); v != 1000 {
+		t.Fatalf("Append(): have %v, want (1000)", v)
+	}
+	// make Int type
+	styp := reflectx.NamedTypeOf("main", "Int", intTyp)
 	var typ reflect.Type
 	mString := reflectx.MakeMethod(
 		"String",
@@ -66,31 +93,63 @@ func TestIntMethodOf(t *testing.T) {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	pv := reflectx.New(typ).Elem()
+	x := reflectx.New(typ).Elem()
+	x.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100)})
 
-	pv.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100)})
-
-	if v := fmt.Sprint(reflectx.Interface(pv)); v != "(100)" {
+	// String
+	if v := fmt.Sprint(reflectx.Interface(x)); v != "(100)" {
 		t.Fatalf("String(): have %v, want (100)", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(pv.Addr())); v != "(100)" {
+	if v := fmt.Sprint(reflectx.Interface(x.Addr())); v != "(100)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100)", v)
 	}
 
 	// Append
-	m0, _ := reflectx.MethodByName(typ, "Append")
-	r0 := m0.Func.Call([]reflect.Value{pv, reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := r0[0].Int(); v != 1000 {
-		t.Fatalf("typ reflectx.MethodByName Testv: have %v, want 1000", v)
+	m, _ := reflectx.MethodByName(typ, "Append")
+	r := m.Func.Call([]reflect.Value{x, reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
+	if v := r[0].Int(); v != 1000 {
+		t.Fatalf("typ reflectx.MethodByName Append: have %v, want 1000", v)
 	}
-	r0 = pv.MethodByName("Append").Call([]reflect.Value{reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := r0[0].Int(); v != 1000 {
-		t.Fatalf("typ value.MethodByName Testv: have %v, want 1000", v)
+	r = x.MethodByName("Append").Call([]reflect.Value{reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
+	if v := r[0].Int(); v != 1000 {
+		t.Fatalf("typ value.MethodByName Append: have %v, want 1000", v)
 	}
 }
 
+type IntSlice []int
+
+func (i IntSlice) String() string {
+	return fmt.Sprintf("{%v}%v", len(i), ([]int)(i))
+}
+
+func (i *IntSlice) Set(v ...int) {
+	*i = v
+}
+
+func (i IntSlice) Append(v ...int) int {
+	var sum int
+	for _, n := range i {
+		sum += n
+	}
+	for _, n := range v {
+		sum += n
+	}
+	return sum
+}
+
 func TestSliceMethodOf(t *testing.T) {
-	styp := reflectx.NamedTypeOf("main", "IntSlice", reflect.TypeOf([]int{}))
+	// IntSlice type
+	var i IntSlice
+	i.Set(100, 200, 300)
+	if v := i.String(); v != "{3}[100 200 300]" {
+		t.Fatalf("have %v, want {3}[100 200 300]", v)
+	}
+	if v := i.Append(200, 300, 400); v != 1500 {
+		t.Fatalf("have %v, want 1500", v)
+	}
+	// make IntSlice type
+	intSliceTyp := reflect.TypeOf([]int{})
+	styp := reflectx.NamedTypeOf("main", "IntSlice", intSliceTyp)
 	var typ reflect.Type
 	mString := reflectx.MakeMethod(
 		"String",
@@ -98,14 +157,14 @@ func TestSliceMethodOf(t *testing.T) {
 		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
 		func(args []reflect.Value) []reflect.Value {
 			v := args[0]
-			info := fmt.Sprintf("(%v)", v.Convert(intSliceType))
+			info := fmt.Sprintf("{%v}%v", v.Len(), v.Convert(intSliceTyp))
 			return []reflect.Value{reflect.ValueOf(info)}
 		},
 	)
 	mSet := reflectx.MakeMethod(
 		"Set",
 		true,
-		reflect.FuncOf([]reflect.Type{intSliceType}, nil, false),
+		reflect.FuncOf([]reflect.Type{intSliceTyp}, nil, true),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0].Elem()
 			v.Set(args[1])
@@ -141,31 +200,62 @@ func TestSliceMethodOf(t *testing.T) {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	pv := reflectx.New(typ).Elem()
+	x := reflectx.New(typ).Elem()
+	x.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200), reflect.ValueOf(300)})
 
-	pv.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf([]int{100, 200, 300})})
-
-	if v := fmt.Sprint(reflectx.Interface(pv)); v != "([100 200 300])" {
-		t.Fatalf("String(): have %v, want ([100 200 300])", v)
+	// String
+	if v := fmt.Sprint(reflectx.Interface(x)); v != "{3}[100 200 300]" {
+		t.Fatalf("String(): have %v, want {3}[100 200 300]", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(pv.Addr())); v != "([100 200 300])" {
-		t.Fatalf("ptrTyp String(): have %v, want ([100 200 300])", v)
+	if v := fmt.Sprint(reflectx.Interface(x.Addr())); v != "{3}[100 200 300]" {
+		t.Fatalf("ptrTyp String(): have %v, want {3}[100 200 300]", v)
 	}
 
 	// Append
-	m0, _ := reflectx.MethodByName(typ, "Append")
-	r0 := m0.Func.Call([]reflect.Value{pv, reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := r0[0].Int(); v != 1500 {
-		t.Fatalf("typ reflectx.MethodByName Testv: have %v, want 1000", v)
+	m, _ := reflectx.MethodByName(typ, "Append")
+	r := m.Func.Call([]reflect.Value{x, reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
+	if v := r[0].Int(); v != 1500 {
+		t.Fatalf("typ reflectx.MethodByName Append: have %v, want 1000", v)
 	}
-	r0 = pv.MethodByName("Append").Call([]reflect.Value{reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := r0[0].Int(); v != 1500 {
-		t.Fatalf("typ value.MethodByName Testv: have %v, want 1000", v)
+	r = x.MethodByName("Append").Call([]reflect.Value{reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
+	if v := r[0].Int(); v != 1500 {
+		t.Fatalf("typ value.MethodByName Append: have %v, want 1000", v)
 	}
 }
 
+type IntArray [2]int
+
+func (i IntArray) String() string {
+	return fmt.Sprintf("(%v,%v)", i[0], i[1])
+}
+
+func (i *IntArray) Set(x, y int) {
+	*(*int)(&i[0]), *(*int)(&i[1]) = x, y
+}
+
+func (i IntArray) Get() (int, int) {
+	return i[0], i[1]
+}
+
+func (i IntArray) Scale(v int) IntArray {
+	return IntArray{i[0] * v, i[1] * v}
+}
+
 func TestArrayMethodOf(t *testing.T) {
-	styp := reflectx.NamedTypeOf("main", "Point", reflect.TypeOf([2]int{}))
+	// IntArray
+	var i IntArray
+	i.Set(100, 200)
+	if v := fmt.Sprint(i); v != "(100,200)" {
+		t.Fatalf("have %v, want (100,200)", v)
+	}
+	if v1, v2 := i.Get(); v1 != 100 || v2 != 200 {
+		t.Fatalf("have %v %v, want 100 200)", v1, v2)
+	}
+	if v := fmt.Sprint(i.Scale(5)); v != "(500,1000)" {
+		t.Fatalf("have %v, want (500,1000)", v)
+	}
+	// make IntArray
+	styp := reflectx.NamedTypeOf("main", "IntArray", reflect.TypeOf([2]int{}))
 	var typ reflect.Type
 	mString := reflectx.MakeMethod(
 		"String",
@@ -197,44 +287,106 @@ func TestArrayMethodOf(t *testing.T) {
 			return []reflect.Value{v.Index(0), v.Index(1)}
 		},
 	)
+	mScale := reflectx.MakeMethod(
+		"Scale",
+		false,
+		reflect.FuncOf([]reflect.Type{intTyp}, []reflect.Type{styp}, false),
+		func(args []reflect.Value) (result []reflect.Value) {
+			v := args[0]
+			s := args[1].Int()
+			r := reflect.New(typ).Elem()
+			r.Index(0).SetInt(v.Index(0).Int() * s)
+			r.Index(1).SetInt(v.Index(1).Int() * s)
+			return []reflect.Value{r}
+		},
+	)
 	typ = reflectx.MethodOf(styp, []reflectx.Method{
 		mString,
 		mSet,
 		mGet,
+		mScale,
 	})
 	ptrType := reflect.PtrTo(typ)
 
-	if n := typ.NumMethod(); n != 2 {
+	if n := typ.NumMethod(); n != 3 {
 		t.Fatal("typ.NumMethod()", n)
 	}
-	if n := ptrType.NumMethod(); n != 3 {
+	if n := ptrType.NumMethod(); n != 4 {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	pv := reflectx.New(typ).Elem()
+	x := reflectx.New(typ).Elem()
+	x.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
 
-	pv.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-
-	if v := fmt.Sprint(reflectx.Interface(pv)); v != "(100,200)" {
+	// String
+	if v := fmt.Sprint(reflectx.Interface(x)); v != "(100,200)" {
 		t.Fatalf("String(): have %v, want (100,200)", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(pv.Addr())); v != "(100,200)" {
+	if v := fmt.Sprint(reflectx.Interface(x.Addr())); v != "(100,200)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100,200)", v)
 	}
 
 	// Get
-	m0, _ := reflectx.MethodByName(typ, "Get")
-	r0 := m0.Func.Call([]reflect.Value{pv})
-	if len(r0) != 2 || r0[0].Int() != 100 || r0[1].Int() != 200 {
-		t.Fatalf("typ reflectx.MethodByName Get: have %v, want 100 200", r0)
+	m, _ := reflectx.MethodByName(typ, "Get")
+	r := m.Func.Call([]reflect.Value{x})
+	if len(r) != 2 || r[0].Int() != 100 || r[1].Int() != 200 {
+		t.Fatalf("typ reflectx.MethodByName Get: have %v, want 100 200", r)
 	}
-	r0 = pv.MethodByName("Get").Call(nil)
-	if len(r0) != 2 || r0[0].Int() != 100 || r0[1].Int() != 200 {
-		t.Fatalf("typ value.MethodByName Get: have %v, want 100 200", r0)
+	r = x.MethodByName("Get").Call(nil)
+	if len(r) != 2 || r[0].Int() != 100 || r[1].Int() != 200 {
+		t.Fatalf("typ value.MethodByName Get: have %v, want 100 200", r)
+	}
+
+	// Scale
+	m, _ = reflectx.MethodByName(typ, "Scale")
+	r = m.Func.Call([]reflect.Value{x, reflect.ValueOf(5)})
+	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(500,1000)" {
+		t.Fatalf("typ reflectx.MethodByName Scale: have %v, want (500,1000)", v)
+	}
+	r = x.MethodByName("Scale").Call([]reflect.Value{reflect.ValueOf(5)})
+	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(500,1000)" {
+		t.Fatalf("typ value.MethodByName Scale: have %v, want (500,1000)", v)
 	}
 }
 
+type Point struct {
+	X int
+	Y int
+}
+
+func (i Point) String() string {
+	return fmt.Sprintf("(%v,%v)", i.X, i.Y)
+}
+
+func (i Point) Add(v Point) Point {
+	return Point{i.X + v.X, i.Y + v.Y}
+}
+
+func (i *Point) Set(x, y int) {
+	i.X, i.Y = x, y
+}
+
+func (i Point) Scale(v ...int) (ar []Point) {
+	for _, n := range v {
+		ar = append(ar, Point{i.X * n, i.Y * n})
+	}
+	return
+}
+
 func TestStructMethodOf(t *testing.T) {
+	// tPoint
+	var i Point
+	i.Set(100, 200)
+	if v := fmt.Sprint(i); v != "(100,200)" {
+		t.Fatalf("want %v, have (100,200)", v)
+	}
+	if v := fmt.Sprint(i.Add(Point{1, 2})); v != "(101,202)" {
+		t.Fatalf("want %v, have (101,202)", v)
+	}
+	if v := fmt.Sprint(i.Scale(2, 3, 4)); v != "[(200,400) (300,600) (400,800)]" {
+		t.Fatalf("want %v, have [(200,400) (300,600) (400,800)]", v)
+	}
+	// make Point
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
@@ -273,23 +425,28 @@ func TestStructMethodOf(t *testing.T) {
 			return
 		},
 	)
-	mTestv := reflectx.MakeMethod(
-		"Testv",
+	mScale := reflectx.MakeMethod(
+		"Scale",
 		false,
-		reflect.FuncOf([]reflect.Type{reflect.SliceOf(intTyp)}, []reflect.Type{intTyp}, true),
+		reflect.FuncOf([]reflect.Type{reflect.SliceOf(intTyp)}, []reflect.Type{reflect.SliceOf(styp)}, true),
 		func(args []reflect.Value) (result []reflect.Value) {
-			var sum int64 = args[0].Field(0).Int() + args[0].Field(1).Int()
+			x, y := args[0].Field(0).Int(), args[0].Field(1).Int()
+			r := reflect.MakeSlice(reflect.SliceOf(typ), 0, 0)
 			for i := 0; i < args[1].Len(); i++ {
-				sum += args[1].Index(i).Int()
+				s := args[1].Index(i).Int()
+				v := reflectx.New(typ).Elem()
+				v.Field(0).SetInt(x * s)
+				v.Field(1).SetInt(y * s)
+				r = reflect.Append(r, v)
 			}
-			return []reflect.Value{reflect.ValueOf(int(sum))}
+			return []reflect.Value{r}
 		},
 	)
 	typ = reflectx.MethodOf(styp, []reflectx.Method{
 		mAdd,
 		mString,
 		mSet,
-		mTestv,
+		mScale,
 	})
 	ptrType := reflect.PtrTo(typ)
 
@@ -318,45 +475,52 @@ func TestStructMethodOf(t *testing.T) {
 
 	// typ Add
 	m, _ := reflectx.MethodByName(typ, "Add")
-	r0 := m.Func.Call([]reflect.Value{pt1, pt2})
-	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
+	r := m.Func.Call([]reflect.Value{pt1, pt2})
+	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
 		t.Fatalf("type reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
-	r0 = pt1.MethodByName("Add").Call([]reflect.Value{pt2})
-	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
+	r = pt1.MethodByName("Add").Call([]reflect.Value{pt2})
+	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
 		t.Fatalf("value.MethodByName Add: have %v, want (400,600)", v)
 	}
 
 	// ptrtyp Add
 	m, _ = reflectx.MethodByName(ptrType, "Add")
-	r0 = m.Func.Call([]reflect.Value{pt1.Addr(), pt2})
-	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
+	r = m.Func.Call([]reflect.Value{pt1.Addr(), pt2})
+	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
 		t.Fatalf("ptrType reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
-	r0 = pt1.Addr().MethodByName("Add").Call([]reflect.Value{pt2})
-	if v := fmt.Sprint(reflectx.Interface(r0[0])); v != "(400,600)" {
+	r = pt1.Addr().MethodByName("Add").Call([]reflect.Value{pt2})
+	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
 		t.Fatalf("ptrType value.reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 
 	// Set
-	m0, _ := reflectx.MethodByName(ptrType, "Set")
-	m0.Func.Call([]reflect.Value{pt1.Addr(), reflect.ValueOf(-100), reflect.ValueOf(-200)})
+	m, _ = reflectx.MethodByName(ptrType, "Set")
+	m.Func.Call([]reflect.Value{pt1.Addr(), reflect.ValueOf(-100), reflect.ValueOf(-200)})
 	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(-100,-200)" {
 		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (-100,-200)", v)
 	}
-	pt1.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(1), reflect.ValueOf(2)})
-	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(1,2)" {
-		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (1,2)", v)
+	pt1.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(100,200)" {
+		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (100,200)", v)
 	}
 
-	// Testv
-	m0, _ = reflectx.MethodByName(typ, "Testv")
-	r0 = m0.Func.Call([]reflect.Value{pt2, reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := r0[0].Int(); v != 1600 {
-		t.Fatalf("typ reflectx.MethodByName Testv: have %v, want 1600", v)
+	// Scale
+	m, _ = reflectx.MethodByName(typ, "Scale")
+	r = m.Func.Call([]reflect.Value{pt1, reflect.ValueOf(2), reflect.ValueOf(3), reflect.ValueOf(4)})
+	if v := fmt.Sprint(v2is(r[0])); v != "[(200,400) (300,600) (400,800)]" {
+		t.Fatalf("want %v, have [(200,400) (300,600) (400,800)]", v)
 	}
-	r0 = pt2.MethodByName("Testv").Call([]reflect.Value{reflect.ValueOf(200), reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := r0[0].Int(); v != 1600 {
-		t.Fatalf("typ value.MethodByName Testv: have %v, want 1600", v)
+	r = pt1.MethodByName("Scale").Call([]reflect.Value{reflect.ValueOf(2), reflect.ValueOf(3), reflect.ValueOf(4)})
+	if v := fmt.Sprint(v2is(r[0])); v != "[(200,400) (300,600) (400,800)]" {
+		t.Fatalf("want %v, have [(200,400) (300,600) (400,800)]", v)
 	}
+}
+
+func v2is(v reflect.Value) (is []interface{}) {
+	for i := 0; i < v.Len(); i++ {
+		is = append(is, reflectx.Interface(v.Index(i)))
+	}
+	return is
 }
