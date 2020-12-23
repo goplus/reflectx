@@ -13,7 +13,6 @@ var (
 	boolTyp = reflect.TypeOf(true)
 	intTyp  = reflect.TypeOf(0)
 	strTyp  = reflect.TypeOf("")
-	iType   = reflect.TypeOf((*interface{})(nil)).Elem()
 )
 
 type Int int
