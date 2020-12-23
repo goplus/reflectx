@@ -212,3 +212,85 @@ func totype(typ reflect.Type) *rtype {
 	rt := (*Value)(unsafe.Pointer(&v)).typ
 	return rt
 }
+
+func (t *uncommonType) methods() []method {
+	if t.mcount == 0 {
+		return nil
+	}
+	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.moff), "t.mcount > 0"))[:t.mcount:t.mcount]
+}
+
+func (t *uncommonType) exportedMethods() []method {
+	if t.xcount == 0 {
+		return nil
+	}
+	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.moff), "t.xcount > 0"))[:t.xcount:t.xcount]
+}
+
+func tovalue(v *reflect.Value) *Value {
+	return (*Value)(unsafe.Pointer(v))
+}
+
+func (t *rtype) uncommon() *uncommonType {
+	return toUncommonType(t)
+}
+
+func (t *rtype) exportedMethods() []method {
+	ut := t.uncommon()
+	if ut == nil {
+		return nil
+	}
+	return ut.exportedMethods()
+}
+
+func (t *rtype) methods() []method {
+	ut := t.uncommon()
+	if ut == nil {
+		return nil
+	}
+	return ut.methods()
+}
+
+func (t *funcType) in() []*rtype {
+	uadd := unsafe.Sizeof(*t)
+	if t.tflag&tflagUncommon != 0 {
+		uadd += unsafe.Sizeof(uncommonType{})
+	}
+	if t.inCount == 0 {
+		return nil
+	}
+	return (*[1 << 20]*rtype)(add(unsafe.Pointer(t), uadd, "t.inCount > 0"))[:t.inCount:t.inCount]
+}
+
+func (t *funcType) out() []*rtype {
+	uadd := unsafe.Sizeof(*t)
+	if t.tflag&tflagUncommon != 0 {
+		uadd += unsafe.Sizeof(uncommonType{})
+	}
+	outCount := t.outCount & (1<<15 - 1)
+	if outCount == 0 {
+		return nil
+	}
+	return (*[1 << 20]*rtype)(add(unsafe.Pointer(t), uadd, "outCount > 0"))[t.inCount : t.inCount+outCount : t.inCount+outCount]
+}
+
+func (t *rtype) IsVariadic() bool {
+	if t.Kind() != reflect.Func {
+		panic("reflect: IsVariadic of non-func type " + toType(t).String())
+	}
+	tt := (*funcType)(unsafe.Pointer(t))
+	return tt.outCount&(1<<15) != 0
+}
+
+type makeFuncImpl struct {
+	code   uintptr
+	stack  *bitVector // ptrmap for both args and results
+	argLen uintptr    // just args
+	ftyp   *funcType
+	fn     func([]reflect.Value) []reflect.Value
+}
+
+type bitVector struct {
+	n    uint32 // number of bits
+	data []byte
+}

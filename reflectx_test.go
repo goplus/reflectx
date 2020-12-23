@@ -10,13 +10,13 @@ import (
 	"github.com/goplus/reflectx"
 )
 
-type Point struct {
+type nPoint struct {
 	x int
 	y int
 }
 
 func TestFieldCanSet(t *testing.T) {
-	x := &Point{10, 20}
+	x := &nPoint{10, 20}
 	v := reflect.ValueOf(x).Elem()
 
 	sf := v.Field(0)
@@ -40,24 +40,24 @@ func TestFieldCanSet(t *testing.T) {
 }
 
 type Rect struct {
-	pt1 Point
-	pt2 *Point
+	pt1 nPoint
+	pt2 *nPoint
 }
 
 func TestField(t *testing.T) {
-	x := &Rect{Point{1, 2}, &Point{3, 4}}
+	x := &Rect{nPoint{1, 2}, &nPoint{3, 4}}
 	v := reflect.ValueOf(x).Elem()
-	reflectx.Field(v, 0).Set(reflect.ValueOf(Point{10, 20}))
+	reflectx.Field(v, 0).Set(reflect.ValueOf(nPoint{10, 20}))
 	if x.pt1.x != 10 || x.pt1.y != 20 {
 		t.Fatalf("pt1 %v", x.pt1)
 	}
-	reflectx.FieldByName(v, "pt2").Set(reflect.ValueOf(&Point{30, 40}))
+	reflectx.FieldByName(v, "pt2").Set(reflect.ValueOf(&nPoint{30, 40}))
 	if x.pt2.x != 30 || x.pt2.y != 40 {
 		t.Fatalf("pt2 %v", x.pt2)
 	}
 	reflectx.FieldByNameFunc(v, func(name string) bool {
 		return name == "pt2"
-	}).Set(reflect.ValueOf(&Point{50, 60}))
+	}).Set(reflect.ValueOf(&nPoint{50, 60}))
 	if x.pt2.x != 50 || x.pt2.y != 60 {
 		t.Fatalf("pt2 %v", x.pt2)
 	}
@@ -144,7 +144,7 @@ var (
 	fn = func(int, string) (bool, int) {
 		return true, 0
 	}
-	fn2 = func(*Point, int, bool, []byte) int {
+	fn2 = func(*nPoint, int, bool, []byte) int {
 		return 0
 	}
 	testNamedType = []interface{}{
@@ -216,7 +216,7 @@ func TestNamedType(t *testing.T) {
 }
 
 func TestNamedTypeStruct(t *testing.T) {
-	typ := reflect.TypeOf((*Point)(nil)).Elem()
+	typ := reflect.TypeOf((*nPoint)(nil)).Elem()
 	pkgpath := typ.PkgPath()
 	nt := reflectx.NamedTypeOf(pkgpath, "MyPoint", typ)
 	nt2 := reflectx.NamedTypeOf(pkgpath, "MyPoint2", typ)

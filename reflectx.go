@@ -77,6 +77,7 @@ type TypeKind int
 const (
 	TkInvalid TypeKind = iota
 	TkStruct
+	TkMethod
 	TkType
 	TkInterface
 )
@@ -92,6 +93,11 @@ type Named struct {
 func IsNamed(typ reflect.Type) bool {
 	_, ok := ntypeMap[typ]
 	return ok
+}
+
+func IsMethod(typ reflect.Type) bool {
+	v, ok := ntypeMap[typ]
+	return ok && v.Kind == TkMethod
 }
 
 func ToNamed(typ reflect.Type) (t *Named, ok bool) {

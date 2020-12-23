@@ -53,6 +53,9 @@ func newName(n, tag string, exported bool) name
 //go:linkname resolveReflectName reflect.resolveReflectName
 func resolveReflectName(n name) nameOff
 
+//go:linkname toType reflect.toType
+func toType(t *rtype) reflect.Type
+
 func (t *rtype) nameOff(off nameOff) name {
 	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
 }
@@ -63,6 +66,19 @@ func (t *rtype) typeOff(off typeOff) *rtype {
 
 func (t *rtype) textOff(off textOff) unsafe.Pointer {
 	return resolveTextOff(unsafe.Pointer(t), int32(off))
+}
+
+// resolveReflectType adds a *rtype to the reflection lookup map in the runtime.
+// It returns a new typeOff that can be used to refer to the pointer.
+func resolveReflectType(t *rtype) typeOff {
+	return typeOff(addReflectOff(unsafe.Pointer(t)))
+}
+
+// resolveReflectText adds a function pointer to the reflection lookup map in
+// the runtime. It returns a new textOff that can be used to refer to the
+// pointer.
+func resolveReflectText(ptr unsafe.Pointer) textOff {
+	return textOff(addReflectOff(ptr))
 }
 
 type nameOff int32
