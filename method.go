@@ -329,11 +329,18 @@ func New(typ reflect.Type) reflect.Value {
 }
 
 func Interface(v reflect.Value) interface{} {
-	i := v.Interface()
-	if i != nil && IsMethod(v.Type()) {
-		storeMethodValue(reflect.ValueOf(i))
+	if t, ok := ntypeMap[v.Type()]; ok {
+		switch t.Kind {
+		case TkMethod:
+			i := v.Interface()
+			if i != nil {
+				storeMethodValue(reflect.ValueOf(i))
+			}
+			return i
+		case TkType:
+		}
 	}
-	return i
+	return v.Interface()
 }
 
 func toElem(typ reflect.Type) reflect.Type {
