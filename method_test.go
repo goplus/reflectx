@@ -9,10 +9,13 @@ import (
 )
 
 var (
-	byteTyp = reflect.TypeOf(byte('a'))
-	boolTyp = reflect.TypeOf(true)
-	intTyp  = reflect.TypeOf(0)
-	strTyp  = reflect.TypeOf("")
+	byteTyp           = reflect.TypeOf(byte('a'))
+	boolTyp           = reflect.TypeOf(true)
+	intTyp            = reflect.TypeOf(0)
+	strTyp            = reflect.TypeOf("")
+	emptyStructTyp    = reflect.TypeOf((*struct{})(nil)).Elem()
+	emptyInterfaceTyp = reflect.TypeOf((*interface{})(nil)).Elem()
+	emtpyStruct       struct{}
 )
 
 type Int int
@@ -522,4 +525,152 @@ func v2is(v reflect.Value) (is []interface{}) {
 		is = append(is, reflectx.Interface(v.Index(i)))
 	}
 	return is
+}
+
+type testMethodStack struct {
+	name    string
+	mtyp    reflect.Type
+	fun     func([]reflect.Value) []reflect.Value
+	args    []reflect.Value
+	result  []reflect.Value
+	pointer bool
+}
+
+var (
+	testMethodStacks = []testMethodStack{
+		testMethodStack{
+			"Empty",
+			reflect.FuncOf(nil, nil, false),
+			func(args []reflect.Value) []reflect.Value {
+				if len(args) != 1 {
+					panic(fmt.Errorf("args have %v, want nil", args[1:]))
+				}
+				return nil
+			},
+			nil,
+			nil,
+			false,
+		},
+		testMethodStack{
+			"Empty Struct",
+			reflect.FuncOf([]reflect.Type{emptyStructTyp}, []reflect.Type{emptyStructTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{args[1]}
+			},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct)},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct)},
+			false,
+		},
+		testMethodStack{
+			"Empty Struct2",
+			reflect.FuncOf([]reflect.Type{emptyStructTyp, intTyp, emptyStructTyp}, []reflect.Type{emptyStructTyp, intTyp, emptyStructTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{args[1], args[2], args[3]}
+			},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(100), reflect.ValueOf(emtpyStruct)},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(100), reflect.ValueOf(emtpyStruct)},
+			false,
+		},
+		testMethodStack{
+			"Empty Struct3",
+			reflect.FuncOf([]reflect.Type{emptyStructTyp, emptyStructTyp, intTyp, emptyStructTyp}, []reflect.Type{intTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{args[3]}
+			},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(100), reflect.ValueOf(emtpyStruct)},
+			[]reflect.Value{reflect.ValueOf(100)},
+			false,
+		},
+		testMethodStack{
+			"Empty Struct4",
+			reflect.FuncOf([]reflect.Type{emptyStructTyp, emptyStructTyp, intTyp, emptyStructTyp}, []reflect.Type{emptyStructTyp, emptyStructTyp, emptyStructTyp, boolTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(true)}
+			},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(100), reflect.ValueOf(emtpyStruct)},
+			[]reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(true)},
+			false,
+		},
+		testMethodStack{
+			"Bool_Nil",
+			reflect.FuncOf([]reflect.Type{boolTyp}, nil, false),
+			func(args []reflect.Value) []reflect.Value {
+				return nil
+			},
+			[]reflect.Value{reflect.ValueOf(true)},
+			nil,
+			false,
+		},
+		testMethodStack{
+			"Bool_Bool",
+			reflect.FuncOf([]reflect.Type{boolTyp}, []reflect.Type{boolTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{args[1]}
+			},
+			[]reflect.Value{reflect.ValueOf(true)},
+			[]reflect.Value{reflect.ValueOf(true)},
+			false,
+		},
+		testMethodStack{
+			"Int_Int",
+			reflect.FuncOf([]reflect.Type{intTyp}, []reflect.Type{intTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				v := 300 + args[1].Int()
+				return []reflect.Value{reflect.ValueOf(int(v))}
+			},
+			[]reflect.Value{reflect.ValueOf(-200)},
+			[]reflect.Value{reflect.ValueOf(100)},
+			false,
+		},
+		testMethodStack{
+			"Big Bytes_ByteInt",
+			reflect.FuncOf([]reflect.Type{reflect.TypeOf([4096]byte{})}, []reflect.Type{byteTyp, intTyp, byteTyp}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{args[1].Index(1), reflect.ValueOf(args[1].Len()), args[1].Index(3)}
+			},
+			[]reflect.Value{reflect.ValueOf([4096]byte{'a', 'b', 'c', 'd', 'e'})},
+			[]reflect.Value{reflect.ValueOf('b'), reflect.ValueOf(4096), reflect.ValueOf('d')},
+			true,
+		},
+	}
+)
+
+func TestMethodStack(t *testing.T) {
+	// make Point
+	fs := []reflect.StructField{
+		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
+		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
+	}
+	styp := reflectx.NamedStructOf("main", "Point", fs)
+	var methods []reflectx.Method
+	var typ reflect.Type
+	for _, m := range testMethodStacks {
+		mm := reflectx.MakeMethod(
+			m.name,
+			m.pointer,
+			m.mtyp,
+			m.fun,
+		)
+		methods = append(methods, mm)
+	}
+	typ = reflectx.MethodOf(styp, methods)
+	v := reflectx.New(typ).Elem()
+	v.Field(0).SetInt(100)
+	v.Field(1).SetInt(200)
+	for _, m := range testMethodStacks {
+		var r []reflect.Value
+		if m.pointer {
+			r = v.Addr().MethodByName(m.name).Call(m.args)
+		} else {
+			r = v.MethodByName(m.name).Call(m.args)
+		}
+		if len(r) != len(m.result) {
+			t.Fatalf("failed %v %v, have %v want %v", m.name, m.mtyp, r, m.result)
+		}
+		for i := 0; i < len(r); i++ {
+			if fmt.Sprint(r[i]) != fmt.Sprint(m.result[i]) {
+				t.Fatalf("failed %v, have %v want %v", m.name, r[i], m.result[i])
+			}
+		}
+	}
 }
