@@ -237,3 +237,63 @@ func SetValue(v reflect.Value, x reflect.Value) {
 		v.Set(x)
 	}
 }
+
+func Interface(v reflect.Value) interface{} {
+	if t, ok := ntypeMap[v.Type()]; ok {
+		switch t.Kind {
+		case TkMethod:
+			i := v.Interface()
+			if i != nil {
+				storeMethodValue(reflect.ValueOf(i))
+			}
+			return i
+		case TkType:
+			return typeInterface(v)
+		}
+	}
+	return v.Interface()
+}
+
+func typeInterface(v reflect.Value) interface{} {
+	ptr := tovalue(&v).ptr
+	switch v.Kind() {
+	case reflect.Bool:
+		return *(*bool)(ptr)
+	case reflect.Int:
+		return *(*int)(ptr)
+	case reflect.Int8:
+		return *(*int8)(ptr)
+	case reflect.Int16:
+		return *(*int16)(ptr)
+	case reflect.Int32:
+		return *(*int32)(ptr)
+	case reflect.Int64:
+		return *(*int64)(ptr)
+	case reflect.Uint:
+		return *(*uint)(ptr)
+	case reflect.Uint8:
+		return *(*uint8)(ptr)
+	case reflect.Uint16:
+		return *(*uint16)(ptr)
+	case reflect.Uint32:
+		return *(*uint32)(ptr)
+	case reflect.Uint64:
+		return *(*int64)(ptr)
+	case reflect.Uintptr:
+		return *(*uintptr)(ptr)
+	case reflect.Float32:
+		return *(*float32)(ptr)
+	case reflect.Float64:
+		return *(*float64)(ptr)
+	case reflect.Complex64:
+		return *(*complex64)(ptr)
+	case reflect.Complex128:
+		return *(*complex128)(ptr)
+	case reflect.String:
+		return *(*string)(ptr)
+	case reflect.UnsafePointer:
+		return *(*unsafe.Pointer)(ptr)
+	default:
+		return v.Interface()
+	}
+}
