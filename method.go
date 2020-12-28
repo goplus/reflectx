@@ -345,7 +345,11 @@ const (
 )
 
 func methodArgsOffsize(typ reflect.Type) (off uintptr) {
-	for i := 1; i < typ.NumIn(); i++ {
+	numIn := typ.NumIn()
+	if numIn == 1 {
+		return 0
+	}
+	for i := 1; i < numIn; i++ {
 		t := typ.In(i)
 		targ := totype(t)
 		a := uintptr(targ.align)
