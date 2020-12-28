@@ -13,9 +13,6 @@ import (
 //go:linkname memmove reflect.memmove
 func memmove(dst, src unsafe.Pointer, size uintptr)
 
-//go:linkname checkptrBase runtime.checkptrBase
-func checkptrBase(p unsafe.Pointer) uintptr
-
 type Method struct {
 	Name    string        // method Name
 	Type    reflect.Type  // method type without receiver
@@ -82,7 +79,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		funcImpl := (*makeFuncImpl)(tovalue(&m.Func).ptr)
 		funcImpl.ftyp = (*funcType)(unsafe.Pointer(totype(ftyp)))
 		sz := int(inTyp.Size())
-		_, ifunc := icall(i, sz, m.Type.NumOut() > 0, true)
+		ifunc := icall(i, true)
 		var pifn, tfn, ptfn textOff
 		if ifunc == nil {
 			log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
@@ -106,6 +103,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		} else {
 			ptfn = tfn
 		}
+		isz := argsTypeSize(inTyp, true)
+		osz := argsTypeSize(outTyp, false)
 
 		pms[i].name = name
 		pms[i].mtyp = mtyp
@@ -116,11 +115,13 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			outTyp:   outTyp,
 			name:     m.Name,
 			index:    pindex,
+			isz:      isz,
+			osz:      osz,
 			pointer:  m.Pointer,
 			variadic: m.Type.IsVariadic(),
 		})
 		if !m.Pointer {
-			_, ifunc := icall(index, int(sz), m.Type.NumOut() > 0, false)
+			ifunc := icall(index, false)
 			var ifn textOff
 			if ifunc == nil {
 				log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
@@ -136,6 +137,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 				outTyp:   outTyp,
 				name:     m.Name,
 				index:    index,
+				isz:      isz,
+				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
 			})
@@ -286,6 +289,8 @@ type methodInfo struct {
 	outTyp   reflect.Type
 	name     string
 	index    int
+	isz      uintptr
+	osz      uintptr
 	pointer  bool
 	variadic bool
 }
@@ -343,11 +348,40 @@ func storeMethodValue(v reflect.Value) {
 	ptrTypeMap[ptr] = toElem(v.Type())
 }
 
-func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
+const (
+	uintptrAligin = unsafe.Sizeof(uintptr(0))
+)
+
+func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
+	numIn := typ.NumField()
+	if numIn == 0 {
+		return 0
+	}
+	for i := 0; i < numIn; i++ {
+		t := typ.Field(i).Type
+		targ := totype(t)
+		a := uintptr(targ.align)
+		off = (off + a - 1) &^ (a - 1)
+		n := targ.size
+		if n == 0 {
+			continue
+		}
+		off += n
+	}
+	if offset {
+		off = (off + uintptrAligin - 1) &^ (uintptrAligin - 1)
+		if off == 0 {
+			return uintptrAligin
+		}
+	}
+	return
+}
+
+func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	typ, ok := ptrTypeMap[ptr]
-	if !ok || typ == nil {
+	if !ok {
 		log.Println("cannot found ptr type", ptr)
-		return nil
+		return false
 	}
 	if ptrto {
 		typ = reflect.PtrTo(typ)
@@ -355,6 +389,7 @@ func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
 	infos, ok := typInfoMap[typ]
 	if !ok {
 		log.Println("cannot found type info", typ)
+		return false
 	}
 	info := infos[i]
 	var method reflect.Method
@@ -363,7 +398,6 @@ func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
 	} else {
 		method = MethodByIndex(typ, info.index)
 	}
-	var in []reflect.Value
 	var receiver reflect.Value
 	if ptrto {
 		receiver = reflect.NewAt(typ.Elem(), ptr)
@@ -373,10 +407,23 @@ func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
 	} else {
 		receiver = reflect.NewAt(typ, ptr).Elem()
 	}
-	in = append(in, receiver)
-	inCount := method.Type.NumIn()
-	if inCount > 1 {
-		inArgs := reflect.NewAt(info.inTyp, unsafe.Pointer(&p[0])).Elem()
+	in := []reflect.Value{receiver}
+
+	if inCount := method.Type.NumIn(); inCount > 1 {
+		sz := info.inTyp.Size()
+		buf := make([]byte, sz, sz)
+		if sz > info.isz {
+			sz = info.isz
+		}
+		for i := uintptr(0); i < sz; i++ {
+			buf[i] = *(*byte)(add(p, i, ""))
+		}
+		var inArgs reflect.Value
+		if sz == 0 {
+			inArgs = reflect.New(info.inTyp).Elem()
+		} else {
+			inArgs = reflect.NewAt(info.inTyp, unsafe.Pointer(&buf[0])).Elem()
+		}
 		if info.variadic {
 			for i := 1; i < inCount-1; i++ {
 				in = append(in, inArgs.Field(i-1))
@@ -392,15 +439,15 @@ func i_x(i int, ptr unsafe.Pointer, p []byte, ptrto bool) []byte {
 		}
 	}
 	r := method.Func.Call(in)
-	if len(r) > 0 {
+	if info.outTyp.NumField() > 0 {
 		out := reflect.New(info.outTyp).Elem()
 		for i, v := range r {
 			out.Field(i).Set(v)
 		}
-		osz := info.outTyp.Size()
-		data := make([]byte, osz, osz)
-		memmove(unsafe.Pointer(&data), unsafe.Pointer(out.UnsafeAddr()), osz)
-		return data
+		po := unsafe.Pointer(out.UnsafeAddr())
+		for i := uintptr(0); i < info.osz; i++ {
+			*(*byte)(add(p, info.isz+i, "")) = *(*byte)(add(po, uintptr(i), ""))
+		}
 	}
-	return nil
+	return true
 }
