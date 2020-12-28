@@ -103,6 +103,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		} else {
 			ptfn = tfn
 		}
+		isz := argsTypeSize(inTyp, true)
+		osz := argsTypeSize(outTyp, false)
 
 		pms[i].name = name
 		pms[i].mtyp = mtyp
@@ -113,6 +115,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			outTyp:   outTyp,
 			name:     m.Name,
 			index:    pindex,
+			isz:      isz,
+			osz:      osz,
 			pointer:  m.Pointer,
 			variadic: m.Type.IsVariadic(),
 		})
@@ -133,6 +137,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 				outTyp:   outTyp,
 				name:     m.Name,
 				index:    index,
+				isz:      isz,
+				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
 			})
@@ -283,6 +289,8 @@ type methodInfo struct {
 	outTyp   reflect.Type
 	name     string
 	index    int
+	isz      uintptr
+	osz      uintptr
 	pointer  bool
 	variadic bool
 }
@@ -344,13 +352,13 @@ const (
 	uintptrAligin = unsafe.Sizeof(uintptr(0))
 )
 
-func methodArgsOffsize(typ reflect.Type) (off uintptr) {
-	numIn := typ.NumIn()
-	if numIn == 1 {
+func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
+	numIn := typ.NumField()
+	if numIn == 0 {
 		return 0
 	}
-	for i := 1; i < numIn; i++ {
-		t := typ.In(i)
+	for i := 0; i < numIn; i++ {
+		t := typ.Field(i).Type
 		targ := totype(t)
 		a := uintptr(targ.align)
 		off = (off + a - 1) &^ (a - 1)
@@ -360,24 +368,11 @@ func methodArgsOffsize(typ reflect.Type) (off uintptr) {
 		}
 		off += n
 	}
-	off = (off + uintptrAligin - 1) &^ (uintptrAligin - 1)
-	if off == 0 {
-		return uintptrAligin
-	}
-	return
-}
-
-func methodReturnSize(typ reflect.Type) (off uintptr) {
-	for i := 0; i < typ.NumOut(); i++ {
-		t := typ.Out(i)
-		targ := totype(t)
-		a := uintptr(targ.align)
-		off = (off + a - 1) &^ (a - 1)
-		n := targ.size
-		if n == 0 {
-			continue
+	if offset {
+		off = (off + uintptrAligin - 1) &^ (uintptrAligin - 1)
+		if off == 0 {
+			return uintptrAligin
 		}
-		off += n
 	}
 	return
 }
@@ -414,19 +409,17 @@ func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	}
 	in := []reflect.Value{receiver}
 
-	var ioff uintptr
 	if inCount := method.Type.NumIn(); inCount > 1 {
-		ioff = methodArgsOffsize(method.Type)
-		isz := info.inTyp.Size()
-		buf := make([]byte, isz, isz)
-		if isz > ioff {
-			isz = ioff
+		sz := info.inTyp.Size()
+		buf := make([]byte, sz, sz)
+		if sz > info.isz {
+			sz = info.isz
 		}
-		for i := uintptr(0); i < isz; i++ {
+		for i := uintptr(0); i < sz; i++ {
 			buf[i] = *(*byte)(add(p, i, ""))
 		}
 		var inArgs reflect.Value
-		if isz == 0 {
+		if sz == 0 {
 			inArgs = reflect.New(info.inTyp).Elem()
 		} else {
 			inArgs = reflect.NewAt(info.inTyp, unsafe.Pointer(&buf[0])).Elem()
@@ -451,10 +444,9 @@ func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 		for i, v := range r {
 			out.Field(i).Set(v)
 		}
-		osz := methodReturnSize(method.Type)
 		po := unsafe.Pointer(out.UnsafeAddr())
-		for i := uintptr(0); i < osz; i++ {
-			*(*byte)(add(p, ioff+i, "")) = *(*byte)(add(po, uintptr(i), ""))
+		for i := uintptr(0); i < info.osz; i++ {
+			*(*byte)(add(p, info.isz+i, "")) = *(*byte)(add(po, uintptr(i), ""))
 		}
 	}
 	return true
