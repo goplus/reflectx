@@ -77,21 +77,6 @@ type Buffer struct {
 func TestStructOf(t *testing.T) {
 	defer func() {
 		v := recover()
-		if v == nil {
-			t.Fatalf("reflect.StructOf panic")
-		}
-	}()
-	typ := reflect.TypeOf((*Buffer)(nil)).Elem()
-	var fs []reflect.StructField
-	for i := 0; i < typ.NumField(); i++ {
-		fs = append(fs, typ.Field(i))
-	}
-	reflect.StructOf(fs)
-}
-
-func TestStructOfX(t *testing.T) {
-	defer func() {
-		v := recover()
 		if v != nil {
 			t.Fatalf("reflectx.StructOf %v", v)
 		}
