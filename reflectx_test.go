@@ -187,8 +187,8 @@ func TestNamedType(t *testing.T) {
 		}
 		nv := reflect.New(nt).Elem()
 		reflectx.SetValue(nv, value) //
-		s1 := fmt.Sprintf("%v", nv)
-		s2 := fmt.Sprintf("%v", v)
+		s1 := fmt.Sprint(reflectx.Interface(nv))
+		s2 := fmt.Sprint(v)
 		if s1 != s2 {
 			t.Errorf("%v: have %v, want %v", nt.Kind(), s1, s2)
 		}
