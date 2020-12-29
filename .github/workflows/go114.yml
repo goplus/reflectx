@@ -32,7 +32,7 @@ jobs:
       run: go test -race -v .
 
   linux:
-    name: Test Go1.14 on MacOS
+    name: Test Go1.14 on Linux
     runs-on: ubuntu-latest
     steps:
 
