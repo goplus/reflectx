@@ -106,15 +106,6 @@ type funcTypeFixed128 struct {
 	args [128]*rtype
 }
 
-func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
-	rt, _ := newType(from, 0, 0)
-	setTypeName(rt, pkgpath, name)
-	typ = toType(rt)
-	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
-	ntypeMap[typ] = nt
-	return typ
-}
-
 func totype(typ reflect.Type) *rtype {
 	v := reflect.Zero(typ)
 	rt := (*Value)(unsafe.Pointer(&v)).typ

@@ -132,7 +132,7 @@ var (
 	fn2 = func(*nPoint, int, bool, []byte) int {
 		return 0
 	}
-	testNamedType = []interface{}{
+	testNamedValue = []interface{}{
 		true,
 		false,
 		int(2),
@@ -172,7 +172,7 @@ var (
 
 func TestNamedType(t *testing.T) {
 	pkgpath := "github.com/goplus/reflectx"
-	for i, v := range testNamedType {
+	for i, v := range testNamedValue {
 		value := reflect.ValueOf(v)
 		typ := value.Type()
 		nt := reflectx.NamedTypeOf("github.com/goplus/reflectx", fmt.Sprintf("MyType%v", i), typ)
@@ -200,6 +200,20 @@ func TestNamedType(t *testing.T) {
 		if nt2.PkgPath() != pkgpath {
 			t.Errorf("pkgpath: have %v, want %v", nt2.PkgPath(), pkgpath)
 		}
+	}
+}
+
+func TestNamedInterface(t *testing.T) {
+	styp := reflect.TypeOf((*fmt.Stringer)(nil)).Elem()
+	typ := reflectx.NamedTypeOf("fmt2", "Stringer2", styp)
+	if typ.Name() != "fmt2" {
+		t.Failed()
+	}
+	if typ.PkgPath() != "fmt2" {
+		t.Failed()
+	}
+	if typ.String() != "fmt2.Stringer2" {
+		t.Failed()
 	}
 }
 

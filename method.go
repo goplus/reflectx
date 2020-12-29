@@ -237,6 +237,20 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		st.elem = totype(styp.Elem())
 		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Interface:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(interfaceType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+		}))
+		st := (*interfaceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*interfaceType)(unsafe.Pointer(ort))
+		for _, m := range ost.methods {
+			st.methods = append(st.methods, imethod{
+				name: resolveReflectName(ost.nameOff(m.name)),
+				typ:  resolveReflectType(ost.typeOff(m.typ)),
+			})
+		}
+		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Slice:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(sliceType{})},
