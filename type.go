@@ -239,12 +239,6 @@ type funcType struct {
 	outCount uint16 // top bit is set if last input parameter is ...
 }
 
-type funcType4 struct {
-	funcType
-	uncommonType
-	args [4]*rtype // [0] is in, [1] is out
-}
-
 // imethod represents a method on an interface type
 type imethod struct {
 	name nameOff // name of method

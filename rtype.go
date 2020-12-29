@@ -107,65 +107,9 @@ type funcTypeFixed128 struct {
 }
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
-	switch from.Kind() {
-	case reflect.Array:
-		rt, _ := newType(from, 0, 0)
-		setTypeName(rt, pkgpath, name)
-		typ = toType(rt)
-	case reflect.Slice:
-		rt, _ := newType(from, 0, 0)
-		setTypeName(rt, pkgpath, name)
-		typ = toType(rt)
-	case reflect.Map:
-		rt, _ := newType(from, 0, 0)
-		setTypeName(rt, pkgpath, name)
-		typ = toType(rt)
-	case reflect.Ptr:
-		rt, _ := newType(from, 0, 0)
-		setTypeName(rt, pkgpath, name)
-		typ = toType(rt)
-	case reflect.Chan:
-		rt, _ := newType(from, 0, 0)
-		setTypeName(rt, pkgpath, name)
-		typ = toType(rt)
-	case reflect.Func:
-		numIn := from.NumIn()
-		in := make([]reflect.Type, numIn, numIn)
-		for i := 0; i < numIn; i++ {
-			in[i] = from.In(i)
-		}
-		numOut := from.NumOut()
-		out := make([]reflect.Type, numOut, numOut)
-		for i := 0; i < numOut; i++ {
-			out[i] = from.Out(i)
-		}
-		out = append(out, emptyType())
-		typ = reflect.FuncOf(in, out, from.IsVariadic())
-		dst := totype(typ)
-		src := totype(from)
-		d := (*funcType)(unsafe.Pointer(dst))
-		s := (*funcType)(unsafe.Pointer(src))
-		d.inCount = s.inCount
-		d.outCount = s.outCount
-		setTypeName(dst, pkgpath, name)
-	default:
-		var fields []reflect.StructField
-		if from.Kind() == reflect.Struct {
-			for i := 0; i < from.NumField(); i++ {
-				fields = append(fields, from.Field(i))
-			}
-		}
-		fields = append(fields, reflect.StructField{
-			Name: hashName(pkgpath, name),
-			Type: typEmptyStruct,
-		})
-		typ = StructOf(fields)
-		rt := totype(typ)
-		st := toStructType(rt)
-		st.fields = st.fields[:len(st.fields)-1]
-		copyType(rt, totype(from))
-		setTypeName(rt, pkgpath, name)
-	}
+	rt, _ := newType(from, 0, 0)
+	setTypeName(rt, pkgpath, name)
+	typ = toType(rt)
 	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
 	ntypeMap[typ] = nt
 	return typ

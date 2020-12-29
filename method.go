@@ -270,17 +270,26 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		st.dir = ost.dir
 		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Func:
+		narg := styp.NumIn() + styp.NumOut()
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(funcType{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
-			{Name: "M", Type: reflect.ArrayOf(4, reflect.TypeOf((*rtype)(nil)))},
+			{Name: "M", Type: reflect.ArrayOf(narg, reflect.TypeOf((*rtype)(nil)))},
 		}))
-		st := (*funcType4)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
-		ost := (*funcType4)(unsafe.Pointer(ort))
+		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*funcType)(unsafe.Pointer(ort))
 		st.inCount = ost.inCount
 		st.outCount = ost.outCount
-		for i := 0; i < 4; i++ {
-			st.args[i] = ost.args[i]
+		if narg > 0 {
+			args := make([]*rtype, narg, narg)
+			for i := 0; i < styp.NumIn(); i++ {
+				args[i] = totype(styp.In(i))
+			}
+			index := styp.NumIn()
+			for i := 0; i < styp.NumOut(); i++ {
+				args[index+i] = totype(styp.Out(i))
+			}
+			copy(tt.Elem().Field(2).Slice(0, narg).Interface().([]*rtype), args)
 		}
 		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Map:

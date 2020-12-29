@@ -144,15 +144,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	}
 	t.tflag |= tflagNamed | tflagExtraStar
 	t.str = resolveReflectName(newName("*"+name, "", exported))
-	switch t.Kind() {
-	case reflect.Array:
-	case reflect.Slice:
-	case reflect.Map:
-	case reflect.Ptr:
-	case reflect.Func:
-	case reflect.Chan:
-	default:
-		t.tflag |= tflagUncommon
+	if t.tflag&tflagUncommon == tflagUncommon {
 		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
 	}
 }
