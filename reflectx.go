@@ -106,16 +106,10 @@ func ToNamed(typ reflect.Type) (t *Named, ok bool) {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	typ := StructOf(append(append([]reflect.StructField{}, fields...),
-		reflect.StructField{
-			Name: unusedName(),
-			Type: typEmptyStruct,
-		}))
+	rt, _ := newType(StructOf(fields), 0, 0)
+	typ := toType(rt)
 	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, Kind: TkStruct}
 	ntypeMap[typ] = nt
-	rt := totype(typ)
-	st := toStructType(rt)
-	st.fields = st.fields[:len(st.fields)-1]
 	setTypeName(rt, pkgpath, name)
 	return typ
 }

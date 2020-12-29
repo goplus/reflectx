@@ -54,8 +54,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 	}
 	orgtyp := styp
-	rt, tt := premakeMethodType(styp, mcount, mcount)
-	prt, ptt := premakeMethodType(reflect.PtrTo(styp), pcount, pcount)
+	rt, tt := newType(styp, mcount, mcount)
+	prt, ptt := newType(reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	typ := toType(rt)
@@ -212,7 +212,7 @@ func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, i
 	return
 }
 
-func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.Value) {
+func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.Value) {
 	ort := totype(styp)
 	switch styp.Kind() {
 	case reflect.Struct:
