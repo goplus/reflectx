@@ -109,61 +109,25 @@ type funcTypeFixed128 struct {
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
 	switch from.Kind() {
 	case reflect.Array:
-		typ = reflect.ArrayOf(from.Len(), emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*arrayType)(unsafe.Pointer(dst))
-		s := (*arrayType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		d.slice = s.slice
-		d.len = s.len
-		setTypeName(dst, pkgpath, name)
+		rt, _ := newType(from, 0, 0)
+		setTypeName(rt, pkgpath, name)
+		typ = toType(rt)
 	case reflect.Slice:
-		typ = reflect.SliceOf(emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*sliceType)(unsafe.Pointer(dst))
-		s := (*sliceType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		setTypeName(dst, pkgpath, name)
+		rt, _ := newType(from, 0, 0)
+		setTypeName(rt, pkgpath, name)
+		typ = toType(rt)
 	case reflect.Map:
-		typ = reflect.MapOf(emptyType(), emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*mapType)(unsafe.Pointer(dst))
-		s := (*mapType)(unsafe.Pointer(src))
-		d.key = s.key
-		d.elem = s.elem
-		d.bucket = s.bucket
-		d.hasher = s.hasher
-		d.keysize = s.keysize
-		d.valuesize = s.valuesize
-		d.bucketsize = s.bucketsize
-		d.flags = s.flags
-		dst.str = resolveReflectName(newName(name, "", isExported(name)))
-		setTypeName(dst, pkgpath, name)
+		rt, _ := newType(from, 0, 0)
+		setTypeName(rt, pkgpath, name)
+		typ = toType(rt)
 	case reflect.Ptr:
-		typ = reflect.PtrTo(emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*ptrType)(unsafe.Pointer(dst))
-		s := (*ptrType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		setTypeName(dst, pkgpath, name)
+		rt, _ := newType(from, 0, 0)
+		setTypeName(rt, pkgpath, name)
+		typ = toType(rt)
 	case reflect.Chan:
-		typ = reflect.ChanOf(from.ChanDir(), emptyType())
-		dst := totype(typ)
-		src := totype(from)
-		copyType(dst, src)
-		d := (*chanType)(unsafe.Pointer(dst))
-		s := (*chanType)(unsafe.Pointer(src))
-		d.elem = s.elem
-		d.dir = s.dir
-		setTypeName(dst, pkgpath, name)
+		rt, _ := newType(from, 0, 0)
+		setTypeName(rt, pkgpath, name)
+		typ = toType(rt)
 	case reflect.Func:
 		numIn := from.NumIn()
 		in := make([]reflect.Type, numIn, numIn)

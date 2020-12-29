@@ -13,6 +13,9 @@ import (
 //go:linkname memmove reflect.memmove
 func memmove(dst, src unsafe.Pointer, size uintptr)
 
+//go:linkname typedmemmove reflect.typedmemmove
+func typedmemmove(typ *rtype, dst, src unsafe.Pointer)
+
 type Method struct {
 	Name    string        // method Name
 	Type    reflect.Type  // method type without receiver
@@ -232,6 +235,7 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		st.elem = totype(styp.Elem())
 		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Slice:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
@@ -253,6 +257,48 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		st.elem = ost.elem
 		st.slice = ost.slice
 		st.len = ost.len
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Chan:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(chanType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*chanType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*chanType)(unsafe.Pointer(ort))
+		st.elem = ost.elem
+		st.dir = ost.dir
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Func:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(funcType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(4, reflect.TypeOf((*rtype)(nil)))},
+		}))
+		st := (*funcType4)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*funcType4)(unsafe.Pointer(ort))
+		st.inCount = ost.inCount
+		st.outCount = ost.outCount
+		for i := 0; i < 4; i++ {
+			st.args[i] = ost.args[i]
+		}
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Map:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(mapType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*mapType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ort := (*mapType)(unsafe.Pointer(ort))
+		st.key = ort.key
+		st.elem = ort.elem
+		st.bucket = ort.bucket
+		st.hasher = ort.hasher
+		st.keysize = ort.keysize
+		st.valuesize = ort.valuesize
+		st.bucketsize = ort.bucketsize
+		st.flags = ort.flags
 		rt = (*rtype)(unsafe.Pointer(st))
 	default:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
