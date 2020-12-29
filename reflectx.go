@@ -114,28 +114,6 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	return typ
 }
 
-var (
-	index int
-)
-
-func unusedName() string {
-	index++
-	return fmt.Sprintf("Gop_unused_%v", index)
-}
-
-func emptyType() reflect.Type {
-	typ := reflect.StructOf([]reflect.StructField{
-		reflect.StructField{
-			Name: unusedName(),
-			Type: typEmptyStruct,
-		}})
-	rt := totype(typ)
-	st := toStructType(rt)
-	st.fields = st.fields[:len(st.fields)-1]
-	st.str = resolveReflectName(newName("unused", "", false))
-	return typ
-}
-
 func setTypeName(t *rtype, pkgpath string, name string) {
 	exported := isExported(name)
 	if pkgpath != "" {
