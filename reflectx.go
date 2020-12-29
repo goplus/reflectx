@@ -211,8 +211,6 @@ func Interface(v reflect.Value) interface{} {
 				storeMethodValue(reflect.ValueOf(i))
 			}
 			return i
-		case TkType:
-			return typeInterface(v)
 		}
 	}
 	return v.Interface()
