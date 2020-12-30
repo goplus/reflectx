@@ -397,6 +397,55 @@ func New(typ reflect.Type) reflect.Value {
 	return v
 }
 
+func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
+	return NamedTypeOf(pkgpath, name, emptyInterfaceType)
+}
+
+func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []reflect.Method) reflect.Type {
+	styp := NamedTypeOf(pkgpath, name, emptyInterfaceType)
+	return InterfaceOf(styp, embedded, methods)
+}
+
+func InterfaceOf(styp reflect.Type, embedded []reflect.Type, methods []reflect.Method) reflect.Type {
+	if styp.Kind() != reflect.Interface {
+		panic(fmt.Errorf("non-interface %v", styp))
+	}
+	for _, e := range embedded {
+		if e.Kind() != reflect.Interface {
+			panic(fmt.Errorf("interface contains embedded non-interface %v", e))
+		}
+		for i := 0; i < e.NumMethod(); i++ {
+			m := e.Method(i)
+			methods = append(methods, reflect.Method{
+				Name: m.Name,
+				Type: m.Type,
+			})
+		}
+	}
+	sort.Slice(methods, func(i, j int) bool {
+		n := strings.Compare(methods[i].Name, methods[j].Name)
+		if n == 0 && methods[i].Type != methods[j].Type {
+			panic(fmt.Sprintf("duplicate method %v", methods[j].Name))
+		}
+		return n < 0
+	})
+	rt, _ := newType(styp, 0, 0)
+	st := (*interfaceType)(unsafe.Pointer(rt))
+	st.methods = nil
+	var lastname string
+	for _, m := range methods {
+		if m.Name == lastname {
+			continue
+		}
+		lastname = m.Name
+		st.methods = append(st.methods, imethod{
+			name: resolveReflectName(newName(m.Name, "", isExported(m.Name))),
+			typ:  resolveReflectType(totype(m.Type)),
+		})
+	}
+	return toType(rt)
+}
+
 func toElem(typ reflect.Type) reflect.Type {
 	if typ.Kind() == reflect.Ptr {
 		return typ.Elem()

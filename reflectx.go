@@ -207,3 +207,7 @@ func Interface(v reflect.Value) interface{} {
 	}
 	return i
 }
+
+var (
+	emptyInterfaceType = reflect.TypeOf((*interface{})(nil)).Elem()
+)
