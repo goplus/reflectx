@@ -2,6 +2,7 @@ package reflectx_test
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 	"testing"
 
@@ -13,6 +14,7 @@ var (
 	boolTyp           = reflect.TypeOf(true)
 	intTyp            = reflect.TypeOf(0)
 	strTyp            = reflect.TypeOf("")
+	errorTyp          = reflect.TypeOf((*error)(nil)).Elem()
 	emptyStructTyp    = reflect.TypeOf((*struct{})(nil)).Elem()
 	emptyInterfaceTyp = reflect.TypeOf((*interface{})(nil)).Elem()
 	emtpyStruct       struct{}
@@ -673,4 +675,48 @@ func TestMethodStack(t *testing.T) {
 			}
 		}
 	}
+}
+
+func checkInterface(t *testing.T, typ, styp reflect.Type) {
+	if typ.NumMethod() != styp.NumMethod() {
+		t.Errorf("num method: have %v, want %v", typ.NumMethod(), styp.NumMethod())
+	}
+	for i := 0; i < typ.NumMethod(); i++ {
+		if typ.Method(i) != styp.Method(i) {
+			t.Errorf("method: have %v, want %v", typ.Method(i), styp.Method(i))
+		}
+	}
+	if !typ.ConvertibleTo(styp) {
+		t.Errorf("%v cannot ConvertibleTo %v", typ, styp)
+	}
+	if !styp.ConvertibleTo(typ) {
+		t.Errorf("%v cannot ConvertibleTo %v", styp, typ)
+	}
+}
+
+func TestInterfaceOf(t *testing.T) {
+	pkgpath := "github.com/goplus/reflectx"
+	typ := reflectx.NamedInterfaceOf(pkgpath, "Stringer", nil,
+		[]reflect.Method{
+			reflect.Method{
+				Name: "String",
+				Type: reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+			},
+		},
+	)
+	checkInterface(t, typ, reflect.TypeOf((*fmt.Stringer)(nil)).Elem())
+
+	typ = reflectx.NamedInterfaceOf(pkgpath, "ReadWriteCloser",
+		[]reflect.Type{
+			reflect.TypeOf((*io.Reader)(nil)).Elem(),
+			reflect.TypeOf((*io.Writer)(nil)).Elem(),
+		},
+		[]reflect.Method{
+			reflect.Method{
+				Name: "Close",
+				Type: reflect.FuncOf(nil, []reflect.Type{errorTyp}, false),
+			},
+		},
+	)
+	checkInterface(t, typ, reflect.TypeOf((*io.ReadWriteCloser)(nil)).Elem())
 }
