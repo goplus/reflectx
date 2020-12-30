@@ -16,30 +16,46 @@ func memmove(dst, src unsafe.Pointer, size uintptr)
 //go:linkname typedmemmove reflect.typedmemmove
 func typedmemmove(typ *rtype, dst, src unsafe.Pointer)
 
-type Method struct {
-	Name    string        // method Name
-	Type    reflect.Type  // method type without receiver
-	Func    reflect.Value // func with receiver as first argument
-	Pointer bool          // receiver is pointer
-}
-
-// MakeMethod returns a new Method of the given Type
-// that wraps the function fn.
-//
-//	- name: method name
-//	- pointer: flag receiver struct or pointer
-//	- typ: method func type without receiver
-//	- fn: func with receiver as first argument
-func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []reflect.Value) (result []reflect.Value)) Method {
-	return Method{
-		Name:    name,
-		Type:    typ,
-		Func:    reflect.MakeFunc(typ, fn),
-		Pointer: pointer,
+// MakeMethod make reflect.Method for MethodOf
+// - name: method name
+// - pointer: flag receiver struct or pointer
+// - typ: method func type without receiver
+// - fn: func with receiver as first argument
+func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []reflect.Value) (result []reflect.Value)) reflect.Method {
+	var in []reflect.Type
+	var out []reflect.Type
+	if pointer {
+		in = append(in, reflect.PtrTo(emptyInterfaceType))
+	} else {
+		in = append(in, emptyInterfaceType)
+	}
+	for i := 0; i < typ.NumIn(); i++ {
+		in = append(in, typ.In(i))
+	}
+	for i := 0; i < typ.NumOut(); i++ {
+		out = append(out, typ.Out(i))
+	}
+	return reflect.Method{
+		Name: name,
+		Type: reflect.FuncOf(in, out, typ.IsVariadic()),
+		Func: reflect.MakeFunc(typ, fn),
 	}
 }
 
-func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
+// func extractMethod(styp reflect.Type) reflect.Type {
+// 	for i := 0; i < styp.NumField(); i++ {
+// 		sf := styp.Field(i)
+// 		if !sf.Anonymous {
+// 			continue
+// 		}
+// 		for j := 0; j < sf.Type.NumMethod(); j++ {
+// 			m := sf.Type.Method(i)
+// 		}
+// 	}
+// 	return nil
+// }
+
+func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 {
@@ -47,11 +63,14 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 		return n < 0
 	})
+	isPointer := func(m reflect.Method) bool {
+		return m.Type.In(0).Kind() == reflect.Ptr
+	}
 	var mcount, pcount int
 	pcount = len(methods)
 	var mlist []string
 	for _, m := range methods {
-		if !m.Pointer {
+		if !isPointer(m) {
 			mlist = append(mlist, m.Name)
 			mcount++
 		}
@@ -73,8 +92,9 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		name := resolveReflectName(newName(m.Name, "", true))
 		in, out, ntyp, inTyp, outTyp := toRealType(typ, orgtyp, m.Type)
 		mtyp := resolveReflectType(totype(ntyp))
+		pointer := isPointer(m)
 		var ftyp reflect.Type
-		if m.Pointer {
+		if pointer {
 			ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
 		} else {
 			ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
@@ -91,7 +111,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 		tfn = resolveReflectText(unsafe.Pointer(ptr))
 		pindex := i
-		if !m.Pointer {
+		if !pointer {
 			for i, s := range mlist {
 				if s == m.Name {
 					pindex = i
@@ -120,10 +140,10 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			index:    pindex,
 			isz:      isz,
 			osz:      osz,
-			pointer:  m.Pointer,
+			pointer:  pointer,
 			variadic: m.Type.IsVariadic(),
 		})
-		if !m.Pointer {
+		if !pointer {
 			ifunc := icall(index, false)
 			var ifn textOff
 			if ifunc == nil {
@@ -142,7 +162,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 				index:    index,
 				isz:      isz,
 				osz:      osz,
-				pointer:  m.Pointer,
+				pointer:  pointer,
 				variadic: m.Type.IsVariadic(),
 			})
 			index++
@@ -193,7 +213,7 @@ func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, i
 	}
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
-	for i := 0; i < mtyp.NumIn(); i++ {
+	for i := 1; i < mtyp.NumIn(); i++ {
 		t := fn(mtyp.In(i))
 		in = append(in, t)
 		inFields = append(inFields, reflect.StructField{
