@@ -750,3 +750,14 @@ func TestInterfaceOf(t *testing.T) {
 	)
 	checkInterface(t, typ, reflect.TypeOf((*io.ReadWriteCloser)(nil)).Elem())
 }
+
+func TestExtra(t *testing.T) {
+	fs := []reflect.StructField{
+		reflect.StructField{Name: "Point", Type: reflect.TypeOf((*Point)(nil)).Elem(), Anonymous: true},
+	}
+	styp := reflectx.NamedStructOf("main", "Point", fs)
+	typ := reflectx.ExtractMethod(styp)
+	v := reflectx.New(typ).Elem()
+	v.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+	t.Log(reflectx.Interface(v))
+}

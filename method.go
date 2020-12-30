@@ -42,18 +42,70 @@ func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []refl
 	}
 }
 
-// func extractMethod(styp reflect.Type) reflect.Type {
-// 	for i := 0; i < styp.NumField(); i++ {
-// 		sf := styp.Field(i)
-// 		if !sf.Anonymous {
-// 			continue
-// 		}
-// 		for j := 0; j < sf.Type.NumMethod(); j++ {
-// 			m := sf.Type.Method(i)
-// 		}
-// 	}
-// 	return nil
-// }
+func extraFieldMethod(field int, typ reflect.Type, skip map[string]bool) (methods []reflect.Method) {
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		if skip[m.Name] {
+			continue
+		}
+		methods = append(methods, reflect.Method{
+			Name:    m.Name,
+			PkgPath: m.PkgPath,
+			Type:    m.Type,
+			Func: reflect.MakeFunc(
+				m.Type,
+				func(args []reflect.Value) []reflect.Value {
+					v := args[0]
+					if v.Kind() == reflect.Ptr {
+						args[0] = v.Elem().Field(field).Addr()
+						return m.Func.Call(args)
+					} else {
+						args[0] = v.Field(field)
+						return m.Func.Call(args)
+					}
+				},
+			),
+		})
+	}
+	return
+}
+
+func ExtractMethod(styp reflect.Type) reflect.Type {
+	var methods []reflect.Method
+	for i := 0; i < styp.NumField(); i++ {
+		sf := styp.Field(i)
+		if !sf.Anonymous {
+			continue
+		}
+		if sf.Type.Kind() == reflect.Interface {
+
+		} else {
+			// type method
+			skip := make(map[string]bool)
+			ms := extraFieldMethod(i, sf.Type, skip)
+			for _, m := range ms {
+				skip[m.Name] = true
+			}
+			pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
+			methods = append(methods, ms...)
+			methods = append(methods, pms...)
+		}
+		// var in, out []reflect.Type
+		// for i := 0; i < sf.Type.NumIn(); i++ {
+		// 	in = append(in, sf.Type.In(i))
+		// }
+		// for i := 0; i < sf.Type.NumOut(); i++ {
+		// 	out = append(out, sf.Type.Out(i))
+		// }
+		// var mtyp reflect.Type
+		// if sf.Type.Kind() == reflect.Interface {
+
+		// } else {
+		// 	mtyp = reflect.FuncOf()
+		// }
+	}
+	return MethodOf(styp, methods)
+}
 
 func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
