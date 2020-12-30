@@ -75,7 +75,6 @@ type TypeKind int
 
 const (
 	TkInvalid TypeKind = iota
-	TkStruct
 	TkMethod
 	TkType
 	TkInterface
