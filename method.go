@@ -13,6 +13,9 @@ import (
 //go:linkname memmove reflect.memmove
 func memmove(dst, src unsafe.Pointer, size uintptr)
 
+//go:linkname typedmemmove reflect.typedmemmove
+func typedmemmove(typ *rtype, dst, src unsafe.Pointer)
+
 type Method struct {
 	Name    string        // method Name
 	Type    reflect.Type  // method type without receiver
@@ -54,8 +57,8 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 	}
 	orgtyp := styp
-	rt, tt := premakeMethodType(styp, mcount, mcount)
-	prt, ptt := premakeMethodType(reflect.PtrTo(styp), pcount, pcount)
+	rt, tt := newType(styp, mcount, mcount)
+	prt, ptt := newType(reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	typ := toType(rt)
@@ -212,7 +215,7 @@ func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, i
 	return
 }
 
-func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.Value) {
+func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.Value) {
 	ort := totype(styp)
 	switch styp.Kind() {
 	case reflect.Struct:
@@ -232,6 +235,21 @@ func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		st.elem = totype(styp.Elem())
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Interface:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(interfaceType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+		}))
+		st := (*interfaceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*interfaceType)(unsafe.Pointer(ort))
+		for _, m := range ost.methods {
+			st.methods = append(st.methods, imethod{
+				name: resolveReflectName(ost.nameOff(m.name)),
+				typ:  resolveReflectType(ost.typeOff(m.typ)),
+			})
+		}
 		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Slice:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
@@ -253,6 +271,57 @@ func premakeMethodType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt
 		st.elem = ost.elem
 		st.slice = ost.slice
 		st.len = ost.len
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Chan:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(chanType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*chanType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*chanType)(unsafe.Pointer(ort))
+		st.elem = ost.elem
+		st.dir = ost.dir
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Func:
+		narg := styp.NumIn() + styp.NumOut()
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(funcType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(narg, reflect.TypeOf((*rtype)(nil)))},
+		}))
+		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*funcType)(unsafe.Pointer(ort))
+		st.inCount = ost.inCount
+		st.outCount = ost.outCount
+		if narg > 0 {
+			args := make([]*rtype, narg, narg)
+			for i := 0; i < styp.NumIn(); i++ {
+				args[i] = totype(styp.In(i))
+			}
+			index := styp.NumIn()
+			for i := 0; i < styp.NumOut(); i++ {
+				args[index+i] = totype(styp.Out(i))
+			}
+			copy(tt.Elem().Field(2).Slice(0, narg).Interface().([]*rtype), args)
+		}
+		rt = (*rtype)(unsafe.Pointer(st))
+	case reflect.Map:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(mapType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*mapType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ort := (*mapType)(unsafe.Pointer(ort))
+		st.key = ort.key
+		st.elem = ort.elem
+		st.bucket = ort.bucket
+		st.hasher = ort.hasher
+		st.keysize = ort.keysize
+		st.valuesize = ort.valuesize
+		st.bucketsize = ort.bucketsize
+		st.flags = ort.flags
 		rt = (*rtype)(unsafe.Pointer(st))
 	default:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{

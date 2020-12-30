@@ -17,7 +17,6 @@
 package reflectx
 
 import (
-	"fmt"
 	"path"
 	"reflect"
 	"unicode"
@@ -76,7 +75,6 @@ type TypeKind int
 
 const (
 	TkInvalid TypeKind = iota
-	TkStruct
 	TkMethod
 	TkType
 	TkInterface
@@ -106,39 +104,15 @@ func ToNamed(typ reflect.Type) (t *Named, ok bool) {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	typ := StructOf(append(append([]reflect.StructField{}, fields...),
-		reflect.StructField{
-			Name: unusedName(),
-			Type: typEmptyStruct,
-		}))
-	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, Kind: TkStruct}
-	ntypeMap[typ] = nt
-	rt := totype(typ)
-	st := toStructType(rt)
-	st.fields = st.fields[:len(st.fields)-1]
+	return NamedTypeOf(pkgpath, name, StructOf(fields))
+}
+
+func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
+	rt, _ := newType(from, 0, 0)
 	setTypeName(rt, pkgpath, name)
-	return typ
-}
-
-var (
-	index int
-)
-
-func unusedName() string {
-	index++
-	return fmt.Sprintf("Gop_unused_%v", index)
-}
-
-func emptyType() reflect.Type {
-	typ := reflect.StructOf([]reflect.StructField{
-		reflect.StructField{
-			Name: unusedName(),
-			Type: typEmptyStruct,
-		}})
-	rt := totype(typ)
-	st := toStructType(rt)
-	st.fields = st.fields[:len(st.fields)-1]
-	st.str = resolveReflectName(newName("unused", "", false))
+	typ = toType(rt)
+	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
+	ntypeMap[typ] = nt
 	return typ
 }
 
@@ -150,15 +124,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	}
 	t.tflag |= tflagNamed | tflagExtraStar
 	t.str = resolveReflectName(newName("*"+name, "", exported))
-	switch t.Kind() {
-	case reflect.Array:
-	case reflect.Slice:
-	case reflect.Map:
-	case reflect.Ptr:
-	case reflect.Func:
-	case reflect.Chan:
-	default:
-		t.tflag |= tflagUncommon
+	if t.tflag&tflagUncommon == tflagUncommon {
 		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
 	}
 }
@@ -211,10 +177,6 @@ func fnv1(x uint32, list string) uint32 {
 	return x
 }
 
-func hashName(pkgpath string, name string) string {
-	return fmt.Sprintf("Gop_Named_%d_%d", fnv1(0, pkgpath), fnv1(0, name))
-}
-
 func SetValue(v reflect.Value, x reflect.Value) {
 	switch v.Kind() {
 	case reflect.Bool:
@@ -239,61 +201,9 @@ func SetValue(v reflect.Value, x reflect.Value) {
 }
 
 func Interface(v reflect.Value) interface{} {
-	if t, ok := ntypeMap[v.Type()]; ok {
-		switch t.Kind {
-		case TkMethod:
-			i := v.Interface()
-			if i != nil {
-				storeMethodValue(reflect.ValueOf(i))
-			}
-			return i
-		case TkType:
-			return typeInterface(v)
-		}
+	i := v.Interface()
+	if i != nil && IsMethod(v.Type()) {
+		storeMethodValue(reflect.ValueOf(i))
 	}
-	return v.Interface()
-}
-
-func typeInterface(v reflect.Value) interface{} {
-	ptr := tovalue(&v).ptr
-	switch v.Kind() {
-	case reflect.Bool:
-		return *(*bool)(ptr)
-	case reflect.Int:
-		return *(*int)(ptr)
-	case reflect.Int8:
-		return *(*int8)(ptr)
-	case reflect.Int16:
-		return *(*int16)(ptr)
-	case reflect.Int32:
-		return *(*int32)(ptr)
-	case reflect.Int64:
-		return *(*int64)(ptr)
-	case reflect.Uint:
-		return *(*uint)(ptr)
-	case reflect.Uint8:
-		return *(*uint8)(ptr)
-	case reflect.Uint16:
-		return *(*uint16)(ptr)
-	case reflect.Uint32:
-		return *(*uint32)(ptr)
-	case reflect.Uint64:
-		return *(*int64)(ptr)
-	case reflect.Uintptr:
-		return *(*uintptr)(ptr)
-	case reflect.Float32:
-		return *(*float32)(ptr)
-	case reflect.Float64:
-		return *(*float64)(ptr)
-	case reflect.Complex64:
-		return *(*complex64)(ptr)
-	case reflect.Complex128:
-		return *(*complex128)(ptr)
-	case reflect.String:
-		return *(*string)(ptr)
-	case reflect.UnsafePointer:
-		return *(*unsafe.Pointer)(ptr)
-	default:
-		return v.Interface()
-	}
+	return i
 }
