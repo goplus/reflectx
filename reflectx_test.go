@@ -203,17 +203,41 @@ func TestNamedType(t *testing.T) {
 	}
 }
 
+var testInterfaceType = []reflect.Type{
+	reflect.TypeOf((*interface{})(nil)).Elem(),
+	reflect.TypeOf((*fmt.Stringer)(nil)).Elem(),
+	reflect.TypeOf((*interface {
+		Read(p []byte) (n int, err error)
+		Write(p []byte) (n int, err error)
+		Close() error
+	})(nil)),
+}
+
 func TestNamedInterface(t *testing.T) {
-	styp := reflect.TypeOf((*fmt.Stringer)(nil)).Elem()
-	typ := reflectx.NamedTypeOf("fmt2", "Stringer2", styp)
-	if typ.Name() != "fmt2" {
-		t.Failed()
-	}
-	if typ.PkgPath() != "fmt2" {
-		t.Failed()
-	}
-	if typ.String() != "fmt2.Stringer2" {
-		t.Failed()
+	pkgpath := reflect.TypeOf((*interface{})(nil)).Elem().PkgPath()
+	for i, styp := range testInterfaceType {
+		name := fmt.Sprintf("T%v", i)
+		typ := reflectx.NamedTypeOf(pkgpath, name, styp)
+		if typ.Name() != name {
+			t.Errorf("name: have %v, want %v", typ.Name(), name)
+		}
+		if typ.PkgPath() != pkgpath {
+			t.Errorf("pkgpath: have %v, want %v", typ.PkgPath(), pkgpath)
+		}
+		if typ.NumMethod() != styp.NumMethod() {
+			t.Errorf("num method: have %v, want %v", typ.NumMethod(), styp.NumMethod())
+		}
+		for i := 0; i < typ.NumMethod(); i++ {
+			if typ.Method(i) != styp.Method(i) {
+				t.Errorf("method: have %v, want %v", typ.Method(i), styp.Method(i))
+			}
+		}
+		if !typ.ConvertibleTo(styp) {
+			t.Errorf("%v cannot ConvertibleTo %v", typ, styp)
+		}
+		if !styp.ConvertibleTo(typ) {
+			t.Errorf("%v cannot ConvertibleTo %v", styp, typ)
+		}
 	}
 }
 
