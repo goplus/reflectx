@@ -70,6 +70,62 @@ func extraFieldMethod(field int, typ reflect.Type, skip map[string]bool) (method
 	return
 }
 
+func parserFuncIO(typ reflect.Type) (in, out []reflect.Type) {
+	for i := 0; i < typ.NumIn(); i++ {
+		in = append(in, typ.In(i))
+	}
+	for i := 0; i < typ.NumOut(); i++ {
+		out = append(out, typ.Out(i))
+	}
+	return
+}
+
+func extraPtrFieldMethod(field int, typ reflect.Type) (methods []reflect.Method) {
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		in, out := parserFuncIO(m.Type)
+		in[0] = emptyInterfaceType
+		mtyp := reflect.FuncOf(in, out, m.Type.IsVariadic())
+		methods = append(methods, reflect.Method{
+			Name:    m.Name,
+			PkgPath: m.PkgPath,
+			Type:    mtyp,
+			Func: reflect.MakeFunc(
+				mtyp,
+				func(args []reflect.Value) []reflect.Value {
+					v := args[0]
+					args[0] = v.Field(field)
+					return m.Func.Call(args)
+				},
+			),
+		})
+	}
+	return
+}
+
+func extraInterfaceFieldMethod(ifield int, typ reflect.Type) (methods []reflect.Method) {
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		in, out := parserFuncIO(m.Type)
+		in = append([]reflect.Type{emptyInterfaceType}, in...)
+		mtyp := reflect.FuncOf(in, out, m.Type.IsVariadic())
+		imethod := i
+		methods = append(methods, reflect.Method{
+			Name:    m.Name,
+			PkgPath: m.PkgPath,
+			Type:    mtyp,
+			Func: reflect.MakeFunc(
+				mtyp,
+				func(args []reflect.Value) []reflect.Value {
+					var recv = args[0]
+					return recv.Field(ifield).Method(imethod).Call(args[1:])
+				},
+			),
+		})
+	}
+	return
+}
+
 func ExtractMethod(styp reflect.Type) reflect.Type {
 	var methods []reflect.Method
 	for i := 0; i < styp.NumField(); i++ {
@@ -78,31 +134,24 @@ func ExtractMethod(styp reflect.Type) reflect.Type {
 			continue
 		}
 		if sf.Type.Kind() == reflect.Interface {
-
+			ms := extraInterfaceFieldMethod(i, sf.Type)
+			methods = append(methods, ms...)
 		} else {
 			// type method
-			skip := make(map[string]bool)
-			ms := extraFieldMethod(i, sf.Type, skip)
-			for _, m := range ms {
-				skip[m.Name] = true
+			if sf.Type.Kind() == reflect.Ptr {
+				ms := extraPtrFieldMethod(i, sf.Type)
+				methods = append(methods, ms...)
+			} else {
+				skip := make(map[string]bool)
+				ms := extraFieldMethod(i, sf.Type, skip)
+				for _, m := range ms {
+					skip[m.Name] = true
+				}
+				pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
+				methods = append(methods, ms...)
+				methods = append(methods, pms...)
 			}
-			pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
-			methods = append(methods, ms...)
-			methods = append(methods, pms...)
 		}
-		// var in, out []reflect.Type
-		// for i := 0; i < sf.Type.NumIn(); i++ {
-		// 	in = append(in, sf.Type.In(i))
-		// }
-		// for i := 0; i < sf.Type.NumOut(); i++ {
-		// 	out = append(out, sf.Type.Out(i))
-		// }
-		// var mtyp reflect.Type
-		// if sf.Type.Kind() == reflect.Interface {
-
-		// } else {
-		// 	mtyp = reflect.FuncOf()
-		// }
 	}
 	return MethodOf(styp, methods)
 }
@@ -110,7 +159,7 @@ func ExtractMethod(styp reflect.Type) reflect.Type {
 func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
-		if n == 0 {
+		if n == 0 && methods[i].Type == methods[j].Type {
 			panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
 		}
 		return n < 0
@@ -562,7 +611,7 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	typ, ok := ptrTypeMap[ptr]
 	if !ok {
-		log.Println("cannot found ptr type", ptr)
+		log.Panicln("cannot found ptr type", i, ptr)
 		return false
 	}
 	if ptrto {

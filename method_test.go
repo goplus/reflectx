@@ -751,13 +751,24 @@ func TestInterfaceOf(t *testing.T) {
 	checkInterface(t, typ, reflect.TypeOf((*io.ReadWriteCloser)(nil)).Elem())
 }
 
+type Base struct {
+	*Point
+}
+
+type Seter interface {
+	Set(x, y int)
+}
+
 func TestExtra(t *testing.T) {
 	fs := []reflect.StructField{
-		reflect.StructField{Name: "Point", Type: reflect.TypeOf((*Point)(nil)).Elem(), Anonymous: true},
+		//		reflect.StructField{Name: "Point", Type: reflect.TypeOf((*Point)(nil)), Anonymous: true},
+		reflect.StructField{Name: "Point", Type: reflect.TypeOf((*Seter)(nil)).Elem(), Anonymous: true},
+		reflect.StructField{Name: "N", Type: reflect.TypeOf(int(0)), Anonymous: false},
 	}
-	styp := reflectx.NamedStructOf("main", "Point", fs)
+	styp := reflectx.NamedStructOf("main", "T", fs)
 	typ := reflectx.ExtractMethod(styp)
 	v := reflectx.New(typ).Elem()
-	v.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+	v.Field(0).Set(reflect.ValueOf(&Point{10, 0}))
+	v.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
 	t.Log(reflectx.Interface(v))
 }
