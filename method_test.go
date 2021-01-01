@@ -10,14 +10,14 @@ import (
 )
 
 var (
-	byteTyp           = reflect.TypeOf(byte('a'))
-	boolTyp           = reflect.TypeOf(true)
-	intTyp            = reflect.TypeOf(0)
-	strTyp            = reflect.TypeOf("")
-	errorTyp          = reflect.TypeOf((*error)(nil)).Elem()
-	emptyStructTyp    = reflect.TypeOf((*struct{})(nil)).Elem()
-	emptyInterfaceTyp = reflect.TypeOf((*interface{})(nil)).Elem()
-	emtpyStruct       struct{}
+	tyByte           = reflect.TypeOf(byte('a'))
+	tyBool           = reflect.TypeOf(true)
+	tyInt            = reflect.TypeOf(0)
+	tyString         = reflect.TypeOf("")
+	tyError          = reflect.TypeOf((*error)(nil)).Elem()
+	tyEmptyStruct    = reflect.TypeOf((*struct{})(nil)).Elem()
+	tyEmptyInterface = reflect.TypeOf((*interface{})(nil)).Elem()
+	emtpyStruct      struct{}
 )
 
 type Int int
@@ -49,12 +49,12 @@ func TestIntMethodOf(t *testing.T) {
 		t.Fatalf("Append(): have %v, want (1000)", v)
 	}
 	// make Int type
-	styp := reflectx.NamedTypeOf("main", "Int", intTyp)
+	styp := reflectx.NamedTypeOf("main", "Int", tyInt)
 	var typ reflect.Type
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 		func(args []reflect.Value) []reflect.Value {
 			v := args[0]
 			info := fmt.Sprintf("(%d)", v.Int())
@@ -64,7 +64,7 @@ func TestIntMethodOf(t *testing.T) {
 	mSet := reflectx.MakeMethod(
 		"Set",
 		true,
-		reflect.FuncOf([]reflect.Type{intTyp}, nil, false),
+		reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0].Elem()
 			v.SetInt(args[1].Int())
@@ -74,7 +74,7 @@ func TestIntMethodOf(t *testing.T) {
 	mAppend := reflectx.MakeMethod(
 		"Append",
 		false,
-		reflect.FuncOf([]reflect.Type{reflect.SliceOf(intTyp)}, []reflect.Type{intTyp}, true),
+		reflect.FuncOf([]reflect.Type{reflect.SliceOf(tyInt)}, []reflect.Type{tyInt}, true),
 		func(args []reflect.Value) (result []reflect.Value) {
 			var sum int64 = args[0].Int()
 			for i := 0; i < args[1].Len(); i++ {
@@ -158,7 +158,7 @@ func TestSliceMethodOf(t *testing.T) {
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 		func(args []reflect.Value) []reflect.Value {
 			v := args[0]
 			info := fmt.Sprintf("{%v}%v", v.Len(), v.Convert(intSliceTyp))
@@ -178,7 +178,7 @@ func TestSliceMethodOf(t *testing.T) {
 	mAppend := reflectx.MakeMethod(
 		"Append",
 		false,
-		reflect.FuncOf([]reflect.Type{reflect.SliceOf(intTyp)}, []reflect.Type{intTyp}, true),
+		reflect.FuncOf([]reflect.Type{reflect.SliceOf(tyInt)}, []reflect.Type{tyInt}, true),
 		func(args []reflect.Value) (result []reflect.Value) {
 			var sum int64
 			for i := 0; i < args[0].Len(); i++ {
@@ -264,7 +264,7 @@ func TestArrayMethodOf(t *testing.T) {
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 		func(args []reflect.Value) []reflect.Value {
 			v := args[0]
 			info := fmt.Sprintf("(%v,%v)", v.Index(0), v.Index(1))
@@ -274,7 +274,7 @@ func TestArrayMethodOf(t *testing.T) {
 	mSet := reflectx.MakeMethod(
 		"Set",
 		true,
-		reflect.FuncOf([]reflect.Type{intTyp, intTyp}, nil, false),
+		reflect.FuncOf([]reflect.Type{tyInt, tyInt}, nil, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0].Elem()
 			v.Index(0).Set(args[1])
@@ -285,7 +285,7 @@ func TestArrayMethodOf(t *testing.T) {
 	mGet := reflectx.MakeMethod(
 		"Get",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{intTyp, intTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyInt, tyInt}, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0]
 			return []reflect.Value{v.Index(0), v.Index(1)}
@@ -294,7 +294,7 @@ func TestArrayMethodOf(t *testing.T) {
 	mScale := reflectx.MakeMethod(
 		"Scale",
 		false,
-		reflect.FuncOf([]reflect.Type{intTyp}, []reflect.Type{styp}, false),
+		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{styp}, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0]
 			s := args[1].Int()
@@ -407,7 +407,7 @@ func TestStructMethodOf(t *testing.T) {
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 		func(args []reflect.Value) []reflect.Value {
 			v := args[0]
 			info := fmt.Sprintf("(%v,%v)", v.Field(0), v.Field(1))
@@ -428,7 +428,7 @@ func TestStructMethodOf(t *testing.T) {
 	mSet := reflectx.MakeMethod(
 		"Set",
 		true,
-		reflect.FuncOf([]reflect.Type{intTyp, intTyp}, nil, false),
+		reflect.FuncOf([]reflect.Type{tyInt, tyInt}, nil, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0].Elem()
 			v.Field(0).Set(args[1])
@@ -439,7 +439,7 @@ func TestStructMethodOf(t *testing.T) {
 	mScale := reflectx.MakeMethod(
 		"Scale",
 		false,
-		reflect.FuncOf([]reflect.Type{reflect.SliceOf(intTyp)}, []reflect.Type{reflect.SliceOf(styp)}, true),
+		reflect.FuncOf([]reflect.Type{reflect.SliceOf(tyInt)}, []reflect.Type{reflect.SliceOf(styp)}, true),
 		func(args []reflect.Value) (result []reflect.Value) {
 			x, y := args[0].Field(0).Int(), args[0].Field(1).Int()
 			r := reflect.MakeSlice(reflect.SliceOf(typ), 0, 0)
@@ -585,7 +585,7 @@ var (
 		},
 		testMethodStack{
 			"Empty Struct",
-			reflect.FuncOf([]reflect.Type{emptyStructTyp}, []reflect.Type{emptyStructTyp}, false),
+			reflect.FuncOf([]reflect.Type{tyEmptyStruct}, []reflect.Type{tyEmptyStruct}, false),
 			func(args []reflect.Value) []reflect.Value {
 				return []reflect.Value{args[1]}
 			},
@@ -595,7 +595,7 @@ var (
 		},
 		testMethodStack{
 			"Empty Struct2",
-			reflect.FuncOf([]reflect.Type{emptyStructTyp, intTyp, emptyStructTyp}, []reflect.Type{emptyStructTyp, intTyp, emptyStructTyp}, false),
+			reflect.FuncOf([]reflect.Type{tyEmptyStruct, tyInt, tyEmptyStruct}, []reflect.Type{tyEmptyStruct, tyInt, tyEmptyStruct}, false),
 			func(args []reflect.Value) []reflect.Value {
 				return []reflect.Value{args[1], args[2], args[3]}
 			},
@@ -605,7 +605,7 @@ var (
 		},
 		testMethodStack{
 			"Empty Struct3",
-			reflect.FuncOf([]reflect.Type{emptyStructTyp, emptyStructTyp, intTyp, emptyStructTyp}, []reflect.Type{intTyp}, false),
+			reflect.FuncOf([]reflect.Type{tyEmptyStruct, tyEmptyStruct, tyInt, tyEmptyStruct}, []reflect.Type{tyInt}, false),
 			func(args []reflect.Value) []reflect.Value {
 				return []reflect.Value{args[3]}
 			},
@@ -615,7 +615,7 @@ var (
 		},
 		testMethodStack{
 			"Empty Struct4",
-			reflect.FuncOf([]reflect.Type{emptyStructTyp, emptyStructTyp, intTyp, emptyStructTyp}, []reflect.Type{emptyStructTyp, emptyStructTyp, emptyStructTyp, boolTyp}, false),
+			reflect.FuncOf([]reflect.Type{tyEmptyStruct, tyEmptyStruct, tyInt, tyEmptyStruct}, []reflect.Type{tyEmptyStruct, tyEmptyStruct, tyEmptyStruct, tyBool}, false),
 			func(args []reflect.Value) []reflect.Value {
 				return []reflect.Value{reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(emtpyStruct), reflect.ValueOf(true)}
 			},
@@ -625,7 +625,7 @@ var (
 		},
 		testMethodStack{
 			"Bool_Nil",
-			reflect.FuncOf([]reflect.Type{boolTyp}, nil, false),
+			reflect.FuncOf([]reflect.Type{tyBool}, nil, false),
 			func(args []reflect.Value) []reflect.Value {
 				return nil
 			},
@@ -635,7 +635,7 @@ var (
 		},
 		testMethodStack{
 			"Bool_Bool",
-			reflect.FuncOf([]reflect.Type{boolTyp}, []reflect.Type{boolTyp}, false),
+			reflect.FuncOf([]reflect.Type{tyBool}, []reflect.Type{tyBool}, false),
 			func(args []reflect.Value) []reflect.Value {
 				return []reflect.Value{args[1]}
 			},
@@ -645,7 +645,7 @@ var (
 		},
 		testMethodStack{
 			"Int_Int",
-			reflect.FuncOf([]reflect.Type{intTyp}, []reflect.Type{intTyp}, false),
+			reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{tyInt}, false),
 			func(args []reflect.Value) []reflect.Value {
 				v := 300 + args[1].Int()
 				return []reflect.Value{reflect.ValueOf(int(v))}
@@ -656,7 +656,7 @@ var (
 		},
 		testMethodStack{
 			"Big Bytes_ByteInt",
-			reflect.FuncOf([]reflect.Type{reflect.TypeOf([4096]byte{})}, []reflect.Type{byteTyp, intTyp, byteTyp}, false),
+			reflect.FuncOf([]reflect.Type{reflect.TypeOf([4096]byte{})}, []reflect.Type{tyByte, tyInt, tyByte}, false),
 			func(args []reflect.Value) []reflect.Value {
 				return []reflect.Value{args[1].Index(1), reflect.ValueOf(args[1].Len()), args[1].Index(3)}
 			},
@@ -730,7 +730,7 @@ func TestInterfaceOf(t *testing.T) {
 		[]reflect.Method{
 			reflect.Method{
 				Name: "String",
-				Type: reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 			},
 		},
 	)
@@ -744,7 +744,7 @@ func TestInterfaceOf(t *testing.T) {
 		[]reflect.Method{
 			reflect.Method{
 				Name: "Close",
-				Type: reflect.FuncOf(nil, []reflect.Type{errorTyp}, false),
+				Type: reflect.FuncOf(nil, []reflect.Type{tyError}, false),
 			},
 		},
 	)
@@ -938,7 +938,7 @@ func TestEmbbedMethods4(t *testing.T) {
 	mSetIndex := reflectx.MakeMethod(
 		"SetIndex",
 		true,
-		reflect.FuncOf([]reflect.Type{intTyp}, nil, false),
+		reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
 		func(args []reflect.Value) []reflect.Value {
 			reflectx.Field(args[0].Elem(), 1).SetInt(args[1].Int())
 			return nil
@@ -947,7 +947,7 @@ func TestEmbbedMethods4(t *testing.T) {
 	mIndex := reflectx.MakeMethod(
 		"Index",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{intTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyInt}, false),
 		func(args []reflect.Value) []reflect.Value {
 			return []reflect.Value{args[0].Field(1)}
 		},
@@ -955,7 +955,7 @@ func TestEmbbedMethods4(t *testing.T) {
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{strTyp}, false),
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 		func(args []reflect.Value) []reflect.Value {
 			info := fmt.Sprintf("%v#%v", args[0].Field(1), args[0].Field(0))
 			return []reflect.Value{reflect.ValueOf(info)}
