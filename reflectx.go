@@ -104,7 +104,8 @@ func ToNamed(typ reflect.Type) (t *Named, ok bool) {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	return NamedTypeOf(pkgpath, name, StructOf(fields))
+	typ := NamedTypeOf(pkgpath, name, StructOf(fields))
+	return MethodOf(typ, nil)
 }
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
@@ -209,5 +210,6 @@ func SetValue(v reflect.Value, x reflect.Value) {
 }
 
 var (
-	emptyInterfaceType = reflect.TypeOf((*interface{})(nil)).Elem()
+	tyEmptyInterface    = reflect.TypeOf((*interface{})(nil)).Elem()
+	tyEmptyInterfacePtr = reflect.TypeOf((*interface{})(nil))
 )

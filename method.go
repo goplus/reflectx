@@ -25,9 +25,9 @@ func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []refl
 	var in []reflect.Type
 	var out []reflect.Type
 	if pointer {
-		in = append(in, reflect.PtrTo(emptyInterfaceType))
+		in = append(in, tyEmptyInterfacePtr)
 	} else {
-		in = append(in, emptyInterfaceType)
+		in = append(in, tyEmptyInterface)
 	}
 	for i := 0; i < typ.NumIn(); i++ {
 		in = append(in, typ.In(i))
@@ -84,7 +84,7 @@ func extraPtrFieldMethod(field int, typ reflect.Type) (methods []reflect.Method)
 	for i := 0; i < typ.NumMethod(); i++ {
 		m := typ.Method(i)
 		in, out := parserFuncIO(m.Type)
-		in[0] = emptyInterfaceType
+		in[0] = tyEmptyInterface
 		mtyp := reflect.FuncOf(in, out, m.Type.IsVariadic())
 		methods = append(methods, reflect.Method{
 			Name:    m.Name,
@@ -106,7 +106,7 @@ func extraInterfaceFieldMethod(ifield int, typ reflect.Type) (methods []reflect.
 	for i := 0; i < typ.NumMethod(); i++ {
 		m := typ.Method(i)
 		in, out := parserFuncIO(m.Type)
-		in = append([]reflect.Type{emptyInterfaceType}, in...)
+		in = append([]reflect.Type{tyEmptyInterface}, in...)
 		mtyp := reflect.FuncOf(in, out, m.Type.IsVariadic())
 		imethod := i
 		methods = append(methods, reflect.Method{
@@ -125,14 +125,7 @@ func extraInterfaceFieldMethod(ifield int, typ reflect.Type) (methods []reflect.
 	return
 }
 
-func ExtractMethod(styp reflect.Type) reflect.Type {
-	return methodOf(styp, extractEmbbedMethod(styp))
-}
-
 func extractEmbbedMethod(styp reflect.Type) []reflect.Method {
-	if styp.Kind() != reflect.Struct {
-		return nil
-	}
 	var methods []reflect.Method
 	for i := 0; i < styp.NumField(); i++ {
 		sf := styp.Field(i)
@@ -172,7 +165,6 @@ func extractEmbbedMethod(styp reflect.Type) []reflect.Method {
 }
 
 func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
-	ms := extractEmbbedMethod(styp)
 	chk := make(map[string]int)
 	for _, m := range methods {
 		chk[m.Name]++
@@ -180,11 +172,14 @@ func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 			panic(fmt.Sprintf("method redeclared: %v", m.Name))
 		}
 	}
-	for _, m := range ms {
-		if chk[m.Name] == 1 {
-			continue
+	if styp.Kind() == reflect.Struct {
+		ms := extractEmbbedMethod(styp)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			methods = append(methods, m)
 		}
-		methods = append(methods, m)
 	}
 	return methodOf(styp, methods)
 }
@@ -214,6 +209,7 @@ func methodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	prt, ptt := newType(reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
+	setTypeName(rt, styp.PkgPath(), styp.Name())
 	typ := toType(rt)
 	ptyp := reflect.PtrTo(typ)
 	ms := make([]method, mcount, mcount)
@@ -566,11 +562,11 @@ func Interface(v reflect.Value) interface{} {
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
-	return NamedTypeOf(pkgpath, name, emptyInterfaceType)
+	return NamedTypeOf(pkgpath, name, tyEmptyInterface)
 }
 
 func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []reflect.Method) reflect.Type {
-	styp := NamedTypeOf(pkgpath, name, emptyInterfaceType)
+	styp := NamedTypeOf(pkgpath, name, tyEmptyInterface)
 	return InterfaceOf(styp, embedded, methods)
 }
 
