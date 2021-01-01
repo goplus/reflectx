@@ -778,6 +778,8 @@ type Seter interface {
 }
 
 func TestExtra(t *testing.T) {
+
+	return
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "Point", Type: reflect.TypeOf((*MyPoint)(nil)), Anonymous: true},
 		//reflect.StructField{Name: "Point", Type: reflect.TypeOf((*Seter)(nil)).Elem(), Anonymous: true},

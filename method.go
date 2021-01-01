@@ -126,36 +126,70 @@ func extraInterfaceFieldMethod(ifield int, typ reflect.Type) (methods []reflect.
 }
 
 func ExtractMethod(styp reflect.Type) reflect.Type {
+	return methodOf(styp, extractEmbbedMethod(styp))
+}
+
+func extractEmbbedMethod(styp reflect.Type) []reflect.Method {
+	if styp.Kind() != reflect.Struct {
+		return nil
+	}
 	var methods []reflect.Method
 	for i := 0; i < styp.NumField(); i++ {
 		sf := styp.Field(i)
 		if !sf.Anonymous {
 			continue
 		}
-		if sf.Type.Kind() == reflect.Interface {
+		switch sf.Type.Kind() {
+		case reflect.Interface:
 			ms := extraInterfaceFieldMethod(i, sf.Type)
 			methods = append(methods, ms...)
-		} else {
-			// type method
-			if sf.Type.Kind() == reflect.Ptr {
-				ms := extraPtrFieldMethod(i, sf.Type)
-				methods = append(methods, ms...)
-			} else {
-				skip := make(map[string]bool)
-				ms := extraFieldMethod(i, sf.Type, skip)
-				for _, m := range ms {
-					skip[m.Name] = true
-				}
-				pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
-				methods = append(methods, ms...)
-				methods = append(methods, pms...)
+		case reflect.Ptr:
+			ms := extraPtrFieldMethod(i, sf.Type)
+			methods = append(methods, ms...)
+		default:
+			skip := make(map[string]bool)
+			ms := extraFieldMethod(i, sf.Type, skip)
+			for _, m := range ms {
+				skip[m.Name] = true
 			}
+			pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
+			methods = append(methods, ms...)
+			methods = append(methods, pms...)
 		}
 	}
-	return MethodOf(styp, methods)
+	// ambiguous selector check
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+	}
+	var ms []reflect.Method
+	for _, m := range methods {
+		if chk[m.Name] == 1 {
+			ms = append(ms, m)
+		}
+	}
+	return ms
 }
 
 func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
+	ms := extractEmbbedMethod(styp)
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+		if chk[m.Name] > 1 {
+			panic(fmt.Sprintf("method redeclared: %v", m.Name))
+		}
+	}
+	for _, m := range ms {
+		if chk[m.Name] == 1 {
+			continue
+		}
+		methods = append(methods, m)
+	}
+	return methodOf(styp, methods)
+}
+
+func methodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].Type == methods[j].Type {

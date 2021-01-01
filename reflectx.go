@@ -170,7 +170,11 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
 	}
-	return typ
+	ms := extractEmbbedMethod(typ)
+	if len(ms) == 0 {
+		return typ
+	}
+	return methodOf(typ, ms)
 }
 
 // fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
