@@ -93,8 +93,7 @@ func extraPtrFieldMethod(field int, typ reflect.Type) (methods []reflect.Method)
 			Func: reflect.MakeFunc(
 				mtyp,
 				func(args []reflect.Value) []reflect.Value {
-					v := args[0]
-					args[0] = v.Field(field)
+					args[0] = args[0].Field(field)
 					return m.Func.Call(args)
 				},
 			),
@@ -470,8 +469,9 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 }
 
 var (
-	typInfoMap = make(map[reflect.Type][]*methodInfo)
-	ptrTypeMap = make(map[unsafe.Pointer]reflect.Type)
+	typInfoMap   = make(map[reflect.Type][]*methodInfo)
+	ptrTypeMap   = make(map[unsafe.Pointer]reflect.Type)
+	onePtrValues []reflect.Value
 )
 
 type methodInfo struct {
@@ -514,8 +514,21 @@ func New(typ reflect.Type) reflect.Value {
 	v := reflect.New(typ)
 	if IsMethod(typ) {
 		storeMethodValue(v)
+		if isOnePtr(typ) {
+			onePtrValues = append(onePtrValues, v.Elem())
+		}
 	}
 	return v
+}
+
+func Interface(v reflect.Value) interface{} {
+	i := v.Interface()
+	if i != nil && IsMethod(v.Type()) {
+		if !isOnePtr(toElem(v.Type())) {
+			storeMethodValue(reflect.ValueOf(i))
+		}
+	}
+	return i
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
@@ -574,6 +587,12 @@ func toElem(typ reflect.Type) reflect.Type {
 	return typ
 }
 
+func isOnePtr(typ reflect.Type) bool {
+	return typ.Kind() == reflect.Struct &&
+		typ.NumField() == 1 &&
+		typ.Field(0).Type.Kind() == reflect.Ptr
+}
+
 func storeMethodValue(v reflect.Value) {
 	ptr := tovalue(&v).ptr
 	ptrTypeMap[ptr] = toElem(v.Type())
@@ -610,6 +629,17 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 
 func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	typ, ok := ptrTypeMap[ptr]
+	var oneReceiver reflect.Value
+	if !ok {
+		for _, v := range onePtrValues {
+			if v.Field(0).Pointer() == uintptr(ptr) {
+				ok = true
+				typ = v.Type()
+				oneReceiver = v //.Field(0)
+				break
+			}
+		}
+	}
 	if !ok {
 		log.Panicln("cannot found ptr type", i, ptr)
 		return false
@@ -637,6 +667,11 @@ func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 		}
 	} else {
 		receiver = reflect.NewAt(typ, ptr).Elem()
+	}
+	if oneReceiver.IsValid() {
+		receiver = oneReceiver
+		//method, _ = oneReceiver.Type().MethodByName(method.Name)
+		//		log.Println("---->", receiver, method)
 	}
 	in := []reflect.Value{receiver}
 

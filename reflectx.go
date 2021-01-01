@@ -204,14 +204,6 @@ func SetValue(v reflect.Value, x reflect.Value) {
 	}
 }
 
-func Interface(v reflect.Value) interface{} {
-	i := v.Interface()
-	if i != nil && IsMethod(v.Type()) {
-		storeMethodValue(reflect.ValueOf(i))
-	}
-	return i
-}
-
 var (
 	emptyInterfaceType = reflect.TypeOf((*interface{})(nil)).Elem()
 )
