@@ -104,7 +104,8 @@ func ToNamed(typ reflect.Type) (t *Named, ok bool) {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	return NamedTypeOf(pkgpath, name, StructOf(fields))
+	typ := NamedTypeOf(pkgpath, name, StructOf(fields))
+	return MethodOf(typ, nil)
 }
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
@@ -114,6 +115,10 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Ty
 	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
 	ntypeMap[typ] = nt
 	return typ
+}
+
+func SetTypeName(typ reflect.Type, pkgpath string, name string) {
+	setTypeName(totype(typ), pkgpath, name)
 }
 
 func setTypeName(t *rtype, pkgpath string, name string) {
@@ -166,7 +171,11 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
 	}
-	return typ
+	ms := extractEmbedMethod(typ)
+	if len(ms) == 0 {
+		return typ
+	}
+	return methodOf(typ, ms)
 }
 
 // fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
@@ -200,14 +209,7 @@ func SetValue(v reflect.Value, x reflect.Value) {
 	}
 }
 
-func Interface(v reflect.Value) interface{} {
-	i := v.Interface()
-	if i != nil && IsMethod(v.Type()) {
-		storeMethodValue(reflect.ValueOf(i))
-	}
-	return i
-}
-
 var (
-	emptyInterfaceType = reflect.TypeOf((*interface{})(nil)).Elem()
+	tyEmptyInterface    = reflect.TypeOf((*interface{})(nil)).Elem()
+	tyEmptyInterfacePtr = reflect.TypeOf((*interface{})(nil))
 )

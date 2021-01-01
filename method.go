@@ -16,42 +16,190 @@ func memmove(dst, src unsafe.Pointer, size uintptr)
 //go:linkname typedmemmove reflect.typedmemmove
 func typedmemmove(typ *rtype, dst, src unsafe.Pointer)
 
-type Method struct {
-	Name    string        // method Name
-	Type    reflect.Type  // method type without receiver
-	Func    reflect.Value // func with receiver as first argument
-	Pointer bool          // receiver is pointer
-}
-
-// MakeMethod returns a new Method of the given Type
-// that wraps the function fn.
-//
-//	- name: method name
-//	- pointer: flag receiver struct or pointer
-//	- typ: method func type without receiver
-//	- fn: func with receiver as first argument
-func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []reflect.Value) (result []reflect.Value)) Method {
-	return Method{
-		Name:    name,
-		Type:    typ,
-		Func:    reflect.MakeFunc(typ, fn),
-		Pointer: pointer,
+// MakeMethod make reflect.Method for MethodOf
+// - name: method name
+// - pointer: flag receiver struct or pointer
+// - typ: method func type without receiver
+// - fn: func with receiver as first argument
+func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []reflect.Value) (result []reflect.Value)) reflect.Method {
+	var in []reflect.Type
+	var out []reflect.Type
+	if pointer {
+		in = append(in, tyEmptyInterfacePtr)
+	} else {
+		in = append(in, tyEmptyInterface)
+	}
+	for i := 0; i < typ.NumIn(); i++ {
+		in = append(in, typ.In(i))
+	}
+	for i := 0; i < typ.NumOut(); i++ {
+		out = append(out, typ.Out(i))
+	}
+	return reflect.Method{
+		Name: name,
+		Type: reflect.FuncOf(in, out, typ.IsVariadic()),
+		Func: reflect.MakeFunc(typ, fn),
 	}
 }
 
-func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
+func extraFieldMethod(field int, typ reflect.Type, skip map[string]bool) (methods []reflect.Method) {
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		if skip[m.Name] {
+			continue
+		}
+		methods = append(methods, reflect.Method{
+			Name:    m.Name,
+			PkgPath: m.PkgPath,
+			Type:    m.Type,
+			Func: reflect.MakeFunc(
+				m.Type,
+				func(args []reflect.Value) []reflect.Value {
+					v := args[0]
+					if v.Kind() == reflect.Ptr {
+						args[0] = v.Elem().Field(field).Addr()
+						return m.Func.Call(args)
+					} else {
+						args[0] = v.Field(field)
+						return m.Func.Call(args)
+					}
+				},
+			),
+		})
+	}
+	return
+}
+
+func parserFuncIO(typ reflect.Type) (in, out []reflect.Type) {
+	for i := 0; i < typ.NumIn(); i++ {
+		in = append(in, typ.In(i))
+	}
+	for i := 0; i < typ.NumOut(); i++ {
+		out = append(out, typ.Out(i))
+	}
+	return
+}
+
+func extraPtrFieldMethod(field int, typ reflect.Type) (methods []reflect.Method) {
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		in, out := parserFuncIO(m.Type)
+		in[0] = tyEmptyInterface
+		mtyp := reflect.FuncOf(in, out, m.Type.IsVariadic())
+		methods = append(methods, reflect.Method{
+			Name:    m.Name,
+			PkgPath: m.PkgPath,
+			Type:    mtyp,
+			Func: reflect.MakeFunc(
+				mtyp,
+				func(args []reflect.Value) []reflect.Value {
+					args[0] = args[0].Field(field)
+					return m.Func.Call(args)
+				},
+			),
+		})
+	}
+	return
+}
+
+func extraInterfaceFieldMethod(ifield int, typ reflect.Type) (methods []reflect.Method) {
+	for i := 0; i < typ.NumMethod(); i++ {
+		m := typ.Method(i)
+		in, out := parserFuncIO(m.Type)
+		in = append([]reflect.Type{tyEmptyInterface}, in...)
+		mtyp := reflect.FuncOf(in, out, m.Type.IsVariadic())
+		imethod := i
+		methods = append(methods, reflect.Method{
+			Name:    m.Name,
+			PkgPath: m.PkgPath,
+			Type:    mtyp,
+			Func: reflect.MakeFunc(
+				mtyp,
+				func(args []reflect.Value) []reflect.Value {
+					var recv = args[0]
+					return recv.Field(ifield).Method(imethod).Call(args[1:])
+				},
+			),
+		})
+	}
+	return
+}
+
+func extractEmbedMethod(styp reflect.Type) []reflect.Method {
+	var methods []reflect.Method
+	for i := 0; i < styp.NumField(); i++ {
+		sf := styp.Field(i)
+		if !sf.Anonymous {
+			continue
+		}
+		switch sf.Type.Kind() {
+		case reflect.Interface:
+			ms := extraInterfaceFieldMethod(i, sf.Type)
+			methods = append(methods, ms...)
+		case reflect.Ptr:
+			ms := extraPtrFieldMethod(i, sf.Type)
+			methods = append(methods, ms...)
+		default:
+			skip := make(map[string]bool)
+			ms := extraFieldMethod(i, sf.Type, skip)
+			for _, m := range ms {
+				skip[m.Name] = true
+			}
+			pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
+			methods = append(methods, ms...)
+			methods = append(methods, pms...)
+		}
+	}
+	// ambiguous selector check
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+	}
+	var ms []reflect.Method
+	for _, m := range methods {
+		if chk[m.Name] == 1 {
+			ms = append(ms, m)
+		}
+	}
+	return ms
+}
+
+func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+		if chk[m.Name] > 1 {
+			panic(fmt.Sprintf("method redeclared: %v", m.Name))
+		}
+	}
+	if styp.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(styp)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			methods = append(methods, m)
+		}
+	}
+	return methodOf(styp, methods)
+}
+
+func methodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
-		if n == 0 {
+		if n == 0 && methods[i].Type == methods[j].Type {
 			panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
 		}
 		return n < 0
 	})
+	isPointer := func(m reflect.Method) bool {
+		return m.Type.In(0).Kind() == reflect.Ptr
+	}
 	var mcount, pcount int
 	pcount = len(methods)
 	var mlist []string
 	for _, m := range methods {
-		if !m.Pointer {
+		if !isPointer(m) {
 			mlist = append(mlist, m.Name)
 			mcount++
 		}
@@ -61,6 +209,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	prt, ptt := newType(reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
+	setTypeName(rt, styp.PkgPath(), styp.Name())
 	typ := toType(rt)
 	ptyp := reflect.PtrTo(typ)
 	ms := make([]method, mcount, mcount)
@@ -73,8 +222,9 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		name := resolveReflectName(newName(m.Name, "", true))
 		in, out, ntyp, inTyp, outTyp := toRealType(typ, orgtyp, m.Type)
 		mtyp := resolveReflectType(totype(ntyp))
+		pointer := isPointer(m)
 		var ftyp reflect.Type
-		if m.Pointer {
+		if pointer {
 			ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
 		} else {
 			ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
@@ -91,7 +241,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 		tfn = resolveReflectText(unsafe.Pointer(ptr))
 		pindex := i
-		if !m.Pointer {
+		if !pointer {
 			for i, s := range mlist {
 				if s == m.Name {
 					pindex = i
@@ -120,10 +270,10 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			index:    pindex,
 			isz:      isz,
 			osz:      osz,
-			pointer:  m.Pointer,
+			pointer:  pointer,
 			variadic: m.Type.IsVariadic(),
 		})
-		if !m.Pointer {
+		if !pointer {
 			ifunc := icall(index, false)
 			var ifn textOff
 			if ifunc == nil {
@@ -142,7 +292,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 				index:    index,
 				isz:      isz,
 				osz:      osz,
-				pointer:  m.Pointer,
+				pointer:  pointer,
 				variadic: m.Type.IsVariadic(),
 			})
 			index++
@@ -193,7 +343,7 @@ func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, i
 	}
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
-	for i := 0; i < mtyp.NumIn(); i++ {
+	for i := 1; i < mtyp.NumIn(); i++ {
 		t := fn(mtyp.In(i))
 		in = append(in, t)
 		inFields = append(inFields, reflect.StructField{
@@ -349,8 +499,9 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 }
 
 var (
-	typInfoMap = make(map[reflect.Type][]*methodInfo)
-	ptrTypeMap = make(map[unsafe.Pointer]reflect.Type)
+	typInfoMap   = make(map[reflect.Type][]*methodInfo)
+	ptrTypeMap   = make(map[unsafe.Pointer]reflect.Type)
+	onePtrValues []reflect.Value
 )
 
 type methodInfo struct {
@@ -393,16 +544,29 @@ func New(typ reflect.Type) reflect.Value {
 	v := reflect.New(typ)
 	if IsMethod(typ) {
 		storeMethodValue(v)
+		if isOnePtr(typ) {
+			onePtrValues = append(onePtrValues, v.Elem())
+		}
 	}
 	return v
 }
 
+func Interface(v reflect.Value) interface{} {
+	i := v.Interface()
+	if i != nil && IsMethod(v.Type()) {
+		if !isOnePtr(toElem(v.Type())) {
+			storeMethodValue(reflect.ValueOf(i))
+		}
+	}
+	return i
+}
+
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
-	return NamedTypeOf(pkgpath, name, emptyInterfaceType)
+	return NamedTypeOf(pkgpath, name, tyEmptyInterface)
 }
 
 func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []reflect.Method) reflect.Type {
-	styp := NamedTypeOf(pkgpath, name, emptyInterfaceType)
+	styp := NamedTypeOf(pkgpath, name, tyEmptyInterface)
 	return InterfaceOf(styp, embedded, methods)
 }
 
@@ -453,6 +617,12 @@ func toElem(typ reflect.Type) reflect.Type {
 	return typ
 }
 
+func isOnePtr(typ reflect.Type) bool {
+	return typ.Kind() == reflect.Struct &&
+		typ.NumField() == 1 &&
+		typ.Field(0).Type.Kind() == reflect.Ptr
+}
+
 func storeMethodValue(v reflect.Value) {
 	ptr := tovalue(&v).ptr
 	ptrTypeMap[ptr] = toElem(v.Type())
@@ -489,8 +659,19 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 
 func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	typ, ok := ptrTypeMap[ptr]
+	var oneReceiver reflect.Value
 	if !ok {
-		log.Println("cannot found ptr type", ptr)
+		for _, v := range onePtrValues {
+			if v.Field(0).Pointer() == uintptr(ptr) {
+				ok = true
+				typ = v.Type()
+				oneReceiver = v //.Field(0)
+				break
+			}
+		}
+	}
+	if !ok {
+		log.Panicln("cannot found ptr type", i, ptr)
 		return false
 	}
 	if ptrto {
@@ -516,6 +697,11 @@ func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 		}
 	} else {
 		receiver = reflect.NewAt(typ, ptr).Elem()
+	}
+	if oneReceiver.IsValid() {
+		receiver = oneReceiver
+		//method, _ = oneReceiver.Type().MethodByName(method.Name)
+		//		log.Println("---->", receiver, method)
 	}
 	in := []reflect.Value{receiver}
 
