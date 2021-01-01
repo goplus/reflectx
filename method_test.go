@@ -785,7 +785,7 @@ func (s MyPoint4) String() string {
 	return fmt.Sprintf("%v#%v", s.index, s.Point)
 }
 
-func TestEmbbedMethods1(t *testing.T) {
+func TestEmbedMethods1(t *testing.T) {
 	// MyPoint1
 	typ := reflect.TypeOf((*MyPoint1)(nil)).Elem()
 	if v := typ.NumMethod(); v != 4 {
@@ -816,7 +816,7 @@ func TestEmbbedMethods1(t *testing.T) {
 	}
 }
 
-func TestEmbbedMethods2(t *testing.T) {
+func TestEmbedMethods2(t *testing.T) {
 	// MyPoint2
 	typ := reflect.TypeOf((*MyPoint2)(nil)).Elem()
 	if v := typ.NumMethod(); v != 5 {
@@ -853,7 +853,7 @@ func TestEmbbedMethods2(t *testing.T) {
 	}
 }
 
-func TestEmbbedMethods3(t *testing.T) {
+func TestEmbedMethods3(t *testing.T) {
 	// MyPoint3
 	typ := reflect.TypeOf((*MyPoint3)(nil)).Elem()
 	if v := typ.NumMethod(); v != 2 {
@@ -900,7 +900,7 @@ func TestEmbbedMethods3(t *testing.T) {
 	}
 }
 
-func TestEmbbedMethods4(t *testing.T) {
+func TestEmbedMethods4(t *testing.T) {
 	// MyPoint4
 	typ := reflect.TypeOf((*MyPoint4)(nil)).Elem()
 	if v := typ.NumMethod(); v != 6 {

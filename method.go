@@ -125,7 +125,7 @@ func extraInterfaceFieldMethod(ifield int, typ reflect.Type) (methods []reflect.
 	return
 }
 
-func extractEmbbedMethod(styp reflect.Type) []reflect.Method {
+func extractEmbedMethod(styp reflect.Type) []reflect.Method {
 	var methods []reflect.Method
 	for i := 0; i < styp.NumField(); i++ {
 		sf := styp.Field(i)
@@ -173,7 +173,7 @@ func MethodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 		}
 	}
 	if styp.Kind() == reflect.Struct {
-		ms := extractEmbbedMethod(styp)
+		ms := extractEmbedMethod(styp)
 		for _, m := range ms {
 			if chk[m.Name] == 1 {
 				continue

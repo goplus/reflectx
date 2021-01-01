@@ -171,7 +171,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
 	}
-	ms := extractEmbbedMethod(typ)
+	ms := extractEmbedMethod(typ)
 	if len(ms) == 0 {
 		return typ
 	}
