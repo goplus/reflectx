@@ -381,23 +381,7 @@ func (i Point) New() *Point {
 	return &Point{i.X, i.Y}
 }
 
-func TestStructMethodOf(t *testing.T) {
-	// Point
-	var i Point
-	i.Set(100, 200)
-	if v := fmt.Sprint(i); v != "(100,200)" {
-		t.Fatalf("have %v, want (100,200)", v)
-	}
-	if v := fmt.Sprint(i.Add(Point{1, 2})); v != "(101,202)" {
-		t.Fatalf("have %v, want (101,202)", v)
-	}
-	if v := fmt.Sprint(i.Scale(2, 3, 4)); v != "[(200,400) (300,600) (400,800)]" {
-		t.Fatalf("have %v, want [(200,400) (300,600) (400,800)]", v)
-	}
-	if v := fmt.Sprint(i.New()); v != "(100,200)" {
-		t.Fatalf("have %v, want (100,200)", v)
-	}
-	// make Point
+func makePointType() reflect.Type {
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
@@ -471,6 +455,27 @@ func TestStructMethodOf(t *testing.T) {
 		mScale,
 		mNew,
 	})
+	return typ
+}
+
+func TestStructMethodOf(t *testing.T) {
+	// Point
+	var i Point
+	i.Set(100, 200)
+	if v := fmt.Sprint(i); v != "(100,200)" {
+		t.Fatalf("have %v, want (100,200)", v)
+	}
+	if v := fmt.Sprint(i.Add(Point{1, 2})); v != "(101,202)" {
+		t.Fatalf("have %v, want (101,202)", v)
+	}
+	if v := fmt.Sprint(i.Scale(2, 3, 4)); v != "[(200,400) (300,600) (400,800)]" {
+		t.Fatalf("have %v, want [(200,400) (300,600) (400,800)]", v)
+	}
+	if v := fmt.Sprint(i.New()); v != "(100,200)" {
+		t.Fatalf("have %v, want (100,200)", v)
+	}
+	// make Point
+	typ := makePointType()
 	ptrType := reflect.PtrTo(typ)
 
 	if n := typ.NumMethod(); n != 4 {
@@ -984,4 +989,40 @@ func TestEmbedMethods4(t *testing.T) {
 	if v := fmt.Sprint(reflectx.Interface(m)); v != "1#(300,400)" {
 		t.Errorf("have %v want 1#(300,400)", v)
 	}
+}
+
+func _TestDynamic(t *testing.T) {
+	tyPoint := makePointType()
+	fs := []reflect.StructField{
+		reflect.StructField{
+			Name:      "N",
+			Type:      tyInt,
+			Anonymous: false,
+		},
+		reflect.StructField{
+			Name:      "Point",
+			Type:      tyPoint,
+			Anonymous: true,
+		},
+	}
+	typ := reflectx.NamedStructOf("main", "MyPoint5", fs)
+	t.Log(typ, typ.NumMethod(), reflect.PtrTo(typ).NumMethod())
+	v := reflectx.New(typ).Elem()
+	//v.Field(0).Set(reflectx.New(tyPoint))
+	ptyp := reflect.PtrTo(typ)
+	for i := 0; i < ptyp.NumMethod(); i++ {
+		t.Log("--->", ptyp.Method(i))
+	}
+	v.Addr().MethodByName("Set").Call([]reflect.Value{
+		reflect.ValueOf(100),
+		reflect.ValueOf(200),
+	})
+	//reflectx.StoreValue(v.Field(1))
+	v.Field(1).Addr().MethodByName("Set").Call([]reflect.Value{
+		reflect.ValueOf(-100),
+		reflect.ValueOf(-200),
+	})
+	//t.Log(v.Field(1)))
+	t.Log(reflectx.Interface(v))
+	//t.Log(reflectx.Interface(v))
 }
