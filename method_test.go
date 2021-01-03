@@ -834,6 +834,16 @@ func TestEmbedMethods1(t *testing.T) {
 		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
+		if v := fmt.Sprint(reflectx.Interface(m.Addr())); v != "(100,200)" {
+			t.Errorf("have %v want (100,200)", v)
+		}
+		m.Field(0).Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(-100), reflect.ValueOf(-200)})
+		if v := fmt.Sprint(reflectx.Interface(m.Field(0))); v != "(-100,-200)" {
+			t.Errorf("have %v want (-100,-200)", v)
+		}
+		if v := fmt.Sprint(reflectx.Interface(m.Field(0).Addr())); v != "(-100,-200)" {
+			t.Errorf("have %v want (-100,-200)", v)
+		}
 	}
 
 	// test mixed embed struct
@@ -874,8 +884,24 @@ func TestEmbedMethods2(t *testing.T) {
 		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
+		if v := fmt.Sprint(reflectx.Interface(m.Addr())); v != "(100,200)" {
+			t.Errorf("have %v want (100,200)", v)
+		}
+		m.Field(0).MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(-100), reflect.ValueOf(-200)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "(-100,-200)" {
+			t.Errorf("have %v want (-100,-200)", v)
+		}
+		if v := fmt.Sprint(reflectx.Interface(m.Field(0))); v != "(-100,-200)" {
+			t.Errorf("have %v want (-100,-200)", v)
+		}
+		if v := fmt.Sprint(reflectx.Interface(m.Field(0).Elem())); v != "(-100,-200)" {
+			t.Errorf("have %v want (-100,-200)", v)
+		}
 		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
 		if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
+			t.Errorf("have %v want (300,400)", v)
+		}
+		if v := fmt.Sprint(reflectx.Interface(m.Addr())); v != "(300,400)" {
 			t.Errorf("have %v want (300,400)", v)
 		}
 	}
