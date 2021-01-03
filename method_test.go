@@ -381,7 +381,7 @@ func (i Point) New() *Point {
 	return &Point{i.X, i.Y}
 }
 
-func makePointType() reflect.Type {
+func makeDynamicPointType() reflect.Type {
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
@@ -475,7 +475,7 @@ func TestStructMethodOf(t *testing.T) {
 		t.Fatalf("have %v, want (100,200)", v)
 	}
 	// make Point
-	typ := makePointType()
+	typ := makeDynamicPointType()
 	ptrType := reflect.PtrTo(typ)
 
 	if n := typ.NumMethod(); n != 4 {
@@ -790,6 +790,21 @@ func (s MyPoint4) String() string {
 	return fmt.Sprintf("%v#%v", s.index, s.Point)
 }
 
+func makeDynamicSetterType() reflect.Type {
+	return reflectx.NamedInterfaceOf("main", "Setter", nil,
+		[]reflect.Method{
+			reflect.Method{
+				Name: "Set",
+				Type: reflect.FuncOf([]reflect.Type{tyInt, tyInt}, nil, false),
+			},
+			reflect.Method{
+				Name: "String",
+				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
+			},
+		},
+	)
+}
+
 func TestEmbedMethods1(t *testing.T) {
 	// MyPoint1
 	typ := reflect.TypeOf((*MyPoint1)(nil)).Elem()
@@ -799,26 +814,32 @@ func TestEmbedMethods1(t *testing.T) {
 	if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
 		t.Fatalf("NumMethod have %v want 5", v)
 	}
-	// embbed struct
-	fs := []reflect.StructField{
-		reflect.StructField{
-			Name:      "Point",
-			Type:      reflect.TypeOf((*Point)(nil)).Elem(),
-			Anonymous: true,
-		},
+	fnTest := func(t *testing.T, tyPoint reflect.Type) {
+		fs := []reflect.StructField{
+			reflect.StructField{
+				Name:      "Point",
+				Type:      tyPoint,
+				Anonymous: true,
+			},
+		}
+		typ := reflectx.NamedStructOf("main", "MyPoint1", fs)
+		if v := typ.NumMethod(); v != 4 {
+			t.Errorf("NumMethod have %v want 4", v)
+		}
+		if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
+			t.Errorf("NumMethod have %v want 5", v)
+		}
+		m := reflectx.New(typ).Elem()
+		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
+			t.Errorf("have %v want (100,200)", v)
+		}
 	}
-	typ = reflectx.NamedStructOf("main", "MyPoint1", fs)
-	if v := typ.NumMethod(); v != 4 {
-		t.Errorf("NumMethod have %v want 4", v)
-	}
-	if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
-		t.Errorf("NumMethod have %v want 5", v)
-	}
-	m := reflectx.New(typ).Elem()
-	m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
-		t.Errorf("have %v want (100,200)", v)
-	}
+
+	// test mixed embed struct
+	fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
+	// test dynamic embed struct
+	fnTest(t, makeDynamicPointType())
 }
 
 func TestEmbedMethods2(t *testing.T) {
@@ -832,30 +853,36 @@ func TestEmbedMethods2(t *testing.T) {
 	}
 
 	// embbed ptr
-	fs := []reflect.StructField{
-		reflect.StructField{
-			Name:      "Point",
-			Type:      reflect.TypeOf((*Point)(nil)),
-			Anonymous: true,
-		},
+	fnTest := func(t *testing.T, tyPoint reflect.Type) {
+		fs := []reflect.StructField{
+			reflect.StructField{
+				Name:      "Point",
+				Type:      reflect.PtrTo(tyPoint),
+				Anonymous: true,
+			},
+		}
+		typ = reflectx.NamedStructOf("main", "MyPoint2", fs)
+		if v := typ.NumMethod(); v != 5 {
+			t.Errorf("NumMethod have %v want 5", v)
+		}
+		if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
+			t.Errorf("NumMethod have %v want 5", v)
+		}
+		m := reflectx.New(typ).Elem()
+		m.Field(0).Set(reflectx.New(tyPoint))
+		m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
+			t.Errorf("have %v want (100,200)", v)
+		}
+		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
+			t.Errorf("have %v want (300,400)", v)
+		}
 	}
-	typ = reflectx.NamedStructOf("main", "MyPoint2", fs)
-	if v := typ.NumMethod(); v != 5 {
-		t.Errorf("NumMethod have %v want 5", v)
-	}
-	if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
-		t.Errorf("NumMethod have %v want 5", v)
-	}
-	m := reflectx.New(typ).Elem()
-	m.Field(0).Set(reflect.ValueOf(&Point{}))
-	m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
-		t.Errorf("have %v want (100,200)", v)
-	}
-	m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
-		t.Errorf("have %v want (300,400)", v)
-	}
+	// test mixed embed ptr
+	fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
+	// test dynamic embed ptr
+	//fnTest(t, makeDynamicPointType())
 }
 
 func TestEmbedMethods3(t *testing.T) {
@@ -879,30 +906,38 @@ func TestEmbedMethods3(t *testing.T) {
 	}
 
 	// embbed interface
-	fs := []reflect.StructField{
-		reflect.StructField{
-			Name:      "Setter",
-			Type:      reflect.TypeOf((*Setter)(nil)).Elem(),
-			Anonymous: true,
-		},
+	fnTest := func(t *testing.T, setter reflect.Type, tyPoint reflect.Type) {
+		fs := []reflect.StructField{
+			reflect.StructField{
+				Name:      "Setter",
+				Type:      setter,
+				Anonymous: true,
+			},
+		}
+		typ := reflectx.NamedStructOf("main", "MyPoint3", fs)
+		if v := typ.NumMethod(); v != 2 {
+			t.Errorf("NumMethod have %v want 2", v)
+		}
+		if v := reflect.PtrTo(typ).NumMethod(); v != 2 {
+			t.Errorf("NumMethod have %v want 2", v)
+		}
+		m := reflectx.New(typ).Elem()
+		m.Field(0).Set(reflectx.New(tyPoint))
+		m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
+			t.Errorf("have %v want (100,200)", v)
+		}
+		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
+			t.Errorf("have %v want (300,400)", v)
+		}
 	}
-	typ = reflectx.NamedStructOf("main", "MyPoint3", fs)
-	if v := typ.NumMethod(); v != 2 {
-		t.Errorf("NumMethod have %v want 2", v)
-	}
-	if v := reflect.PtrTo(typ).NumMethod(); v != 2 {
-		t.Errorf("NumMethod have %v want 2", v)
-	}
-	m := reflectx.New(typ).Elem()
-	m.Field(0).Set(reflect.ValueOf(&Point{}))
-	m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
-		t.Errorf("have %v want (100,200)", v)
-	}
-	m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
-		t.Errorf("have %v want (300,400)", v)
-	}
+	// test mixed embed interface
+	fnTest(t, reflect.TypeOf((*Setter)(nil)).Elem(), reflect.TypeOf((*Point)(nil)).Elem())
+	fnTest(t, reflect.TypeOf((*Setter)(nil)).Elem(), makeDynamicPointType())
+	// test dynamic embed interface
+	fnTest(t, makeDynamicSetterType(), reflect.TypeOf((*Point)(nil)).Elem())
+	fnTest(t, makeDynamicSetterType(), makeDynamicPointType())
 }
 
 func TestEmbedMethods4(t *testing.T) {
@@ -926,67 +961,74 @@ func TestEmbedMethods4(t *testing.T) {
 		t.Fatalf("String have %v, want 1#(300,400)", v)
 	}
 
-	// embbed ptr
-	fs := []reflect.StructField{
-		reflect.StructField{
-			Name:      "Point",
-			Type:      reflect.TypeOf((*Point)(nil)),
-			Anonymous: true,
-		},
-		reflect.StructField{
-			Name:      "index",
-			PkgPath:   "main",
-			Type:      reflect.TypeOf(int(0)),
-			Anonymous: false,
-		},
+	fnTest := func(t *testing.T, tyPoint reflect.Type) {
+		// embbed ptr
+		fs := []reflect.StructField{
+			reflect.StructField{
+				Name:      "Point",
+				Type:      reflect.PtrTo(tyPoint),
+				Anonymous: true,
+			},
+			reflect.StructField{
+				Name:      "index",
+				PkgPath:   "main",
+				Type:      reflect.TypeOf(int(0)),
+				Anonymous: false,
+			},
+		}
+		mSetIndex := reflectx.MakeMethod(
+			"SetIndex",
+			true,
+			reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
+			func(args []reflect.Value) []reflect.Value {
+				reflectx.Field(args[0].Elem(), 1).SetInt(args[1].Int())
+				return nil
+			},
+		)
+		mIndex := reflectx.MakeMethod(
+			"Index",
+			false,
+			reflect.FuncOf(nil, []reflect.Type{tyInt}, false),
+			func(args []reflect.Value) []reflect.Value {
+				return []reflect.Value{args[0].Field(1)}
+			},
+		)
+		mString := reflectx.MakeMethod(
+			"String",
+			false,
+			reflect.FuncOf(nil, []reflect.Type{tyString}, false),
+			func(args []reflect.Value) []reflect.Value {
+				info := fmt.Sprintf("%v#%v", args[0].Field(1), args[0].Field(0))
+				return []reflect.Value{reflect.ValueOf(info)}
+			},
+		)
+		typ := reflectx.NamedStructOf("main", "MyPoint4", fs)
+		typ = reflectx.MethodOf(typ, []reflect.Method{
+			mSetIndex,
+			mIndex,
+			mString,
+		})
+		if v := typ.NumMethod(); v != 6 {
+			t.Errorf("NumMethod have %v want 6", v)
+		}
+		if v := reflect.PtrTo(typ).NumMethod(); v != 7 {
+			t.Errorf("NumMethod have %v want 7", v)
+		}
+		m := reflectx.New(typ).Elem()
+		m.Field(0).Set(reflectx.New(tyPoint))
+		m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "0#(100,200)" {
+			t.Errorf("have %v want 0#(100,200)", v)
+		}
+		m.Addr().MethodByName("SetIndex").Call([]reflect.Value{reflect.ValueOf(1)})
+		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
+		if v := fmt.Sprint(reflectx.Interface(m)); v != "1#(300,400)" {
+			t.Errorf("have %v want 1#(300,400)", v)
+		}
 	}
-	mSetIndex := reflectx.MakeMethod(
-		"SetIndex",
-		true,
-		reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
-		func(args []reflect.Value) []reflect.Value {
-			reflectx.Field(args[0].Elem(), 1).SetInt(args[1].Int())
-			return nil
-		},
-	)
-	mIndex := reflectx.MakeMethod(
-		"Index",
-		false,
-		reflect.FuncOf(nil, []reflect.Type{tyInt}, false),
-		func(args []reflect.Value) []reflect.Value {
-			return []reflect.Value{args[0].Field(1)}
-		},
-	)
-	mString := reflectx.MakeMethod(
-		"String",
-		false,
-		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
-		func(args []reflect.Value) []reflect.Value {
-			info := fmt.Sprintf("%v#%v", args[0].Field(1), args[0].Field(0))
-			return []reflect.Value{reflect.ValueOf(info)}
-		},
-	)
-	typ = reflectx.NamedStructOf("main", "MyPoint4", fs)
-	typ = reflectx.MethodOf(typ, []reflect.Method{
-		mSetIndex,
-		mIndex,
-		mString,
-	})
-	if v := typ.NumMethod(); v != 6 {
-		t.Errorf("NumMethod have %v want 6", v)
-	}
-	if v := reflect.PtrTo(typ).NumMethod(); v != 7 {
-		t.Errorf("NumMethod have %v want 7", v)
-	}
-	m := reflectx.New(typ).Elem()
-	m.Field(0).Set(reflect.ValueOf(&Point{}))
-	m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "0#(100,200)" {
-		t.Errorf("have %v want 0#(100,200)", v)
-	}
-	m.Addr().MethodByName("SetIndex").Call([]reflect.Value{reflect.ValueOf(1)})
-	m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
-	if v := fmt.Sprint(reflectx.Interface(m)); v != "1#(300,400)" {
-		t.Errorf("have %v want 1#(300,400)", v)
-	}
+
+	// test mixed embed ptr with methods
+	fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
+	// test dynamic embed ptr with methods
+	fnTest(t, makeDynamicPointType())
 }
