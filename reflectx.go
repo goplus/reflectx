@@ -94,6 +94,11 @@ func IsNamed(typ reflect.Type) bool {
 }
 
 func IsMethod(typ reflect.Type) bool {
+	v, ok := ntypeMap[toElem(typ)]
+	return ok && v.Kind == TkMethod
+}
+
+func isMethod(typ reflect.Type) bool {
 	v, ok := ntypeMap[typ]
 	return ok && v.Kind == TkMethod
 }
