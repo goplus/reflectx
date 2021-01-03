@@ -511,7 +511,6 @@ var (
 type typeInfo struct {
 	typ         reflect.Type
 	oneFieldPtr bool
-	iface       bool
 }
 
 type methodInfo struct {
@@ -544,21 +543,34 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	return
 }
 
+func storeMethodValue(v reflect.Value) {
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	if !v.IsValid() {
+		return
+	}
+	typ := v.Type()
+	if isMethod(typ) {
+		valueInfoMap[v] = typeInfo{typ, checkOneFieldPtr(typ)}
+	}
+	if v.Kind() == reflect.Struct {
+		for i := 0; i < v.NumField(); i++ {
+			sf := v.Field(i)
+			storeMethodValue(sf)
+		}
+	}
+}
+
 func New(typ reflect.Type) reflect.Value {
 	v := reflect.New(typ)
-	if isMethod(typ) {
-		valueInfoMap[v] = typeInfo{typ, checkOneFieldPtr(typ), false}
-	}
+	storeMethodValue(v)
 	return v
 }
 
 func Interface(v reflect.Value) interface{} {
 	i := v.Interface()
-	if i != nil {
-		if typ := toElem(v.Type()); isMethod(typ) {
-			valueInfoMap[reflect.ValueOf(i)] = typeInfo{typ, false, true}
-		}
-	}
+	storeMethodValue(reflect.ValueOf(i))
 	return i
 }
 
@@ -616,6 +628,13 @@ func toElem(typ reflect.Type) reflect.Type {
 		return typ.Elem()
 	}
 	return typ
+}
+
+func toElemValue(v reflect.Value) reflect.Value {
+	if v.Kind() == reflect.Ptr {
+		return v.Elem()
+	}
+	return v
 }
 
 func checkOneFieldPtr(typ reflect.Type) bool {
@@ -686,14 +705,8 @@ func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	} else {
 		method = MethodByIndex(typ, info.index)
 	}
-	if !ptrto {
-		if receiver.Kind() == reflect.Ptr {
-			receiver = receiver.Elem()
-		}
-	} else if !info.pointer {
-		if receiver.Kind() == reflect.Ptr {
-			receiver = receiver.Elem()
-		}
+	if ptrto && info.pointer {
+		receiver = receiver.Addr()
 	}
 	in := []reflect.Value{receiver}
 	if inCount := method.Type.NumIn(); inCount > 1 {
