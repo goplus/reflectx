@@ -703,7 +703,7 @@ func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	}
 	infos, ok := typInfoMap[typ]
 	if !ok {
-		log.Println("cannot found type info", typ)
+		log.Panicln("cannot found type info", typ)
 		return false
 	}
 	info := infos[i]
