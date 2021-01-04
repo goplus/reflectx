@@ -32,7 +32,7 @@ var templ_fn = `	func(p, a unsafe.Pointer) { i_x($index, p, unsafe.Pointer(&a), 
 `
 
 func main() {
-	writeFile("./icall.go", 512)
+	writeFile("./icall.go", 1024)
 }
 
 func writeFile(filename string, max_index int) {
