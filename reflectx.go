@@ -170,8 +170,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 		fs[i] = f
 	}
 	typ := reflect.StructOf(fs)
-	v := reflect.Zero(typ)
-	rt := (*Value)(unsafe.Pointer(&v)).typ
+	rt := totype(typ)
 	st := toStructType(rt)
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
