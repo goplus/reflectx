@@ -304,7 +304,6 @@ func methodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	copy(ptt.Elem().Field(2).Slice(0, len(pms)).Interface().([]method), pms)
 	typInfoMap[typ] = infos
 	typInfoMap[ptyp] = pinfos
-	ntypeMap[typ] = &Named{Name: styp.Name(), PkgPath: styp.PkgPath(), Type: typ, Kind: TkType | TkMethod}
 	return typ
 }
 
@@ -504,6 +503,11 @@ var (
 	valueInfoMap = make(map[reflect.Value]typeInfo)
 )
 
+func IsMethod(typ reflect.Type) (ok bool) {
+	_, ok = typInfoMap[typ]
+	return
+}
+
 type typeInfo struct {
 	typ         reflect.Type
 	oneFieldPtr bool
@@ -547,7 +551,7 @@ func checkStoreMethodValue(v reflect.Value) {
 		return
 	}
 	typ := v.Type()
-	if isMethod(typ) {
+	if IsMethod(typ) {
 		valueInfoMap[v] = typeInfo{typ, checkOneFieldPtr(typ)}
 	}
 	if v.Kind() == reflect.Struct {

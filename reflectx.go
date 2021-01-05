@@ -67,8 +67,7 @@ func typeName(typ reflect.Type) string {
 }
 
 var (
-	ntypeMap       = make(map[reflect.Type]*Named)
-	typEmptyStruct = reflect.StructOf(nil)
+	ntypeMap = make(map[reflect.Type]*Named)
 )
 
 type TypeKind int
@@ -77,7 +76,6 @@ const (
 	TkInvalid TypeKind = 1 << iota
 	TkType
 	TkMethod
-	TkInterface
 )
 
 type Named struct {
@@ -91,16 +89,6 @@ type Named struct {
 func IsNamed(typ reflect.Type) bool {
 	_, ok := ntypeMap[typ]
 	return ok
-}
-
-func IsMethod(typ reflect.Type) bool {
-	v, ok := ntypeMap[toElem(typ)]
-	return ok && v.Kind&TkMethod == TkMethod
-}
-
-func isMethod(typ reflect.Type) bool {
-	v, ok := ntypeMap[typ]
-	return ok && v.Kind&TkMethod == TkMethod
 }
 
 func ToNamed(typ reflect.Type) (t *Named, ok bool) {
