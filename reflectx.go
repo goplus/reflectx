@@ -74,9 +74,9 @@ var (
 type TypeKind int
 
 const (
-	TkInvalid TypeKind = iota
-	TkMethod
+	TkInvalid TypeKind = 1 << iota
 	TkType
+	TkMethod
 	TkInterface
 )
 
@@ -95,12 +95,12 @@ func IsNamed(typ reflect.Type) bool {
 
 func IsMethod(typ reflect.Type) bool {
 	v, ok := ntypeMap[toElem(typ)]
-	return ok && v.Kind == TkMethod
+	return ok && v.Kind&TkMethod == TkMethod
 }
 
 func isMethod(typ reflect.Type) bool {
 	v, ok := ntypeMap[typ]
-	return ok && v.Kind == TkMethod
+	return ok && v.Kind&TkMethod == TkMethod
 }
 
 func ToNamed(typ reflect.Type) (t *Named, ok bool) {
@@ -109,16 +109,19 @@ func ToNamed(typ reflect.Type) (t *Named, ok bool) {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	typ := NamedTypeOf(pkgpath, name, StructOf(fields))
-	return MethodOf(typ, nil)
+	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }
 
-func NamedTypeOf(pkgpath string, name string, from reflect.Type) (typ reflect.Type) {
+func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	rt, _ := newType(from, 0, 0)
 	setTypeName(rt, pkgpath, name)
-	typ = toType(rt)
-	nt := &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
-	ntypeMap[typ] = nt
+	typ := toType(rt)
+	kind := TkType
+	if typ.Kind() == reflect.Struct {
+		typ = MethodOf(typ, nil)
+		kind |= TkMethod
+	}
+	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: kind}
 	return typ
 }
 
@@ -155,6 +158,10 @@ func isExported(name string) bool {
 	return unicode.IsUpper(ch)
 }
 
+var (
+	DisableStructOfExportAllField bool
+)
+
 func StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
 	fs := make([]reflect.StructField, len(fields))
@@ -174,6 +181,12 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	st := toStructType(rt)
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
+	}
+	if !DisableStructOfExportAllField {
+		for i := 0; i < len(fs); i++ {
+			f := fs[i]
+			st.fields[i].name = newName(f.Name, string(f.Tag), true)
+		}
 	}
 	ms := extractEmbedMethod(typ)
 	if len(ms) == 0 {
