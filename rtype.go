@@ -206,7 +206,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		st := (*structType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		ost := (*structType)(unsafe.Pointer(ort))
 		st.fields = ost.fields
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Ptr:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(ptrType{})},
@@ -215,7 +214,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		}))
 		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		st.elem = totype(styp.Elem())
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Interface:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(interfaceType{})},
@@ -229,7 +227,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 				typ:  resolveReflectType(ost.typeOff(m.typ)),
 			})
 		}
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Slice:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(sliceType{})},
@@ -238,7 +235,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		}))
 		st := (*sliceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		st.elem = totype(styp.Elem())
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Array:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(arrayType{})},
@@ -250,7 +246,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		st.elem = ost.elem
 		st.slice = ost.slice
 		st.len = ost.len
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Chan:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(chanType{})},
@@ -261,7 +256,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 		ost := (*chanType)(unsafe.Pointer(ort))
 		st.elem = ost.elem
 		st.dir = ost.dir
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Func:
 		narg := styp.NumIn() + styp.NumOut()
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
@@ -284,7 +278,6 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 			}
 			copy(tt.Elem().Field(2).Slice(0, narg).Interface().([]*rtype), args)
 		}
-		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Map:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(mapType{})},
@@ -292,30 +285,23 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*mapType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
-		ort := (*mapType)(unsafe.Pointer(ort))
-		st.key = ort.key
-		st.elem = ort.elem
-		st.bucket = ort.bucket
-		st.hasher = ort.hasher
-		st.keysize = ort.keysize
-		st.valuesize = ort.valuesize
-		st.bucketsize = ort.bucketsize
-		st.flags = ort.flags
-		rt = (*rtype)(unsafe.Pointer(st))
+		ost := (*mapType)(unsafe.Pointer(ort))
+		st.key = ost.key
+		st.elem = ost.elem
+		st.bucket = ost.bucket
+		st.hasher = ost.hasher
+		st.keysize = ost.keysize
+		st.valuesize = ost.valuesize
+		st.bucketsize = ost.bucketsize
+		st.flags = ost.flags
 	default:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(rtype{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
-		rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 	}
-	ut := (*uncommonType)(unsafe.Pointer(tt.Elem().Field(1).UnsafeAddr()))
-	// copy(tt.Elem().Field(2).Slice(0, len(methods)).Interface().([]method), methods)
-	ut.mcount = uint16(mcount)
-	ut.xcount = uint16(xcount)
-	ut.moff = uint32(unsafe.Sizeof(uncommonType{}))
-
+	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 	rt.size = ort.size
 	rt.tflag = ort.tflag | tflagUncommon
 	rt.kind = ort.kind
@@ -324,5 +310,10 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 	rt.gcdata = ort.gcdata
 	rt.ptrdata = ort.ptrdata
 	rt.str = resolveReflectName(ort.nameOff(ort.str))
+	ut := (*uncommonType)(unsafe.Pointer(tt.Elem().Field(1).UnsafeAddr()))
+	// copy(tt.Elem().Field(2).Slice(0, len(methods)).Interface().([]method), methods)
+	ut.mcount = uint16(mcount)
+	ut.xcount = uint16(xcount)
+	ut.moff = uint32(unsafe.Sizeof(uncommonType{}))
 	return
 }
