@@ -67,6 +67,28 @@ func TestField(t *testing.T) {
 	}
 }
 
+func TestStructOfExport(t *testing.T) {
+	fs := []reflect.StructField{
+		reflect.StructField{
+			Name:    "x",
+			PkgPath: "main",
+			Type:    tyInt,
+		},
+		reflect.StructField{
+			Name:    "y",
+			PkgPath: "main",
+			Type:    tyInt,
+		},
+	}
+	typ := reflectx.NamedStructOf("main", "Point", fs)
+	v := reflect.New(typ).Elem()
+	v.Field(0).SetInt(100)
+	v.Field(1).SetInt(200)
+	if s := fmt.Sprint(v); s != "{100 200}" {
+		t.Fatalf("have %v, want {100 200}", s)
+	}
+}
+
 type Buffer struct {
 	*bytes.Buffer
 	size  int

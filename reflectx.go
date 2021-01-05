@@ -155,6 +155,10 @@ func isExported(name string) bool {
 	return unicode.IsUpper(ch)
 }
 
+var (
+	DisableStructOfExportAllField bool
+)
+
 func StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
 	fs := make([]reflect.StructField, len(fields))
@@ -174,6 +178,12 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	st := toStructType(rt)
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
+	}
+	if !DisableStructOfExportAllField {
+		for i := 0; i < len(fs); i++ {
+			f := fs[i]
+			st.fields[i].name = newName(f.Name, string(f.Tag), true)
+		}
 	}
 	ms := extractEmbedMethod(typ)
 	if len(ms) == 0 {
