@@ -304,8 +304,7 @@ func methodOf(styp reflect.Type, methods []reflect.Method) reflect.Type {
 	copy(ptt.Elem().Field(2).Slice(0, len(pms)).Interface().([]method), pms)
 	typInfoMap[typ] = infos
 	typInfoMap[ptyp] = pinfos
-	nt := &Named{Name: styp.Name(), PkgPath: styp.PkgPath(), Type: typ, Kind: TkMethod}
-	ntypeMap[typ] = nt
+	ntypeMap[typ] = &Named{Name: styp.Name(), PkgPath: styp.PkgPath(), Type: typ, Kind: TkType | TkMethod}
 	return typ
 }
 
