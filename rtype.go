@@ -204,7 +204,7 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*structType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
-		ost := toStructType(ort)
+		ost := (*structType)(unsafe.Pointer(ort))
 		st.fields = ost.fields
 		rt = (*rtype)(unsafe.Pointer(st))
 	case reflect.Ptr:
