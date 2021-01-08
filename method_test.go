@@ -823,6 +823,7 @@ func TestEmbedMethods1(t *testing.T) {
 			},
 		}
 		typ := reflectx.NamedStructOf("main", "MyPoint1", fs)
+		typ = reflectx.MethodOf(typ, nil)
 		if v := typ.NumMethod(); v != 4 {
 			t.Errorf("NumMethod have %v want 4", v)
 		}
@@ -872,6 +873,7 @@ func TestEmbedMethods2(t *testing.T) {
 			},
 		}
 		typ = reflectx.NamedStructOf("main", "MyPoint2", fs)
+		typ = reflectx.MethodOf(typ, nil)
 		if v := typ.NumMethod(); v != 5 {
 			t.Errorf("NumMethod have %v want 5", v)
 		}
@@ -941,6 +943,7 @@ func TestEmbedMethods3(t *testing.T) {
 			},
 		}
 		typ := reflectx.NamedStructOf("main", "MyPoint3", fs)
+		typ = reflectx.MethodOf(typ, nil)
 		if v := typ.NumMethod(); v != 2 {
 			t.Errorf("NumMethod have %v want 2", v)
 		}

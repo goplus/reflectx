@@ -104,12 +104,7 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	rt, _ := newType(from, 0, 0)
 	setTypeName(rt, pkgpath, name)
 	typ := toType(rt)
-	kind := TkType
-	if typ.Kind() == reflect.Struct {
-		typ = MethodOf(typ, nil)
-		kind |= TkMethod
-	}
-	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: kind}
+	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
 	return typ
 }
 
@@ -176,11 +171,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 			st.fields[i].name = newName(f.Name, string(f.Tag), true)
 		}
 	}
-	ms := extractEmbedMethod(typ)
-	if len(ms) == 0 {
-		return typ
-	}
-	return methodOf(typ, ms)
+	return typ
 }
 
 // fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
