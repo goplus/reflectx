@@ -222,23 +222,6 @@ type chanType struct {
 	dir  uintptr // channel direction (ChanDir)
 }
 
-// funcType represents a function type.
-//
-// A *rtype for each in and out parameter is stored in an array that
-// directly follows the funcType (and possibly its uncommonType). So
-// a function type with one method, one input, and one output is:
-//
-//	struct {
-//		funcType
-//		uncommonType
-//		[2]*rtype    // [0] is in, [1] is out
-//	}
-type funcType struct {
-	rtype
-	inCount  uint16
-	outCount uint16 // top bit is set if last input parameter is ...
-}
-
 // imethod represents a method on an interface type
 type imethod struct {
 	name nameOff // name of method
