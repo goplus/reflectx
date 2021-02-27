@@ -11,6 +11,10 @@ func toStructType(t *rtype) *structType {
 	return (*structType)(unsafe.Pointer(t))
 }
 
+func toKindType(t *rtype) unsafe.Pointer {
+	return unsafe.Pointer(t)
+}
+
 func toUncommonType(t *rtype) *uncommonType {
 	if t.tflag&tflagUncommon == 0 {
 		return nil
@@ -194,7 +198,26 @@ type bitVector struct {
 	data []byte
 }
 
-func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.Value) {
+// funcType represents a function type.
+//
+// A *rtype for each in and out parameter is stored in an array that
+// directly follows the funcType (and possibly its uncommonType). So
+// a function type with one method, one input, and one output is:
+//
+//	struct {
+//		funcType
+//		uncommonType
+//		[2]*rtype    // [0] is in, [1] is out
+//	}
+type funcType struct {
+	rtype
+	inCount  uint16
+	outCount uint16 // top bit is set if last input parameter is ...
+}
+
+func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
+	var tt reflect.Value
+	var rt *rtype
 	ort := totype(styp)
 	switch styp.Kind() {
 	case reflect.Struct:
@@ -311,9 +334,27 @@ func newType(styp reflect.Type, mcount int, xcount int) (rt *rtype, tt reflect.V
 	rt.ptrdata = ort.ptrdata
 	rt.str = resolveReflectName(ort.nameOff(ort.str))
 	ut := (*uncommonType)(unsafe.Pointer(tt.Elem().Field(1).UnsafeAddr()))
-	// copy(tt.Elem().Field(2).Slice(0, len(methods)).Interface().([]method), methods)
 	ut.mcount = uint16(mcount)
 	ut.xcount = uint16(xcount)
 	ut.moff = uint32(unsafe.Sizeof(uncommonType{}))
-	return
+	if styp.Kind() == reflect.Interface || styp.Kind() == reflect.Func {
+		return rt, nil
+	}
+	return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
+}
+
+func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
+	rt, _ := newType(pkgpath, name, from, 0, 0)
+	setTypeName(rt, pkgpath, name)
+	typ := toType(rt)
+	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
+	return typ
+}
+
+func Interface(v reflect.Value) interface{} {
+	i := v.Interface()
+	if i != nil {
+		checkStoreMethodValue(reflect.ValueOf(i))
+	}
+	return i
 }
