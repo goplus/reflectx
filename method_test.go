@@ -83,7 +83,7 @@ func TestIntMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflect.Method{
+	typ = reflectx.MethodOf(styp, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -190,7 +190,7 @@ func TestSliceMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflect.Method{
+	typ = reflectx.MethodOf(styp, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -304,7 +304,7 @@ func TestArrayMethodOf(t *testing.T) {
 			return []reflect.Value{r}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflect.Method{
+	typ = reflectx.MethodOf(styp, []reflectx.Method{
 		mString,
 		mSet,
 		mGet,
@@ -448,7 +448,7 @@ func makeDynamicPointType() reflect.Type {
 			return []reflect.Value{v.Addr()}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflect.Method{
+	typ = reflectx.MethodOf(styp, []reflectx.Method{
 		mAdd,
 		mString,
 		mSet,
@@ -679,7 +679,7 @@ func TestMethodStack(t *testing.T) {
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
 	}
 	styp := reflectx.NamedStructOf("main", "Point", fs)
-	var methods []reflect.Method
+	var methods []reflectx.Method
 	var typ reflect.Type
 	for _, m := range testMethodStacks {
 		mm := reflectx.MakeMethod(
@@ -732,8 +732,8 @@ func checkInterface(t *testing.T, typ, styp reflect.Type) {
 func TestInterfaceOf(t *testing.T) {
 	pkgpath := "github.com/goplus/reflectx"
 	typ := reflectx.NamedInterfaceOf(pkgpath, "Stringer", nil,
-		[]reflect.Method{
-			reflect.Method{
+		[]reflectx.Method{
+			reflectx.Method{
 				Name: "String",
 				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 			},
@@ -746,8 +746,8 @@ func TestInterfaceOf(t *testing.T) {
 			reflect.TypeOf((*io.Reader)(nil)).Elem(),
 			reflect.TypeOf((*io.Writer)(nil)).Elem(),
 		},
-		[]reflect.Method{
-			reflect.Method{
+		[]reflectx.Method{
+			reflectx.Method{
 				Name: "Close",
 				Type: reflect.FuncOf(nil, []reflect.Type{tyError}, false),
 			},
@@ -792,12 +792,12 @@ func (s MyPoint4) String() string {
 
 func makeDynamicSetterType() reflect.Type {
 	return reflectx.NamedInterfaceOf("main", "Setter", nil,
-		[]reflect.Method{
-			reflect.Method{
+		[]reflectx.Method{
+			reflectx.Method{
 				Name: "Set",
 				Type: reflect.FuncOf([]reflect.Type{tyInt, tyInt}, nil, false),
 			},
-			reflect.Method{
+			reflectx.Method{
 				Name: "String",
 				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 			},
@@ -1032,7 +1032,7 @@ func TestEmbedMethods4(t *testing.T) {
 			},
 		)
 		typ := reflectx.NamedStructOf("main", "MyPoint4", fs)
-		typ = reflectx.MethodOf(typ, []reflect.Method{
+		typ = reflectx.MethodOf(typ, []reflectx.Method{
 			mSetIndex,
 			mIndex,
 			mString,

@@ -100,18 +100,6 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }
 
-func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
-	rt, _ := newType(from, 0, 0)
-	setTypeName(rt, pkgpath, name)
-	typ := toType(rt)
-	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
-	return typ
-}
-
-func SetTypeName(typ reflect.Type, pkgpath string, name string) {
-	setTypeName(totype(typ), pkgpath, name)
-}
-
 func setTypeName(t *rtype, pkgpath string, name string) {
 	exported := isExported(name)
 	if pkgpath != "" {
@@ -208,4 +196,5 @@ func SetValue(v reflect.Value, x reflect.Value) {
 var (
 	tyEmptyInterface    = reflect.TypeOf((*interface{})(nil)).Elem()
 	tyEmptyInterfacePtr = reflect.TypeOf((*interface{})(nil))
+	tyEmptyStruct       = reflect.TypeOf((*struct{})(nil)).Elem()
 )
