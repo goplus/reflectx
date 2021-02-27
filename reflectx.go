@@ -100,17 +100,13 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }
 
-func SetTypeName(typ reflect.Type, pkgpath string, name string) {
-	setTypeName(totype(typ), pkgpath, name)
-}
-
 func setTypeName(t *rtype, pkgpath string, name string) {
 	exported := isExported(name)
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
 	}
-	t.tflag |= tflagNamed | tflagExtraStar | tflagUncommon
+	t.tflag |= tflagNamed | tflagExtraStar
 	t.str = resolveReflectName(newName("*"+name, "", exported))
 	if t.tflag&tflagUncommon == tflagUncommon {
 		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))

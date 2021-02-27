@@ -21,7 +21,7 @@ func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []refl
 	}
 }
 
-// Method
+// Method struct for MethodOf
 // - name: method name
 // - pointer: flag receiver struct or pointer
 // - typ: method func type without receiver

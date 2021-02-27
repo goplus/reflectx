@@ -16,7 +16,7 @@ var (
 	valueInfoMap = make(map[reflect.Value]typeInfo)
 )
 
-func IsMethod(typ reflect.Type) (ok bool) {
+func isMethod(typ reflect.Type) (ok bool) {
 	_, ok = typInfoMap[typ]
 	return
 }
@@ -39,7 +39,7 @@ type methodInfo struct {
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
 	m := typ.Method(index)
-	if IsMethod(typ) {
+	if isMethod(typ) {
 		tovalue(&m.Func).flag |= flagIndir
 	}
 	return m
@@ -50,7 +50,7 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	if !ok {
 		return
 	}
-	if IsMethod(typ) {
+	if isMethod(typ) {
 		tovalue(&m.Func).flag |= flagIndir
 	}
 	return
@@ -64,7 +64,7 @@ func checkStoreMethodValue(v reflect.Value) {
 		return
 	}
 	typ := v.Type()
-	if IsMethod(typ) {
+	if isMethod(typ) {
 		valueInfoMap[v] = typeInfo{typ, checkOneFieldPtr(typ)}
 	}
 	if v.Kind() == reflect.Struct {
