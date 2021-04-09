@@ -174,14 +174,11 @@ func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
 }
 
 func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []Method) reflect.Type {
-	styp := NamedTypeOf(pkgpath, name, tyEmptyInterface)
-	return InterfaceOf(styp, embedded, methods)
+	typ := InterfaceOf(embedded, methods)
+	return NamedTypeOf(pkgpath, name, typ)
 }
 
-func InterfaceOf(styp reflect.Type, embedded []reflect.Type, methods []Method) reflect.Type {
-	if styp.Kind() != reflect.Interface {
-		panic(fmt.Errorf("non-interface %v", styp))
-	}
+func InterfaceOf(embedded []reflect.Type, methods []Method) reflect.Type {
 	for _, e := range embedded {
 		if e.Kind() != reflect.Interface {
 			panic(fmt.Errorf("interface contains embedded non-interface %v", e))
@@ -201,9 +198,10 @@ func InterfaceOf(styp reflect.Type, embedded []reflect.Type, methods []Method) r
 		}
 		return n < 0
 	})
-	rt, _ := newType(styp.PkgPath(), styp.Name(), styp, 0, 0)
+	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
 	st := (*interfaceType)(toKindType(rt))
 	st.methods = nil
+	var info []string
 	var lastname string
 	for _, m := range methods {
 		if m.Name == lastname {
@@ -214,8 +212,20 @@ func InterfaceOf(styp reflect.Type, embedded []reflect.Type, methods []Method) r
 			name: resolveReflectName(newName(m.Name, "", isExported(m.Name))),
 			typ:  resolveReflectType(totype(m.Type)),
 		})
+		info = append(info, methodStr(m.Name, m.Type))
 	}
+	var str string
+	if len(info) > 0 {
+		str = fmt.Sprintf("*interface { %v }", strings.Join(info, "; "))
+	} else {
+		str = "*interface {}"
+	}
+	rt.str = resolveReflectName(newName(str, "", false))
 	return toType(rt)
+}
+
+func methodStr(name string, typ reflect.Type) string {
+	return strings.Replace(typ.String(), "func", name, 1)
 }
 
 func toElem(typ reflect.Type) reflect.Type {
