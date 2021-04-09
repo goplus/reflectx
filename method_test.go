@@ -730,6 +730,24 @@ func checkInterface(t *testing.T, typ, styp reflect.Type) {
 }
 
 func TestInterfaceOf(t *testing.T) {
+	ms := []reflectx.Method{
+		reflectx.Method{
+			Name: "String",
+			Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
+		},
+		reflectx.Method{
+			Name: "Test",
+			Type: reflect.FuncOf(nil, []reflect.Type{tyBool}, false),
+		},
+	}
+	typ1 := reflectx.InterfaceOf(nil, ms)
+	typ2 := reflectx.InterfaceOf(nil, ms)
+	if typ1 != typ2 {
+		t.Fatalf("different type: %v %v", typ1, typ2)
+	}
+}
+
+func TestNamedInterfaceOf(t *testing.T) {
 	pkgpath := "github.com/goplus/reflectx"
 	typ := reflectx.NamedInterfaceOf(pkgpath, "Stringer", nil,
 		[]reflectx.Method{

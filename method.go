@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // MakeMethod make reflect.Method for MethodOf
@@ -178,6 +179,8 @@ func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, meth
 	return NamedTypeOf(pkgpath, name, typ)
 }
 
+var interfceLookupCache sync.Map
+
 func InterfaceOf(embedded []reflect.Type, methods []Method) reflect.Type {
 	for _, e := range embedded {
 		if e.Kind() != reflect.Interface {
@@ -220,8 +223,12 @@ func InterfaceOf(embedded []reflect.Type, methods []Method) reflect.Type {
 	} else {
 		str = "*interface {}"
 	}
+	if t, ok := interfceLookupCache.Load(str); ok {
+		return t.(reflect.Type)
+	}
 	rt.str = resolveReflectName(newName(str, "", false))
-	return toType(rt)
+	ti, _ := interfceLookupCache.LoadOrStore(str, toType(rt))
+	return ti.(reflect.Type)
 }
 
 func methodStr(name string, typ reflect.Type) string {
