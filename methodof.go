@@ -56,6 +56,10 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	return
 }
 
+func StoreMethodValue(v reflect.Value) {
+	checkStoreMethodValue(v)
+}
+
 func checkStoreMethodValue(v reflect.Value) {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
