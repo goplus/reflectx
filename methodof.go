@@ -85,6 +85,18 @@ func New(typ reflect.Type) reflect.Value {
 	return v
 }
 
+func NewAt(typ reflect.Type, p unsafe.Pointer) reflect.Value {
+	v := reflect.NewAt(typ, p)
+	checkStoreMethodValue(v)
+	return v
+}
+
+func Zero(typ reflect.Type) reflect.Value {
+	v := reflect.Zero(typ)
+	checkStoreMethodValue(v)
+	return v
+}
+
 func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
