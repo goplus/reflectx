@@ -150,6 +150,26 @@ func extractEmbedMethod(styp reflect.Type) []Method {
 	return ms
 }
 
+func UpdateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+		if chk[m.Name] > 1 {
+			panic(fmt.Sprintf("method redeclared: %v", m.Name))
+		}
+	}
+	if typ.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(typ)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			methods = append(methods, m)
+		}
+	}
+	return updateMethod(typ, methods, rmap)
+}
+
 func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	chk := make(map[string]int)
 	for _, m := range methods {

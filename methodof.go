@@ -97,36 +97,78 @@ func Zero(typ reflect.Type) reflect.Value {
 	return v
 }
 
-// func ModifyMethod(styp reflect.Type, methods []Method) bool {
-// 	ptyp := reflect.PtrTo(styp)
-// 	infos, ok := typInfoMap[styp]
-// 	if !ok {
-// 		return false
-// 	}
-// 	pifos, ok := typInfoMap[ptyp]
-// 	if !ok {
-// 		return false
-// 	}
-// 	var index int = -1
-// 	var pindex int = -1
-// 	if m, ok := styp.MethodByName(method.Name); ok {
-// 		index = m.Index
-// 	}
-// 	if m, ok := ptyp.MethodByName(method.Name); ok {
-// 		pindex = m.Index
-// 	}
-// 	if index == -1 && pindex == -1 {
-// 		return false
-// 	}
-// 	rt := totype(styp)
-// 	prt := totype(ptyp)
-// 	ms := toUncommonType(rt).exportedMethods()
-// 	pms := toUncommonType(prt).exportedMethods()
+func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
+	ptyp := reflect.PtrTo(typ)
+	pinfos, ok := typInfoMap[ptyp]
+	if !ok {
+		log.Printf("warning cannot found type info: %v\n", ptyp)
+		return false
+	}
+	infos, ok := typInfoMap[typ]
+	if !ok {
+		log.Printf("warning cannot found type info: %v\n", typ)
+		return false
+	}
+	rt := totype(typ)
+	prt := totype(ptyp)
+	ms := toUncommonType(rt).exportedMethods()
+	pms := toUncommonType(prt).exportedMethods()
+	for _, m := range methods {
+		var i int
+		var index int
+		f, ok := ptyp.MethodByName(m.Name)
+		if !ok {
+			log.Printf("warning cannot found method: (%v).%v\n", ptyp, m.Name)
+			continue
+		}
+		i = f.Index
+		if !m.Pointer {
+			f, ok := typ.MethodByName(m.Name)
+			if !ok {
+				log.Printf("warning cannot found method: (%v).%v\n", typ, m.Name)
+			}
+			index = f.Index
+		}
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(typ, ptyp, m, i, index, rmap)
+		isz := argsTypeSize(inTyp, true)
+		osz := argsTypeSize(outTyp, false)
+		pindex := i
+		if !m.Pointer {
+			pindex = index
+		}
+		pms[i].mtyp = mtyp
+		pms[i].tfn = ptfn
+		pms[i].ifn = pifn
+		pinfos[i] = &methodInfo{
+			inTyp:    inTyp,
+			outTyp:   outTyp,
+			name:     m.Name,
+			index:    pindex,
+			isz:      isz,
+			osz:      osz,
+			pointer:  m.Pointer,
+			variadic: m.Type.IsVariadic(),
+		}
+		if !m.Pointer {
+			ms[index].mtyp = mtyp
+			ms[index].tfn = tfn
+			ms[index].ifn = ifn
+			infos[index] = &methodInfo{
+				inTyp:    inTyp,
+				outTyp:   outTyp,
+				name:     m.Name,
+				index:    index,
+				isz:      isz,
+				osz:      osz,
+				pointer:  m.Pointer,
+				variadic: m.Type.IsVariadic(),
+			}
+		}
+	}
+	return true
+}
 
-// 	return true
-// }
-
-func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, pindex int, rmap map[reflect.Type]reflect.Type) (inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
+func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type) (inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
 	var in []reflect.Type
 	var out []reflect.Type
 	var ntyp reflect.Type
@@ -154,7 +196,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, i int, index in
 	if !m.Pointer {
 		ctyp := reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
 		cv := reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
-			return args[0].Elem().Method(pindex).Call(args[1:])
+			return args[0].Elem().Method(index).Call(args[1:])
 		})
 		ptfn = resolveReflectText(tovalue(&cv).ptr)
 		ifunc := icall(index, false)
@@ -203,18 +245,13 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 	var index int
 	for i, m := range methods {
 		name := resolveReflectName(newName(m.Name, "", true))
-		pindex := i
-		if !m.Pointer {
-			for i, s := range mlist {
-				if s == m.Name {
-					pindex = i
-					break
-				}
-			}
-		}
-		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(typ, ptyp, m, i, index, pindex, rmap)
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(typ, ptyp, m, i, index, rmap)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
+		pindex := i
+		if !m.Pointer {
+			pindex = index
+		}
 		pms[i].name = name
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
