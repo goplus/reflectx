@@ -150,6 +150,19 @@ func extractEmbedMethod(styp reflect.Type) []Method {
 	return ms
 }
 
+func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
+	if typ.Kind() != reflect.Struct {
+		return false
+	}
+	rt := totype(typ)
+	st := toStructType(rt)
+	for i := 0; i < len(st.fields); i++ {
+		t := replaceType(toType(st.fields[i].typ), rmap)
+		st.fields[i].typ = totype(t)
+	}
+	return true
+}
+
 func UpdateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
 	chk := make(map[string]int)
 	for _, m := range methods {
@@ -269,11 +282,13 @@ func toElemValue(v reflect.Value) reflect.Value {
 	return v
 }
 
-func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
+func replaceType(typ reflect.Type, rmap map[reflect.Type]reflect.Type) reflect.Type {
 	var fnx func(t reflect.Type) (reflect.Type, bool)
 	fnx = func(t reflect.Type) (reflect.Type, bool) {
-		if r, ok := rmap[t]; ok {
-			return r, true
+		for k, v := range rmap {
+			if k.String() == t.String() {
+				return v, true
+			}
 		}
 		switch t.Kind() {
 		case reflect.Ptr:
@@ -297,16 +312,17 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 		}
 		return t, false
 	}
-	fn := func(t reflect.Type) reflect.Type {
-		if r, ok := fnx(t); ok {
-			return r
-		}
-		return t
+	if r, ok := fnx(typ); ok {
+		return r
 	}
+	return typ
+}
+
+func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
 	for i := 0; i < mtyp.NumIn(); i++ {
-		t := fn(mtyp.In(i))
+		t := replaceType(mtyp.In(i), rmap)
 		in = append(in, t)
 		inFields = append(inFields, reflect.StructField{
 			Name: fmt.Sprintf("Arg%v", i),
@@ -314,7 +330,7 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 		})
 	}
 	for i := 0; i < mtyp.NumOut(); i++ {
-		t := fn(mtyp.Out(i))
+		t := replaceType(mtyp.Out(i), rmap)
 		out = append(out, t)
 		outFields = append(outFields, reflect.StructField{
 			Name: fmt.Sprintf("Out%v", i),
