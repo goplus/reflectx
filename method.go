@@ -249,11 +249,11 @@ func toElemValue(v reflect.Value) reflect.Value {
 	return v
 }
 
-func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
+func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
 	var fnx func(t reflect.Type) (reflect.Type, bool)
 	fnx = func(t reflect.Type) (reflect.Type, bool) {
-		if t == orgtyp {
-			return typ, true
+		if r, ok := rmap[t]; ok {
+			return r, true
 		}
 		switch t.Kind() {
 		case reflect.Ptr:
