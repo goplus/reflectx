@@ -100,12 +100,12 @@ func Zero(typ reflect.Type) reflect.Value {
 func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
 	ptyp := reflect.PtrTo(typ)
 	pinfos, ok := typInfoMap[ptyp]
-	if !ok {
+	if !ok && ptyp.NumMethod() > 0 {
 		log.Printf("warning cannot found type info: %v\n", ptyp)
 		return false
 	}
 	infos, ok := typInfoMap[typ]
-	if !ok {
+	if !ok && typ.NumMethod() > 0 {
 		log.Printf("warning cannot found type info: %v\n", typ)
 		return false
 	}

@@ -117,14 +117,14 @@ func totype(typ reflect.Type) *rtype {
 }
 
 func (t *uncommonType) methods() []method {
-	if t.mcount == 0 {
+	if t == nil || t.mcount == 0 {
 		return nil
 	}
 	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.moff), "t.mcount > 0"))[:t.mcount:t.mcount]
 }
 
 func (t *uncommonType) exportedMethods() []method {
-	if t.xcount == 0 {
+	if t == nil || t.xcount == 0 {
 		return nil
 	}
 	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.moff), "t.xcount > 0"))[:t.xcount:t.xcount]
