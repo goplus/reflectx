@@ -97,14 +97,14 @@ func TestIntMethodOf(t *testing.T) {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	x := reflectx.New(typ).Elem()
+	x := reflect.New(typ).Elem()
 	x.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100)})
 
 	// String
-	if v := fmt.Sprint(reflectx.Interface(x)); v != "(100)" {
+	if v := fmt.Sprint(x); v != "(100)" {
 		t.Fatalf("String(): have %v, want (100)", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(x.Addr())); v != "(100)" {
+	if v := fmt.Sprint(x.Addr()); v != "(100)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100)", v)
 	}
 
@@ -204,14 +204,14 @@ func TestSliceMethodOf(t *testing.T) {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	x := reflectx.New(typ).Elem()
+	x := reflect.New(typ).Elem()
 	x.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200), reflect.ValueOf(300)})
 
 	// String
-	if v := fmt.Sprint(reflectx.Interface(x)); v != "{3}[100 200 300]" {
+	if v := fmt.Sprint(x); v != "{3}[100 200 300]" {
 		t.Fatalf("String(): have %v, want {3}[100 200 300]", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(x.Addr())); v != "{3}[100 200 300]" {
+	if v := fmt.Sprint(x.Addr()); v != "{3}[100 200 300]" {
 		t.Fatalf("ptrTyp String(): have %v, want {3}[100 200 300]", v)
 	}
 
@@ -319,14 +319,14 @@ func TestArrayMethodOf(t *testing.T) {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	x := reflectx.New(typ).Elem()
+	x := reflect.New(typ).Elem()
 	x.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
 
 	// String
-	if v := fmt.Sprint(reflectx.Interface(x)); v != "(100,200)" {
+	if v := fmt.Sprint(x); v != "(100,200)" {
 		t.Fatalf("String(): have %v, want (100,200)", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(x.Addr())); v != "(100,200)" {
+	if v := fmt.Sprint(x.Addr()); v != "(100,200)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100,200)", v)
 	}
 
@@ -344,11 +344,11 @@ func TestArrayMethodOf(t *testing.T) {
 	// Scale
 	m, _ = reflectx.MethodByName(typ, "Scale")
 	r = m.Func.Call([]reflect.Value{x, reflect.ValueOf(5)})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(500,1000)" {
+	if v := fmt.Sprint(r[0]); v != "(500,1000)" {
 		t.Fatalf("typ reflectx.MethodByName Scale: have %v, want (500,1000)", v)
 	}
 	r = x.MethodByName("Scale").Call([]reflect.Value{reflect.ValueOf(5)})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(500,1000)" {
+	if v := fmt.Sprint((r[0])); v != "(500,1000)" {
 		t.Fatalf("typ value.MethodByName Scale: have %v, want (500,1000)", v)
 	}
 }
@@ -403,7 +403,7 @@ func makeDynamicPointType() reflect.Type {
 		false,
 		reflect.FuncOf([]reflect.Type{styp}, []reflect.Type{styp}, false),
 		func(args []reflect.Value) []reflect.Value {
-			v := reflectx.New(typ).Elem()
+			v := reflect.New(typ).Elem()
 			v.Field(0).SetInt(args[0].Field(0).Int() + args[1].Field(0).Int())
 			v.Field(1).SetInt(args[0].Field(1).Int() + args[1].Field(1).Int())
 			return []reflect.Value{v}
@@ -429,7 +429,7 @@ func makeDynamicPointType() reflect.Type {
 			r := reflect.MakeSlice(reflect.SliceOf(typ), 0, 0)
 			for i := 0; i < args[1].Len(); i++ {
 				s := args[1].Index(i).Int()
-				v := reflectx.New(typ).Elem()
+				v := reflect.New(typ).Elem()
 				v.Field(0).SetInt(x * s)
 				v.Field(1).SetInt(y * s)
 				r = reflect.Append(r, v)
@@ -442,7 +442,7 @@ func makeDynamicPointType() reflect.Type {
 		false,
 		reflect.FuncOf(nil, []reflect.Type{reflect.PtrTo(styp)}, false),
 		func(args []reflect.Value) (result []reflect.Value) {
-			v := reflectx.New(typ).Elem()
+			v := reflect.New(typ).Elem()
 			v.Field(0).SetInt(args[0].Field(0).Int())
 			v.Field(1).SetInt(args[0].Field(1).Int())
 			return []reflect.Value{v.Addr()}
@@ -485,52 +485,52 @@ func TestStructMethodOf(t *testing.T) {
 		t.Fatal("ptrTyp.NumMethod()", n)
 	}
 
-	pt1 := reflectx.New(typ).Elem()
+	pt1 := reflect.New(typ).Elem()
 	pt1.Field(0).SetInt(100)
 	pt1.Field(1).SetInt(200)
 
-	pt2 := reflectx.New(typ).Elem()
+	pt2 := reflect.New(typ).Elem()
 	pt2.Field(0).SetInt(300)
 	pt2.Field(1).SetInt(400)
 
 	// String
-	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(100,200)" {
+	if v := fmt.Sprint(pt1); v != "(100,200)" {
 		t.Fatalf("String(): have %v, want (100,200)", v)
 	}
-	if v := fmt.Sprint(reflectx.Interface(pt1.Addr())); v != "(100,200)" {
+	if v := fmt.Sprint(pt1.Addr()); v != "(100,200)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100,200)", v)
 	}
 
 	// typ Add
 	m, _ := reflectx.MethodByName(typ, "Add")
 	r := m.Func.Call([]reflect.Value{pt1, pt2})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
+	if v := fmt.Sprint(r[0]); v != "(400,600)" {
 		t.Fatalf("type reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 	r = pt1.MethodByName("Add").Call([]reflect.Value{pt2})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
+	if v := fmt.Sprint(r[0]); v != "(400,600)" {
 		t.Fatalf("value.MethodByName Add: have %v, want (400,600)", v)
 	}
 
 	// ptrtyp Add
 	m, _ = reflectx.MethodByName(ptrType, "Add")
 	r = m.Func.Call([]reflect.Value{pt1.Addr(), pt2})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
+	if v := fmt.Sprint(r[0]); v != "(400,600)" {
 		t.Fatalf("ptrType reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 	r = pt1.Addr().MethodByName("Add").Call([]reflect.Value{pt2})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(400,600)" {
+	if v := fmt.Sprint(r[0]); v != "(400,600)" {
 		t.Fatalf("ptrType value.reflectx.MethodByName Add: have %v, want (400,600)", v)
 	}
 
 	// Set
 	m, _ = reflectx.MethodByName(ptrType, "Set")
 	m.Func.Call([]reflect.Value{pt1.Addr(), reflect.ValueOf(-100), reflect.ValueOf(-200)})
-	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(-100,-200)" {
+	if v := fmt.Sprint(pt1); v != "(-100,-200)" {
 		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (-100,-200)", v)
 	}
 	pt1.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-	if v := fmt.Sprint(reflectx.Interface(pt1)); v != "(100,200)" {
+	if v := fmt.Sprint(pt1); v != "(100,200)" {
 		t.Fatalf("ptrType reflectx.MethodByName Set: have %v, want (100,200)", v)
 	}
 
@@ -548,18 +548,18 @@ func TestStructMethodOf(t *testing.T) {
 	// New
 	m, _ = reflectx.MethodByName(typ, "New")
 	r = m.Func.Call([]reflect.Value{pt1})
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(100,200)" {
+	if v := fmt.Sprint(r[0]); v != "(100,200)" {
 		t.Fatalf("have %v, want (100,200)", v)
 	}
 	r = pt1.MethodByName("New").Call(nil)
-	if v := fmt.Sprint(reflectx.Interface(r[0])); v != "(100,200)" {
+	if v := fmt.Sprint(r[0]); v != "(100,200)" {
 		t.Fatalf("have %v, want (100,200)", v)
 	}
 }
 
 func v2is(v reflect.Value) (is []interface{}) {
 	for i := 0; i < v.Len(); i++ {
-		is = append(is, reflectx.Interface(v.Index(i)))
+		is = append(is, v.Index(i).Interface())
 	}
 	return is
 }
@@ -691,7 +691,7 @@ func TestMethodStack(t *testing.T) {
 		methods = append(methods, mm)
 	}
 	typ = reflectx.MethodOf(styp, methods)
-	v := reflectx.New(typ).Elem()
+	v := reflect.New(typ).Elem()
 	v.Field(0).SetInt(100)
 	v.Field(1).SetInt(200)
 	for _, m := range testMethodStacks {
@@ -848,19 +848,19 @@ func TestEmbedMethods1(t *testing.T) {
 		if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
 			t.Errorf("NumMethod have %v want 5", v)
 		}
-		m := reflectx.New(typ).Elem()
+		m := reflect.New(typ).Elem()
 		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
+		if v := fmt.Sprint(m); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
-		if v := fmt.Sprint(reflectx.Interface(m.Addr())); v != "(100,200)" {
+		if v := fmt.Sprint(m.Addr()); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
 		m.Field(0).Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(-100), reflect.ValueOf(-200)})
-		if v := fmt.Sprint(reflectx.Interface(m.Field(0))); v != "(-100,-200)" {
+		if v := fmt.Sprint(m.Field(0)); v != "(-100,-200)" {
 			t.Errorf("have %v want (-100,-200)", v)
 		}
-		if v := fmt.Sprint(reflectx.Interface(m.Field(0).Addr())); v != "(-100,-200)" {
+		if v := fmt.Sprint(m.Field(0).Addr()); v != "(-100,-200)" {
 			t.Errorf("have %v want (-100,-200)", v)
 		}
 	}
@@ -898,30 +898,30 @@ func TestEmbedMethods2(t *testing.T) {
 		if v := reflect.PtrTo(typ).NumMethod(); v != 5 {
 			t.Errorf("NumMethod have %v want 5", v)
 		}
-		m := reflectx.New(typ).Elem()
-		m.Field(0).Set(reflectx.New(tyPoint))
+		m := reflect.New(typ).Elem()
+		m.Field(0).Set(reflect.New(tyPoint))
 		m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
+		if v := fmt.Sprint((m)); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
-		if v := fmt.Sprint(reflectx.Interface(m.Addr())); v != "(100,200)" {
+		if v := fmt.Sprint(m.Addr()); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
 		m.Field(0).MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(-100), reflect.ValueOf(-200)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "(-100,-200)" {
+		if v := fmt.Sprint(m); v != "(-100,-200)" {
 			t.Errorf("have %v want (-100,-200)", v)
 		}
-		if v := fmt.Sprint(reflectx.Interface(m.Field(0))); v != "(-100,-200)" {
+		if v := fmt.Sprint(m.Field(0)); v != "(-100,-200)" {
 			t.Errorf("have %v want (-100,-200)", v)
 		}
-		if v := fmt.Sprint(reflectx.Interface(m.Field(0).Elem())); v != "(-100,-200)" {
+		if v := fmt.Sprint(m.Field(0).Elem()); v != "(-100,-200)" {
 			t.Errorf("have %v want (-100,-200)", v)
 		}
 		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
+		if v := fmt.Sprint(m); v != "(300,400)" {
 			t.Errorf("have %v want (300,400)", v)
 		}
-		if v := fmt.Sprint(reflectx.Interface(m.Addr())); v != "(300,400)" {
+		if v := fmt.Sprint((m.Addr())); v != "(300,400)" {
 			t.Errorf("have %v want (300,400)", v)
 		}
 	}
@@ -968,14 +968,14 @@ func TestEmbedMethods3(t *testing.T) {
 		if v := reflect.PtrTo(typ).NumMethod(); v != 2 {
 			t.Errorf("NumMethod have %v want 2", v)
 		}
-		m := reflectx.New(typ).Elem()
-		m.Field(0).Set(reflectx.New(tyPoint))
+		m := reflect.New(typ).Elem()
+		m.Field(0).Set(reflect.New(tyPoint))
 		m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "(100,200)" {
+		if v := fmt.Sprint((m)); v != "(100,200)" {
 			t.Errorf("have %v want (100,200)", v)
 		}
 		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "(300,400)" {
+		if v := fmt.Sprint((m)); v != "(300,400)" {
 			t.Errorf("have %v want (300,400)", v)
 		}
 	}
@@ -1061,15 +1061,15 @@ func TestEmbedMethods4(t *testing.T) {
 		if v := reflect.PtrTo(typ).NumMethod(); v != 7 {
 			t.Errorf("NumMethod have %v want 7", v)
 		}
-		m := reflectx.New(typ).Elem()
-		m.Field(0).Set(reflectx.New(tyPoint))
+		m := reflect.New(typ).Elem()
+		m.Field(0).Set(reflect.New(tyPoint))
 		m.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf(200)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "0#(100,200)" {
+		if v := fmt.Sprint(m); v != "0#(100,200)" {
 			t.Errorf("have %v want 0#(100,200)", v)
 		}
 		m.Addr().MethodByName("SetIndex").Call([]reflect.Value{reflect.ValueOf(1)})
 		m.Addr().MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(300), reflect.ValueOf(400)})
-		if v := fmt.Sprint(reflectx.Interface(m)); v != "1#(300,400)" {
+		if v := fmt.Sprint(m); v != "1#(300,400)" {
 			t.Errorf("have %v want 1#(300,400)", v)
 		}
 	}

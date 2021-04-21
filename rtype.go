@@ -350,11 +350,3 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
 	return typ
 }
-
-func Interface(v reflect.Value) interface{} {
-	i := v.Interface()
-	if i != nil {
-		checkStoreMethodValue(reflect.ValueOf(i))
-	}
-	return i
-}

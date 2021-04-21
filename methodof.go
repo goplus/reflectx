@@ -58,10 +58,6 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	return
 }
 
-func StoreMethodValue(v reflect.Value) {
-	checkStoreMethodValue(v)
-}
-
 func checkStoreMethodValue(v reflect.Value) {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -79,24 +75,6 @@ func checkStoreMethodValue(v reflect.Value) {
 			checkStoreMethodValue(sf)
 		}
 	}
-}
-
-func New(typ reflect.Type) reflect.Value {
-	v := reflect.New(typ)
-	checkStoreMethodValue(v)
-	return v
-}
-
-func NewAt(typ reflect.Type, p unsafe.Pointer) reflect.Value {
-	v := reflect.NewAt(typ, p)
-	checkStoreMethodValue(v)
-	return v
-}
-
-func Zero(typ reflect.Type) reflect.Value {
-	v := reflect.Zero(typ)
-	checkStoreMethodValue(v)
-	return v
 }
 
 func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {

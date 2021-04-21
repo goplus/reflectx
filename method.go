@@ -75,16 +75,6 @@ func parserFuncIO(typ reflect.Type) (in, out []reflect.Type) {
 	return
 }
 
-/*
-	if !ptrto && info.onePtr {
-		log.Println("-------", ptr, info.pointer)
-		otyp = otyp.Field(0).Type.Elem()
-		typ = otyp
-		ptr = unsafe.Pointer((*uintptr)(ptr))
-		method, _ = MethodByName(otyp, info.name)
-	}
-*/
-
 func extraPtrFieldMethod(ifield int, typ reflect.Type) (methods []Method) {
 	for i := 0; i < typ.NumMethod(); i++ {
 		m := typ.Method(i)
