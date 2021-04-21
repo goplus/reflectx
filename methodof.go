@@ -142,6 +142,7 @@ func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
 		pms[i].ifn = pifn
+		onePtr := checkOneFieldPtr(typ)
 		pinfos[i] = &methodInfo{
 			inTyp:    inTyp,
 			outTyp:   outTyp,
@@ -151,6 +152,7 @@ func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 			osz:      osz,
 			pointer:  m.Pointer,
 			variadic: m.Type.IsVariadic(),
+			onePtr:   onePtr,
 		}
 		if !m.Pointer {
 			ms[index].mtyp = mtyp
@@ -165,7 +167,7 @@ func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
-				onePtr:   m.onePtr,
+				onePtr:   onePtr,
 			}
 		}
 	}
@@ -257,6 +259,7 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 		if !m.Pointer {
 			pindex = index
 		}
+		onePtr := checkOneFieldPtr(typ)
 		pms[i].name = name
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
@@ -270,6 +273,7 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 			osz:      osz,
 			pointer:  m.Pointer,
 			variadic: m.Type.IsVariadic(),
+			onePtr:   onePtr,
 		}
 		if !m.Pointer {
 			ms[index].name = name
@@ -285,7 +289,7 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
-				onePtr:   m.onePtr,
+				onePtr:   onePtr,
 			}
 			index++
 		}
@@ -379,18 +383,14 @@ func i_x(itype int, index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool)
 	} else {
 		method = MethodByIndex(typ, info.index)
 	}
+	var receiver reflect.Value
 	if !ptrto && info.onePtr {
-		t := otyp.Field(0).Type.Elem()
-		if m, ok := MethodByName(t, info.name); ok {
-			otyp = t
-			typ = t
-			ptr = unsafe.Pointer((*uintptr)(ptr))
-			method = m
+		receiver = reflect.NewAt(otyp, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
+	} else {
+		receiver = reflect.NewAt(otyp, ptr)
+		if !ptrto || !info.pointer {
+			receiver = receiver.Elem()
 		}
-	}
-	receiver := reflect.NewAt(otyp, ptr)
-	if !ptrto || !info.pointer {
-		receiver = receiver.Elem()
 	}
 	in := []reflect.Value{receiver}
 	if inCount := method.Type.NumIn(); inCount > 1 {

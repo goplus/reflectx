@@ -32,7 +32,6 @@ type Method struct {
 	Pointer bool
 	Type    reflect.Type
 	Func    func([]reflect.Value) []reflect.Value
-	onePtr  bool
 }
 
 func extraFieldMethod(ifield int, typ reflect.Type, skip map[string]bool) (methods []Method) {
@@ -99,7 +98,6 @@ func extraPtrFieldMethod(ifield int, typ reflect.Type) (methods []Method) {
 				var recv = args[0]
 				return recv.Field(ifield).Method(imethod).Call(args[1:])
 			},
-			onePtr: true,
 		})
 	}
 	return

@@ -926,7 +926,7 @@ func TestEmbedMethods2(t *testing.T) {
 		}
 	}
 	// test mixed embed ptr
-	//fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
+	fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
 	// test dynamic embed ptr
 	fnTest(t, makeDynamicPointType())
 }
