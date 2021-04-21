@@ -32,6 +32,7 @@ type Method struct {
 	Pointer bool
 	Type    reflect.Type
 	Func    func([]reflect.Value) []reflect.Value
+	onePtr  bool
 }
 
 func extraFieldMethod(ifield int, typ reflect.Type, skip map[string]bool) (methods []Method) {
@@ -75,6 +76,16 @@ func parserFuncIO(typ reflect.Type) (in, out []reflect.Type) {
 	return
 }
 
+/*
+	if !ptrto && info.onePtr {
+		log.Println("-------", ptr, info.pointer)
+		otyp = otyp.Field(0).Type.Elem()
+		typ = otyp
+		ptr = unsafe.Pointer((*uintptr)(ptr))
+		method, _ = MethodByName(otyp, info.name)
+	}
+*/
+
 func extraPtrFieldMethod(ifield int, typ reflect.Type) (methods []Method) {
 	for i := 0; i < typ.NumMethod(); i++ {
 		m := typ.Method(i)
@@ -88,6 +99,7 @@ func extraPtrFieldMethod(ifield int, typ reflect.Type) (methods []Method) {
 				var recv = args[0]
 				return recv.Field(ifield).Method(imethod).Call(args[1:])
 			},
+			onePtr: true,
 		})
 	}
 	return

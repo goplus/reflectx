@@ -36,6 +36,7 @@ type methodInfo struct {
 	osz      uintptr
 	pointer  bool
 	variadic bool
+	onePtr   bool
 }
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
@@ -115,7 +116,6 @@ func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 	ms := toUncommonType(rt).exportedMethods()
 	pms := toUncommonType(prt).exportedMethods()
 	itype := itypeIndex(typ)
-	log.Println("~~~~~~", itype)
 	for _, m := range methods {
 		var i int
 		var index int
@@ -165,6 +165,7 @@ func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
+				onePtr:   m.onePtr,
 			}
 		}
 	}
@@ -284,6 +285,7 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
+				onePtr:   m.onePtr,
 			}
 			index++
 		}
@@ -338,6 +340,15 @@ var (
 	mu sync.Mutex
 )
 
+func isUserType(typ reflect.Type) bool {
+	for _, t := range itypList {
+		if t == typ {
+			return true
+		}
+	}
+	return false
+}
+
 func itypeIndex(typ reflect.Type) int {
 	mu.Lock()
 	defer mu.Unlock()
@@ -352,7 +363,7 @@ func itypeIndex(typ reflect.Type) int {
 
 func i_x(itype int, index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	typ := itypList[itype]
-	receiver := reflect.NewAt(typ, ptr)
+	otyp := typ
 	if ptrto {
 		typ = reflect.PtrTo(typ)
 	}
@@ -368,6 +379,16 @@ func i_x(itype int, index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool)
 	} else {
 		method = MethodByIndex(typ, info.index)
 	}
+	if !ptrto && info.onePtr {
+		t := otyp.Field(0).Type.Elem()
+		if m, ok := MethodByName(t, info.name); ok {
+			otyp = t
+			typ = t
+			ptr = unsafe.Pointer((*uintptr)(ptr))
+			method = m
+		}
+	}
+	receiver := reflect.NewAt(otyp, ptr)
 	if !ptrto || !info.pointer {
 		receiver = receiver.Elem()
 	}

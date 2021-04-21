@@ -871,7 +871,7 @@ func TestEmbedMethods1(t *testing.T) {
 	fnTest(t, makeDynamicPointType())
 }
 
-func _TestEmbedMethods2(t *testing.T) {
+func TestEmbedMethods2(t *testing.T) {
 	// MyPoint2
 	typ := reflect.TypeOf((*MyPoint2)(nil)).Elem()
 	if v := typ.NumMethod(); v != 5 {
@@ -926,7 +926,7 @@ func _TestEmbedMethods2(t *testing.T) {
 		}
 	}
 	// test mixed embed ptr
-	fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
+	//fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
 	// test dynamic embed ptr
 	fnTest(t, makeDynamicPointType())
 }
