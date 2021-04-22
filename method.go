@@ -151,7 +151,7 @@ func extractEmbedMethod(styp reflect.Type) []Method {
 }
 
 func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
-	if typ.Kind() != reflect.Struct {
+	if rmap == nil || typ.Kind() != reflect.Struct {
 		return false
 	}
 	rt := totype(typ)
@@ -322,7 +322,10 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
 	for i := 0; i < mtyp.NumIn(); i++ {
-		t := replaceType(mtyp.In(i), rmap)
+		t := mtyp.In(i)
+		if rmap != nil {
+			t = replaceType(t, rmap)
+		}
 		in = append(in, t)
 		inFields = append(inFields, reflect.StructField{
 			Name: fmt.Sprintf("Arg%v", i),
@@ -330,14 +333,21 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 		})
 	}
 	for i := 0; i < mtyp.NumOut(); i++ {
-		t := replaceType(mtyp.Out(i), rmap)
+		t := mtyp.Out(i)
+		if rmap != nil {
+			t = replaceType(t, rmap)
+		}
 		out = append(out, t)
 		outFields = append(outFields, reflect.StructField{
 			Name: fmt.Sprintf("Out%v", i),
 			Type: t,
 		})
 	}
-	ntyp = reflect.FuncOf(in, out, mtyp.IsVariadic())
+	if rmap == nil {
+		ntyp = mtyp
+	} else {
+		ntyp = reflect.FuncOf(in, out, mtyp.IsVariadic())
+	}
 	inTyp = reflect.StructOf(inFields)
 	outTyp = reflect.StructOf(outFields)
 	return
