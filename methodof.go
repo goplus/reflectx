@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"unsafe"
 )
 
@@ -35,6 +36,7 @@ type methodInfo struct {
 	osz      uintptr
 	pointer  bool
 	variadic bool
+	onePtr   bool
 }
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
@@ -56,10 +58,6 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	return
 }
 
-func StoreMethodValue(v reflect.Value) {
-	checkStoreMethodValue(v)
-}
-
 func checkStoreMethodValue(v reflect.Value) {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -79,22 +77,122 @@ func checkStoreMethodValue(v reflect.Value) {
 	}
 }
 
-func New(typ reflect.Type) reflect.Value {
-	v := reflect.New(typ)
-	checkStoreMethodValue(v)
-	return v
+func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
+	ptyp := reflect.PtrTo(typ)
+	pinfos, ok := typInfoMap[ptyp]
+	if !ok && ptyp.NumMethod() > 0 {
+		log.Printf("warning cannot found type info: %v\n", ptyp)
+		return false
+	}
+	infos, ok := typInfoMap[typ]
+	if !ok && typ.NumMethod() > 0 {
+		log.Printf("warning cannot found type info: %v\n", typ)
+		return false
+	}
+	rt := totype(typ)
+	prt := totype(ptyp)
+	ms := toUncommonType(rt).exportedMethods()
+	pms := toUncommonType(prt).exportedMethods()
+	itype := itypeIndex(typ)
+	for _, m := range methods {
+		var i int
+		var index int
+		f, ok := ptyp.MethodByName(m.Name)
+		if !ok {
+			log.Printf("warning cannot found method: (%v).%v\n", ptyp, m.Name)
+			continue
+		}
+		i = f.Index
+		if !m.Pointer {
+			f, ok := typ.MethodByName(m.Name)
+			if !ok {
+				log.Printf("warning cannot found method: (%v).%v\n", typ, m.Name)
+			}
+			index = f.Index
+		}
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, rmap)
+		isz := argsTypeSize(inTyp, true)
+		osz := argsTypeSize(outTyp, false)
+		pindex := i
+		if !m.Pointer {
+			pindex = index
+		}
+		pms[i].mtyp = mtyp
+		pms[i].tfn = ptfn
+		pms[i].ifn = pifn
+		onePtr := checkOneFieldPtr(typ)
+		pinfos[i] = &methodInfo{
+			inTyp:    inTyp,
+			outTyp:   outTyp,
+			name:     m.Name,
+			index:    pindex,
+			isz:      isz,
+			osz:      osz,
+			pointer:  m.Pointer,
+			variadic: m.Type.IsVariadic(),
+			onePtr:   onePtr,
+		}
+		if !m.Pointer {
+			ms[index].mtyp = mtyp
+			ms[index].tfn = tfn
+			ms[index].ifn = ifn
+			infos[index] = &methodInfo{
+				inTyp:    inTyp,
+				outTyp:   outTyp,
+				name:     m.Name,
+				index:    index,
+				isz:      isz,
+				osz:      osz,
+				pointer:  m.Pointer,
+				variadic: m.Type.IsVariadic(),
+				onePtr:   onePtr,
+			}
+		}
+	}
+	return true
 }
 
-func NewAt(typ reflect.Type, p unsafe.Pointer) reflect.Value {
-	v := reflect.NewAt(typ, p)
-	checkStoreMethodValue(v)
-	return v
-}
+func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type) (inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
+	var in []reflect.Type
+	var out []reflect.Type
+	var ntyp reflect.Type
+	in, out, ntyp, inTyp, outTyp = parserMethodType(m.Type, rmap)
+	mtyp = resolveReflectType(totype(ntyp))
+	var ftyp reflect.Type
+	if m.Pointer {
+		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
+	} else {
+		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
+	}
 
-func Zero(typ reflect.Type) reflect.Value {
-	v := reflect.Zero(typ)
-	checkStoreMethodValue(v)
-	return v
+	mfn := reflect.MakeFunc(ftyp, m.Func)
+	ptr := tovalue(&mfn).ptr
+
+	sz := int(inTyp.Size())
+	ifunc := icall(itype, i, true)
+
+	if ifunc == nil {
+		log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
+	} else {
+		pifn = resolveReflectText(unsafe.Pointer(reflect.ValueOf(ifunc).Pointer()))
+	}
+	tfn = resolveReflectText(unsafe.Pointer(ptr))
+	if !m.Pointer {
+		ctyp := reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
+		cv := reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
+			return args[0].Elem().Method(index).Call(args[1:])
+		})
+		ptfn = resolveReflectText(tovalue(&cv).ptr)
+		ifunc := icall(itype, index, false)
+		if ifunc == nil {
+			log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
+		} else {
+			ifn = resolveReflectText(unsafe.Pointer(reflect.ValueOf(ifunc).Pointer()))
+		}
+	} else {
+		ptfn = tfn
+	}
+	return
 }
 
 func methodOf(styp reflect.Type, methods []Method) reflect.Type {
@@ -114,7 +212,6 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 			mcount++
 		}
 	}
-	orgtyp := styp
 	rt, tt := newType("", "", styp, mcount, mcount)
 	prt, ptt := newType("", "", reflect.PtrTo(styp), pcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
@@ -125,56 +222,27 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 	ptyp := reflect.PtrTo(typ)
 	ms := make([]method, mcount, mcount)
 	pms := make([]method, pcount, pcount)
-	var infos []*methodInfo
-	var pinfos []*methodInfo
+	infos := make([]*methodInfo, mcount, mcount)
+	pinfos := make([]*methodInfo, pcount, pcount)
+	rmap := make(map[reflect.Type]reflect.Type)
+	rmap[styp] = typ
+	itype := itypeIndex(typ)
 	var index int
 	for i, m := range methods {
 		name := resolveReflectName(newName(m.Name, "", true))
-		in, out, ntyp, inTyp, outTyp := toRealType(typ, orgtyp, m.Type)
-		mtyp := resolveReflectType(totype(ntyp))
-		var ftyp reflect.Type
-		if m.Pointer {
-			ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
-		} else {
-			ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
-		}
-
-		mfn := reflect.MakeFunc(ftyp, m.Func)
-		ptr := tovalue(&mfn).ptr
-
-		sz := int(inTyp.Size())
-		ifunc := icall(i, true)
-		var pifn, tfn, ptfn textOff
-		if ifunc == nil {
-			log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
-		} else {
-			pifn = resolveReflectText(unsafe.Pointer(reflect.ValueOf(ifunc).Pointer()))
-		}
-		tfn = resolveReflectText(unsafe.Pointer(ptr))
-		pindex := i
-		if !m.Pointer {
-			for i, s := range mlist {
-				if s == m.Name {
-					pindex = i
-					break
-				}
-			}
-			ctyp := reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
-			cv := reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
-				return args[0].Elem().Method(pindex).Call(args[1:])
-			})
-			ptfn = resolveReflectText(tovalue(&cv).ptr)
-		} else {
-			ptfn = tfn
-		}
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, rmap)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
-
+		pindex := i
+		if !m.Pointer {
+			pindex = index
+		}
+		onePtr := checkOneFieldPtr(typ)
 		pms[i].name = name
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
 		pms[i].ifn = pifn
-		pinfos = append(pinfos, &methodInfo{
+		pinfos[i] = &methodInfo{
 			inTyp:    inTyp,
 			outTyp:   outTyp,
 			name:     m.Name,
@@ -183,20 +251,14 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 			osz:      osz,
 			pointer:  m.Pointer,
 			variadic: m.Type.IsVariadic(),
-		})
+			onePtr:   onePtr,
+		}
 		if !m.Pointer {
-			ifunc := icall(index, false)
-			var ifn textOff
-			if ifunc == nil {
-				log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
-			} else {
-				ifn = resolveReflectText(unsafe.Pointer(reflect.ValueOf(ifunc).Pointer()))
-			}
 			ms[index].name = name
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
 			ms[index].ifn = ifn
-			infos = append(infos, &methodInfo{
+			infos[index] = &methodInfo{
 				inTyp:    inTyp,
 				outTyp:   outTyp,
 				name:     m.Name,
@@ -205,7 +267,8 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 				osz:      osz,
 				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
-			})
+				onePtr:   onePtr,
+			}
 			index++
 		}
 	}
@@ -251,7 +314,111 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 	return
 }
 
-func i_x(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
+func resetTypeList() {
+	itypList = nil
+}
+
+var (
+	itypList []reflect.Type
+)
+
+var (
+	mu sync.Mutex
+)
+
+func isUserType(typ reflect.Type) bool {
+	for _, t := range itypList {
+		if t == typ {
+			return true
+		}
+	}
+	return false
+}
+
+func itypeIndex(typ reflect.Type) int {
+	mu.Lock()
+	defer mu.Unlock()
+	for i, t := range itypList {
+		if t == typ {
+			return i
+		}
+	}
+	itypList = append(itypList, typ)
+	return len(itypList) - 1
+}
+
+func i_x(itype int, index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
+	typ := itypList[itype]
+	otyp := typ
+	if ptrto {
+		typ = reflect.PtrTo(typ)
+	}
+	infos, ok := typInfoMap[typ]
+	if !ok {
+		log.Panicln("cannot found type info", typ)
+		return false
+	}
+	info := infos[index]
+	var method reflect.Method
+	if ptrto && !info.pointer {
+		method = MethodByIndex(typ.Elem(), info.index)
+	} else {
+		method = MethodByIndex(typ, info.index)
+	}
+	var receiver reflect.Value
+	if !ptrto && info.onePtr {
+		receiver = reflect.NewAt(otyp, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
+	} else {
+		receiver = reflect.NewAt(otyp, ptr)
+		if !ptrto || !info.pointer {
+			receiver = receiver.Elem()
+		}
+	}
+	in := []reflect.Value{receiver}
+	if inCount := method.Type.NumIn(); inCount > 1 {
+		sz := info.inTyp.Size()
+		buf := make([]byte, sz, sz)
+		if sz > info.isz {
+			sz = info.isz
+		}
+		for i := uintptr(0); i < sz; i++ {
+			buf[i] = *(*byte)(add(p, i, ""))
+		}
+		var inArgs reflect.Value
+		if sz == 0 {
+			inArgs = reflect.New(info.inTyp).Elem()
+		} else {
+			inArgs = reflect.NewAt(info.inTyp, unsafe.Pointer(&buf[0])).Elem()
+		}
+		if info.variadic {
+			for i := 1; i < inCount-1; i++ {
+				in = append(in, inArgs.Field(i-1))
+			}
+			slice := inArgs.Field(inCount - 2)
+			for i := 0; i < slice.Len(); i++ {
+				in = append(in, slice.Index(i))
+			}
+		} else {
+			for i := 1; i < inCount; i++ {
+				in = append(in, inArgs.Field(i-1))
+			}
+		}
+	}
+	r := method.Func.Call(in)
+	if info.outTyp.NumField() > 0 {
+		out := reflect.New(info.outTyp).Elem()
+		for i, v := range r {
+			out.Field(i).Set(v)
+		}
+		po := unsafe.Pointer(out.UnsafeAddr())
+		for i := uintptr(0); i < info.osz; i++ {
+			*(*byte)(add(p, info.isz+i, "")) = *(*byte)(add(po, uintptr(i), ""))
+		}
+	}
+	return true
+}
+
+func i_x_dyn(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 	var receiver reflect.Value
 	var typ reflect.Type
 	if !ptrto {

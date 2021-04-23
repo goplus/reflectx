@@ -22,8 +22,7 @@ Golang reflect package hack tools
 * reflectx.Method
 * reflectx.MakeMethod
 * reflectx.MethodOf
-* reflectx.New
-* reflectx.Interface
+* reflectx.UpdateMethod
 
 ### Interface
 * reflectx.InterfaceOf

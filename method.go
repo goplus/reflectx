@@ -150,6 +150,43 @@ func extractEmbedMethod(styp reflect.Type) []Method {
 	return ms
 }
 
+func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
+	if rmap == nil || typ.Kind() != reflect.Struct {
+		return false
+	}
+	rt := totype(typ)
+	st := toStructType(rt)
+	for i := 0; i < len(st.fields); i++ {
+		t := replaceType(toType(st.fields[i].typ), rmap)
+		st.fields[i].typ = totype(t)
+	}
+	return true
+}
+
+func UpdateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+		if chk[m.Name] > 1 {
+			panic(fmt.Sprintf("method redeclared: %v", m.Name))
+		}
+	}
+	if typ.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(typ)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			methods = append(methods, m)
+		}
+	}
+	return updateMethod(typ, methods, rmap)
+}
+
+func ResetTypeList() {
+	resetTypeList()
+}
+
 func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	chk := make(map[string]int)
 	for _, m := range methods {
@@ -167,7 +204,11 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			methods = append(methods, m)
 		}
 	}
-	return methodOf(styp, methods)
+	typ := methodOf(styp, methods)
+	if n, ok := ntypeMap[styp]; ok {
+		ntypeMap[typ] = &Named{Name: n.Name, PkgPath: n.PkgPath, Type: typ, From: n.From, Kind: TkType}
+	}
+	return typ
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
@@ -249,11 +290,13 @@ func toElemValue(v reflect.Value) reflect.Value {
 	return v
 }
 
-func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
+func replaceType(typ reflect.Type, rmap map[reflect.Type]reflect.Type) reflect.Type {
 	var fnx func(t reflect.Type) (reflect.Type, bool)
 	fnx = func(t reflect.Type) (reflect.Type, bool) {
-		if t == orgtyp {
-			return typ, true
+		for k, v := range rmap {
+			if k.String() == t.String() {
+				return v, true
+			}
 		}
 		switch t.Kind() {
 		case reflect.Ptr:
@@ -277,16 +320,20 @@ func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, i
 		}
 		return t, false
 	}
-	fn := func(t reflect.Type) reflect.Type {
-		if r, ok := fnx(t); ok {
-			return r
-		}
-		return t
+	if r, ok := fnx(typ); ok {
+		return r
 	}
+	return typ
+}
+
+func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
 	for i := 0; i < mtyp.NumIn(); i++ {
-		t := fn(mtyp.In(i))
+		t := mtyp.In(i)
+		if rmap != nil {
+			t = replaceType(t, rmap)
+		}
 		in = append(in, t)
 		inFields = append(inFields, reflect.StructField{
 			Name: fmt.Sprintf("Arg%v", i),
@@ -294,14 +341,21 @@ func toRealType(typ, orgtyp, mtyp reflect.Type) (in, out []reflect.Type, ntyp, i
 		})
 	}
 	for i := 0; i < mtyp.NumOut(); i++ {
-		t := fn(mtyp.Out(i))
+		t := mtyp.Out(i)
+		if rmap != nil {
+			t = replaceType(t, rmap)
+		}
 		out = append(out, t)
 		outFields = append(outFields, reflect.StructField{
 			Name: fmt.Sprintf("Out%v", i),
 			Type: t,
 		})
 	}
-	ntyp = reflect.FuncOf(in, out, mtyp.IsVariadic())
+	if rmap == nil {
+		ntyp = mtyp
+	} else {
+		ntyp = reflect.FuncOf(in, out, mtyp.IsVariadic())
+	}
 	inTyp = reflect.StructOf(inFields)
 	outTyp = reflect.StructOf(outFields)
 	return
