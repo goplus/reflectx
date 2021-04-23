@@ -314,6 +314,10 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 	return
 }
 
+func resetTypeList() {
+	itypList = nil
+}
+
 var (
 	itypList []reflect.Type
 )

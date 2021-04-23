@@ -183,6 +183,10 @@ func UpdateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 	return updateMethod(typ, methods, rmap)
 }
 
+func ResetTypeList() {
+	resetTypeList()
+}
+
 func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	chk := make(map[string]int)
 	for _, m := range methods {
