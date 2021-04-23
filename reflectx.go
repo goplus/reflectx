@@ -130,7 +130,7 @@ func isExported(name string) bool {
 }
 
 var (
-	DisableStructOfExportAllField bool
+	EnableStructOfExportAllField bool
 )
 
 func StructOf(fields []reflect.StructField) reflect.Type {
@@ -153,7 +153,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
 	}
-	if !DisableStructOfExportAllField {
+	if EnableStructOfExportAllField {
 		for i := 0; i < len(fs); i++ {
 			f := fs[i]
 			st.fields[i].name = newName(f.Name, string(f.Tag), true)
