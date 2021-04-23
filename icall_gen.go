@@ -12,10 +12,18 @@ import (
 
 var head = `package reflectx
 
-import "unsafe"
+import (
+	"log"
+	"unsafe"
+)
 
 func icall(t int, i int, ptrto bool) interface{} {
-	if t > max_itype_index || i > max_icall_index {
+	if t >= max_itype_index {
+		log.Println("warning, not support too many types interface call", t) 
+		return nil
+	}
+	if i >= max_icall_index {
+		log.Println("warning, not support too many methods interface call", i) 
 		return nil
 	}
 	if ptrto {
@@ -33,7 +41,7 @@ var templ_fn = `	func(p, a unsafe.Pointer) { i_x($itype, $index, p, unsafe.Point
 `
 
 func main() {
-	writeFile("./icall.go", 64, 128)
+	writeFile("./icall.go", 128, 128)
 }
 
 func writeFile(filename string, max_itype int, max_index int) {
