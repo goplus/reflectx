@@ -101,6 +101,9 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 }
 
 func setTypeName(t *rtype, pkgpath string, name string) {
+	if pkgpath == "" && name == "" {
+		return
+	}
 	exported := isExported(name)
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
