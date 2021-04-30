@@ -52,6 +52,9 @@ func extraFieldMethod(ifield int, typ reflect.Type, skip map[string]bool) (metho
 		} else {
 			fn = func(args []reflect.Value) []reflect.Value {
 				args[0] = args[0].Field(ifield)
+				if mtyp.IsVariadic() {
+					return m.Func.CallSlice(args)
+				}
 				return m.Func.Call(args)
 			}
 		}
@@ -86,6 +89,9 @@ func extraPtrFieldMethod(ifield int, typ reflect.Type) (methods []Method) {
 			Type: mtyp,
 			Func: func(args []reflect.Value) []reflect.Value {
 				var recv = args[0]
+				if mtyp.IsVariadic() {
+					return recv.Field(ifield).Method(imethod).CallSlice(args[1:])
+				}
 				return recv.Field(ifield).Method(imethod).Call(args[1:])
 			},
 		})
