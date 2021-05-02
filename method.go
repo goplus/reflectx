@@ -211,6 +211,9 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			methods = append(methods, m)
 		}
 	}
+	if len(methods) == 0 {
+		return styp
+	}
 	typ := methodOf(styp, methods)
 	if n, ok := ntypeMap[styp]; ok {
 		ntypeMap[typ] = &Named{Name: n.Name, PkgPath: n.PkgPath, Type: typ, From: n.From, Kind: TkType}
