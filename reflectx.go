@@ -19,6 +19,7 @@ package reflectx
 import (
 	"path"
 	"reflect"
+	"strconv"
 	"unicode"
 	"unicode/utf8"
 	"unsafe"
@@ -201,3 +202,12 @@ var (
 	tyEmptyInterfacePtr = reflect.TypeOf((*interface{})(nil))
 	tyEmptyStruct       = reflect.TypeOf((*struct{})(nil)).Elem()
 )
+
+func ResizeArray(t reflect.Type, count int) {
+	rt := totype(t)
+	st := (*arrayType)(toKindType(rt))
+	st.len = uintptr(count)
+	st.size = st.elem.size * uintptr(count)
+	s := "[" + strconv.Itoa(count) + "]" + toType(st.elem).String()
+	st.str = resolveReflectName(newName(s, "", false))
+}
