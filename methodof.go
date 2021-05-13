@@ -77,6 +77,21 @@ func checkStoreMethodValue(v reflect.Value) {
 	}
 }
 
+func resizeMethod(typ reflect.Type, count int) bool {
+	r := totype(typ)
+	tt, ok := newTypMap[r]
+	if !ok {
+		return false
+	}
+	rt := totype(tt.Elem().Type())
+	st := toStructType(rt)
+	resizeArray(st.fields[2].typ, count)
+	ut := toUncommonType(r)
+	ut.mcount = uint16(count)
+	ut.xcount = uint16(count)
+	return true
+}
+
 func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
 	ptyp := reflect.PtrTo(typ)
 	pinfos, ok := typInfoMap[ptyp]

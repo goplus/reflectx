@@ -221,6 +221,10 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	return typ
 }
 
+func ResizeMethod(typ reflect.Type, count int) bool {
+	return resizeMethod(typ, count)
+}
+
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
 	return NamedTypeOf(pkgpath, name, tyEmptyInterface)
 }

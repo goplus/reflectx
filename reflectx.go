@@ -204,10 +204,13 @@ var (
 )
 
 func ResizeArray(t reflect.Type, count int) {
-	rt := totype(t)
+	resizeArray(totype(t), count)
+}
+
+func resizeArray(rt *rtype, count int) {
 	st := (*arrayType)(toKindType(rt))
+	rt.size = st.elem.size * uintptr(count)
 	st.len = uintptr(count)
-	st.size = st.elem.size * uintptr(count)
 	s := "[" + strconv.Itoa(count) + "]" + toType(st.elem).String()
 	st.str = resolveReflectName(newName(s, "", false))
 }
