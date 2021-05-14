@@ -101,7 +101,7 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }
 
-func setTypeName(t *rtype, pkgpath string, name string) {
+func setTypeName(t *_rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
 	}
@@ -117,7 +117,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	}
 }
 
-func copyType(dst *rtype, src *rtype) {
+func copyType(dst *_rtype, src *_rtype) {
 	dst.size = src.size
 	dst.kind = src.kind
 	dst.equal = src.equal
@@ -207,7 +207,7 @@ func ResizeArray(t reflect.Type, count int) {
 	resizeArray(totype(t), count)
 }
 
-func resizeArray(rt *rtype, count int) {
+func resizeArray(rt *_rtype, count int) {
 	st := (*arrayType)(toKindType(rt))
 	rt.size = st.elem.size * uintptr(count)
 	st.len = uintptr(count)

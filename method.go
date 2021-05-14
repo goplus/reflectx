@@ -194,7 +194,15 @@ func Reset() {
 	ntypeMap = make(map[reflect.Type]*Named)
 }
 
-func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
+func MethodOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	typ := methodOf(styp, maxmfunc, maxpfunc)
+	if n, ok := ntypeMap[styp]; ok {
+		ntypeMap[typ] = &Named{Name: n.Name, PkgPath: n.PkgPath, Type: typ, From: n.From, Kind: TkType}
+	}
+	return typ
+}
+
+func SetMethods(styp reflect.Type, methods []Method) bool {
 	chk := make(map[string]int)
 	for _, m := range methods {
 		chk[m.Name]++
@@ -211,18 +219,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			methods = append(methods, m)
 		}
 	}
-	if len(methods) == 0 {
-		return styp
-	}
-	typ := methodOf(styp, methods)
-	if n, ok := ntypeMap[styp]; ok {
-		ntypeMap[typ] = &Named{Name: n.Name, PkgPath: n.PkgPath, Type: typ, From: n.From, Kind: TkType}
-	}
-	return typ
-}
-
-func ResizeMethod(typ reflect.Type, count int) bool {
-	return resizeMethod(typ, count)
+	return setMethods(styp, methods)
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {

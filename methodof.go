@@ -77,6 +77,7 @@ func checkStoreMethodValue(v reflect.Value) {
 	}
 }
 
+//go:norace
 func resizeMethod(typ reflect.Type, count int) bool {
 	r := totype(typ)
 	tt, ok := newTypMap[r]
@@ -86,9 +87,16 @@ func resizeMethod(typ reflect.Type, count int) bool {
 	rt := totype(tt.Elem().Type())
 	st := toStructType(rt)
 	resizeArray(st.fields[2].typ, count)
+	t0 := reflect.ArrayOf(2, toType(st.fields[2].typ).Elem())
+	//log.Println("~~~~~~", t0)
+	st.fields[2].typ = totype(t0)
 	ut := toUncommonType(r)
 	ut.mcount = uint16(count)
 	ut.xcount = uint16(count)
+	//v := reflect.New(toType(st.fields[2].typ)).Elem()
+	//log.Println("~~~~~~", tt.Elem().Field(2).CanSet())
+	//tt.Elem().Field(2).Set(v)
+	//tovalue(&tt).
 	return true
 }
 
@@ -210,7 +218,7 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 	return
 }
 
-func methodOf(styp reflect.Type, methods []Method) reflect.Type {
+func setMethods(typ reflect.Type, methods []Method) bool {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].Type == methods[j].Type {
@@ -227,8 +235,109 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 			mcount++
 		}
 	}
-	rt, tt := newType("", "", styp, mcount, mcount)
-	prt, ptt := newType("", "", reflect.PtrTo(styp), pcount, pcount)
+	ptyp := reflect.PtrTo(typ)
+	if !resizeMethod(typ, mcount) {
+		return false
+	}
+	if !resizeMethod(ptyp, pcount) {
+		return false
+	}
+	rt := totype(typ)
+	prt := totype(ptyp)
+
+	// tt, _ := newTypMap[rt]
+	// ptt, _ := newTypMap[prt]
+
+	ms := rt.exportedMethods()
+	pms := prt.exportedMethods()
+
+	// ms := tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
+	// pms := ptt.Elem().Field(2).Slice(0, pcount).Interface().([]method)
+
+	//ms := make([]method, mcount, mcount)
+	//pms := make([]method, pcount, pcount)
+
+	infos := make([]*methodInfo, mcount, mcount)
+	pinfos := make([]*methodInfo, pcount, pcount)
+	itype := itypeIndex(typ)
+	var index int
+	for i, m := range methods {
+		name := resolveReflectName(newName(m.Name, "", true))
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil)
+		isz := argsTypeSize(inTyp, true)
+		osz := argsTypeSize(outTyp, false)
+		pindex := i
+		if !m.Pointer {
+			pindex = index
+		}
+		onePtr := checkOneFieldPtr(typ)
+		pms[i].name = name
+		pms[i].mtyp = mtyp
+		pms[i].tfn = ptfn
+		pms[i].ifn = pifn
+		pinfos[i] = &methodInfo{
+			inTyp:    inTyp,
+			outTyp:   outTyp,
+			name:     m.Name,
+			index:    pindex,
+			isz:      isz,
+			osz:      osz,
+			pointer:  m.Pointer,
+			variadic: m.Type.IsVariadic(),
+			onePtr:   onePtr,
+		}
+		if !m.Pointer {
+			ms[index].name = name
+			ms[index].mtyp = mtyp
+			ms[index].tfn = tfn
+			ms[index].ifn = ifn
+			infos[index] = &methodInfo{
+				inTyp:    inTyp,
+				outTyp:   outTyp,
+				name:     m.Name,
+				index:    index,
+				isz:      isz,
+				osz:      osz,
+				pointer:  m.Pointer,
+				variadic: m.Type.IsVariadic(),
+				onePtr:   onePtr,
+			}
+			index++
+		}
+	}
+	typInfoMap[typ] = infos
+	typInfoMap[ptyp] = pinfos
+	return true
+}
+
+func methodOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	rt, _ := newType("", "", styp, maxmfunc, 0)
+	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
+	rt.ptrToThis = resolveReflectType(prt)
+	(*ptrType)(unsafe.Pointer(prt)).elem = rt
+	setTypeName(rt, styp.PkgPath(), styp.Name())
+	return toType(rt)
+}
+
+func _methodOf(styp reflect.Type, methods []Method) reflect.Type {
+	sort.Slice(methods, func(i, j int) bool {
+		n := strings.Compare(methods[i].Name, methods[j].Name)
+		if n == 0 && methods[i].Type == methods[j].Type {
+			panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
+		}
+		return n < 0
+	})
+	var mcount, pcount int
+	pcount = len(methods)
+	var mlist []string
+	for _, m := range methods {
+		if !m.Pointer {
+			mlist = append(mlist, m.Name)
+			mcount++
+		}
+	}
+	rt, tt := newType("", "", styp, 1024, mcount)
+	prt, ptt := newType("", "", reflect.PtrTo(styp), 1024, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
