@@ -213,9 +213,9 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 	}
 	typ := MethodSetOf(styp, len(methods), len(methods))
-	b := setMethods(typ, methods)
-	if !b {
-		log.Panicln("error setMethods", typ)
+	err := loadMethods(typ, methods)
+	if err != nil {
+		log.Panicln("error loadMethods", err)
 	}
 	return typ
 }
@@ -241,12 +241,12 @@ func MethodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	return typ
 }
 
-func LoadMethods(styp reflect.Type, methods []Method) bool {
+func LoadMethods(styp reflect.Type, methods []Method) error {
 	chk := make(map[string]int)
 	for _, m := range methods {
 		chk[m.Name]++
 		if chk[m.Name] > 1 {
-			panic(fmt.Sprintf("method redeclared: %v", m.Name))
+			return fmt.Errorf("method redeclared: %v", m.Name)
 		}
 	}
 	if styp.Kind() == reflect.Struct {
@@ -258,7 +258,7 @@ func LoadMethods(styp reflect.Type, methods []Method) bool {
 			methods = append(methods, m)
 		}
 	}
-	return setMethods(styp, methods)
+	return loadMethods(styp, methods)
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {

@@ -77,12 +77,11 @@ func checkStoreMethodValue(v reflect.Value) {
 	}
 }
 
-//go:nocheckptr
-func resizeMethod(typ reflect.Type, count int) bool {
+func resizeMethod(typ reflect.Type, count int) error {
 	r := totype(typ)
 	tt, ok := newTypMap[r]
 	if !ok {
-		return false
+		return fmt.Errorf("not found method set of type %v", typ)
 	}
 	rt := totype(tt.Elem().Type())
 	st := toStructType(rt)
@@ -90,7 +89,10 @@ func resizeMethod(typ reflect.Type, count int) bool {
 	st.fields[2].typ = totype(ft)
 	ut := toUncommonType(r)
 	ut.xcount = uint16(count)
-	return true
+	if ut.xcount > ut.mcount {
+		return fmt.Errorf("too many methods of %v", typ)
+	}
+	return nil
 }
 
 func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
@@ -211,7 +213,7 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 	return
 }
 
-func setMethods(typ reflect.Type, methods []Method) bool {
+func loadMethods(typ reflect.Type, methods []Method) error {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].Type == methods[j].Type {
@@ -229,26 +231,17 @@ func setMethods(typ reflect.Type, methods []Method) bool {
 		}
 	}
 	ptyp := reflect.PtrTo(typ)
-	if !resizeMethod(typ, mcount) {
-		return false
+	if err := resizeMethod(typ, mcount); err != nil {
+		return err
 	}
-	if !resizeMethod(ptyp, pcount) {
-		return false
+	if err := resizeMethod(ptyp, pcount); err != nil {
+		return err
 	}
 	rt := totype(typ)
 	prt := totype(ptyp)
 
-	// tt, _ := newTypMap[rt]
-	// ptt, _ := newTypMap[prt]
-
 	ms := rt.exportedMethods()
 	pms := prt.exportedMethods()
-
-	// ms := tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
-	// pms := ptt.Elem().Field(2).Slice(0, pcount).Interface().([]method)
-
-	//ms := make([]method, mcount, mcount)
-	//pms := make([]method, pcount, pcount)
 
 	infos := make([]*methodInfo, mcount, mcount)
 	pinfos := make([]*methodInfo, pcount, pcount)
@@ -300,7 +293,7 @@ func setMethods(typ reflect.Type, methods []Method) bool {
 	}
 	typInfoMap[typ] = infos
 	typInfoMap[ptyp] = pinfos
-	return true
+	return nil
 }
 
 func methodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
