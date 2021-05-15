@@ -77,7 +77,7 @@ func checkStoreMethodValue(v reflect.Value) {
 	}
 }
 
-//go:norace
+//go:nocheckptr
 func resizeMethod(typ reflect.Type, count int) bool {
 	r := totype(typ)
 	tt, ok := newTypMap[r]
@@ -86,17 +86,10 @@ func resizeMethod(typ reflect.Type, count int) bool {
 	}
 	rt := totype(tt.Elem().Type())
 	st := toStructType(rt)
-	resizeArray(st.fields[2].typ, count)
-	t0 := reflect.ArrayOf(2, toType(st.fields[2].typ).Elem())
-	//log.Println("~~~~~~", t0)
-	st.fields[2].typ = totype(t0)
+	ft := reflect.ArrayOf(count, toType(st.fields[2].typ).Elem())
+	st.fields[2].typ = totype(ft)
 	ut := toUncommonType(r)
-	ut.mcount = uint16(count)
 	ut.xcount = uint16(count)
-	//v := reflect.New(toType(st.fields[2].typ)).Elem()
-	//log.Println("~~~~~~", tt.Elem().Field(2).CanSet())
-	//tt.Elem().Field(2).Set(v)
-	//tovalue(&tt).
 	return true
 }
 
@@ -310,7 +303,7 @@ func setMethods(typ reflect.Type, methods []Method) bool {
 	return true
 }
 
-func methodOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+func methodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
 	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
 	rt.ptrToThis = resolveReflectType(prt)
@@ -336,8 +329,8 @@ func _methodOf(styp reflect.Type, methods []Method) reflect.Type {
 			mcount++
 		}
 	}
-	rt, tt := newType("", "", styp, 1024, mcount)
-	prt, ptt := newType("", "", reflect.PtrTo(styp), 1024, pcount)
+	rt, tt := newType("", "", styp, mcount, mcount)
+	prt, ptt := newType("", "", reflect.PtrTo(styp), mcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt

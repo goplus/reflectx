@@ -2,6 +2,7 @@ package reflectx
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"sort"
 	"strings"
@@ -194,11 +195,33 @@ func Reset() {
 	ntypeMap = make(map[reflect.Type]*Named)
 }
 
-func MethodOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
-	typ := methodOf(styp, maxmfunc, maxpfunc)
-	if n, ok := ntypeMap[styp]; ok {
-		ntypeMap[typ] = &Named{Name: n.Name, PkgPath: n.PkgPath, Type: typ, From: n.From, Kind: TkType}
+func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+		if chk[m.Name] > 1 {
+			panic(fmt.Sprintf("method redeclared: %v", m.Name))
+		}
 	}
+	if styp.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(styp)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			methods = append(methods, m)
+		}
+	}
+	typ := MethodSetOf(styp, len(methods), len(methods))
+	b := setMethods(typ, methods)
+	if !b {
+		log.Panicln("error setMethods", typ)
+	}
+	return typ
+}
+
+func MethodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	typ := methodSet(styp, maxmfunc, maxpfunc)
 	return typ
 }
 
