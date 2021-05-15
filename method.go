@@ -220,12 +220,28 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	return typ
 }
 
+// MethodSetOf is pre define method set of styp
+// maxmfunc - set methodset of T max member func
+// maxpfunc - set methodset of *T + T max member func
 func MethodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	chk := make(map[string]int)
+	if styp.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(styp)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			maxpfunc++
+			if !m.Pointer {
+				maxmfunc++
+			}
+		}
+	}
 	typ := methodSet(styp, maxmfunc, maxpfunc)
 	return typ
 }
 
-func SetMethods(styp reflect.Type, methods []Method) bool {
+func LoadMethods(styp reflect.Type, methods []Method) bool {
 	chk := make(map[string]int)
 	for _, m := range methods {
 		chk[m.Name]++

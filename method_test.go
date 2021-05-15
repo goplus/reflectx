@@ -50,7 +50,7 @@ func TestIntMethodOf(t *testing.T) {
 	}
 	// make Int type
 	styp := reflectx.NamedTypeOf("main", "Int", tyInt)
-	var typ reflect.Type
+	typ := reflectx.MethodSetOf(styp, 2, 3)
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -83,7 +83,7 @@ func TestIntMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflectx.Method{
+	reflectx.LoadMethods(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -154,7 +154,7 @@ func TestSliceMethodOf(t *testing.T) {
 	// make IntSlice type
 	intSliceTyp := reflect.TypeOf([]int{})
 	styp := reflectx.NamedTypeOf("main", "IntSlice", intSliceTyp)
-	var typ reflect.Type
+	typ := reflectx.MethodSetOf(styp, 2, 3)
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -190,7 +190,7 @@ func TestSliceMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflectx.Method{
+	reflectx.LoadMethods(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -260,8 +260,8 @@ func TestArrayMethodOf(t *testing.T) {
 	}
 	styp := reflectx.NamedTypeOf("main", "IntArray", reflect.TypeOf([2]int{}))
 	// make IntArray
-	styp = reflectx.MethodSetOf(styp, 3, 4)
-	typ := styp
+	typ := reflectx.MethodSetOf(styp, 3, 4)
+
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -295,7 +295,7 @@ func TestArrayMethodOf(t *testing.T) {
 	mScale := reflectx.MakeMethod(
 		"Scale",
 		false,
-		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{styp}, false),
+		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{typ}, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0]
 			s := args[1].Int()
@@ -305,7 +305,7 @@ func TestArrayMethodOf(t *testing.T) {
 			return []reflect.Value{r}
 		},
 	)
-	reflectx.SetMethods(styp, []reflectx.Method{
+	reflectx.LoadMethods(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mGet,
@@ -450,7 +450,7 @@ func makeDynamicPointType() reflect.Type {
 			return []reflect.Value{v.Addr()}
 		},
 	)
-	reflectx.SetMethods(typ, []reflectx.Method{
+	reflectx.LoadMethods(typ, []reflectx.Method{
 		mAdd,
 		mString,
 		mSet,
@@ -681,8 +681,8 @@ func TestMethodStack(t *testing.T) {
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
 	}
 	styp := reflectx.NamedStructOf("main", "Point", fs)
+	typ := reflectx.MethodSetOf(styp, len(testMethodStacks), len(testMethodStacks))
 	var methods []reflectx.Method
-	var typ reflect.Type
 	for _, m := range testMethodStacks {
 		mm := reflectx.MakeMethod(
 			m.name,
@@ -692,7 +692,7 @@ func TestMethodStack(t *testing.T) {
 		)
 		methods = append(methods, mm)
 	}
-	typ = reflectx.MethodOf(styp, methods)
+	reflectx.LoadMethods(typ, methods)
 	v := reflect.New(typ).Elem()
 	v.Field(0).SetInt(100)
 	v.Field(1).SetInt(200)
@@ -843,7 +843,8 @@ func TestEmbedMethods1(t *testing.T) {
 			},
 		}
 		typ := reflectx.NamedStructOf("main", "MyPoint1", fs)
-		typ = reflectx.MethodOf(typ, nil)
+		typ = reflectx.MethodSetOf(typ, 0, 0)
+		reflectx.LoadMethods(typ, nil)
 		if v := typ.NumMethod(); v != 4 {
 			t.Errorf("NumMethod have %v want 4", v)
 		}
@@ -893,7 +894,8 @@ func TestEmbedMethods2(t *testing.T) {
 			},
 		}
 		typ = reflectx.NamedStructOf("main", "MyPoint2", fs)
-		typ = reflectx.MethodOf(typ, nil)
+		typ = reflectx.MethodSetOf(typ, 0, 0)
+		reflectx.LoadMethods(typ, nil)
 		if v := typ.NumMethod(); v != 5 {
 			t.Errorf("NumMethod have %v want 5", v)
 		}
@@ -963,7 +965,8 @@ func TestEmbedMethods3(t *testing.T) {
 			},
 		}
 		typ := reflectx.NamedStructOf("main", "MyPoint3", fs)
-		typ = reflectx.MethodOf(typ, nil)
+		typ = reflectx.MethodSetOf(typ, 0, 0)
+		reflectx.LoadMethods(typ, nil)
 		if v := typ.NumMethod(); v != 2 {
 			t.Errorf("NumMethod have %v want 2", v)
 		}
@@ -1052,7 +1055,8 @@ func TestEmbedMethods4(t *testing.T) {
 			},
 		)
 		typ := reflectx.NamedStructOf("main", "MyPoint4", fs)
-		typ = reflectx.MethodOf(typ, []reflectx.Method{
+		typ = reflectx.MethodSetOf(typ, 2, 3)
+		reflectx.LoadMethods(typ, []reflectx.Method{
 			mSetIndex,
 			mIndex,
 			mString,
