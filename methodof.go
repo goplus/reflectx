@@ -78,16 +78,8 @@ func checkStoreMethodValue(v reflect.Value) {
 }
 
 func resizeMethod(typ reflect.Type, count int) error {
-	r := totype(typ)
-	tt, ok := newTypMap[r]
-	if !ok {
-		return fmt.Errorf("not found method set of type %v", typ)
-	}
-	rt := totype(tt.Elem().Type())
-	st := toStructType(rt)
-	ft := reflect.ArrayOf(count, toType(st.fields[2].typ).Elem())
-	st.fields[2].typ = totype(ft)
-	ut := toUncommonType(r)
+	rt := totype(typ)
+	ut := toUncommonType(rt)
 	ut.xcount = uint16(count)
 	if ut.xcount > ut.mcount {
 		return fmt.Errorf("too many methods of %v", typ)

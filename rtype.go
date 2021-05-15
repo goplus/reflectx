@@ -216,10 +216,6 @@ type funcType struct {
 	outCount uint16 // top bit is set if last input parameter is ...
 }
 
-var (
-	newTypMap = make(map[*_rtype]reflect.Value)
-)
-
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*_rtype, []method) {
 	var tt reflect.Value
 	var rt *_rtype
@@ -342,7 +338,6 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	ut.mcount = uint16(mcount)
 	ut.xcount = uint16(xcount)
 	ut.moff = uint32(unsafe.Sizeof(uncommonType{}))
-	newTypMap[rt] = tt
 	if styp.Kind() == reflect.Interface || styp.Kind() == reflect.Func {
 		return rt, nil
 	}
