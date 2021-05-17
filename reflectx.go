@@ -19,6 +19,7 @@ package reflectx
 import (
 	"path"
 	"reflect"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 	"unsafe"
@@ -136,6 +137,30 @@ var (
 	EnableStructOfExportAllField bool
 )
 
+var (
+	structLookupMap sync.Map
+)
+
+func checkFields(t1, t2 reflect.Type) bool {
+	n1 := t1.NumField()
+	n2 := t2.NumField()
+	if n1 != n2 {
+		return false
+	}
+	for i := 0; i < n1; i++ {
+		f1 := t1.Field(i)
+		f2 := t2.Field(i)
+		if f1.Name != f2.Name ||
+			f1.PkgPath != f2.PkgPath ||
+			f1.Anonymous != f2.Anonymous ||
+			f1.Type != f2.Type ||
+			f1.Offset != f2.Offset {
+			return false
+		}
+	}
+	return true
+}
+
 func StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
 	fs := make([]reflect.StructField, len(fields))
@@ -162,6 +187,13 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 			st.fields[i].name = newName(f.Name, string(f.Tag), true)
 		}
 	}
+	if t, ok := structLookupMap.Load(typ.String()); ok {
+		rt := t.(reflect.Type)
+		if checkFields(rt, typ) {
+			return rt
+		}
+	}
+	structLookupMap.Store(typ.String(), typ)
 	return typ
 }
 

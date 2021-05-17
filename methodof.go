@@ -80,9 +80,11 @@ func checkStoreMethodValue(v reflect.Value) {
 func resizeMethod(typ reflect.Type, count int) error {
 	rt := totype(typ)
 	ut := toUncommonType(rt)
-	ut.xcount = uint16(count)
-	if ut.xcount > ut.mcount {
-		return fmt.Errorf("too many methods of %v", typ)
+	if ut != nil {
+		ut.xcount = uint16(count)
+		if ut.xcount > ut.mcount {
+			return fmt.Errorf("too many methods of %v", typ)
+		}
 	}
 	return nil
 }
@@ -418,8 +420,9 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 
 func resetTypeList() {
 	itypList = nil
-	structLookupCache = sync.Map{}
+	embedLookupCache = sync.Map{}
 	interfceLookupCache = sync.Map{}
+	structLookupMap = sync.Map{}
 }
 
 var (

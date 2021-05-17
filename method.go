@@ -195,7 +195,7 @@ func Reset() {
 	ntypeMap = make(map[reflect.Type]*Named)
 }
 
-var structLookupCache sync.Map
+var embedLookupCache sync.Map
 
 // StructToMethodSet extract method form struct embed fields
 func StructToMethodSet(styp reflect.Type) reflect.Type {
@@ -206,7 +206,7 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if len(ms) == 0 {
 		return styp
 	}
-	if typ, ok := structLookupCache.Load(styp.String()); ok {
+	if typ, ok := embedLookupCache.Load(styp); ok {
 		return typ.(reflect.Type)
 	}
 	var methods []Method
@@ -223,7 +223,7 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if err != nil {
 		log.Panicln("error loadMethods", err)
 	}
-	structLookupCache.Store(styp.String(), typ)
+	embedLookupCache.Store(styp, typ)
 	return typ
 }
 
