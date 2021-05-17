@@ -80,12 +80,13 @@ func checkStoreMethodValue(v reflect.Value) {
 func resizeMethod(typ reflect.Type, count int) error {
 	rt := totype(typ)
 	ut := toUncommonType(rt)
-	if ut != nil {
-		ut.xcount = uint16(count)
-		if ut.xcount > ut.mcount {
-			return fmt.Errorf("too many methods of %v", typ)
-		}
+	if ut == nil {
+		return fmt.Errorf("not found uncommonType of %v", typ)
 	}
+	if uint16(count) > ut.mcount {
+		return fmt.Errorf("too many methods of %v", typ)
+	}
+	ut.xcount = uint16(count)
 	return nil
 }
 
