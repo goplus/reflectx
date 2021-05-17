@@ -50,7 +50,7 @@ func TestIntMethodOf(t *testing.T) {
 	}
 	// make Int type
 	styp := reflectx.NamedTypeOf("main", "Int", tyInt)
-	var typ reflect.Type
+	typ := reflectx.MethodSetOf(styp, 2, 3)
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -83,7 +83,7 @@ func TestIntMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -154,7 +154,7 @@ func TestSliceMethodOf(t *testing.T) {
 	// make IntSlice type
 	intSliceTyp := reflect.TypeOf([]int{})
 	styp := reflectx.NamedTypeOf("main", "IntSlice", intSliceTyp)
-	var typ reflect.Type
+	typ := reflectx.MethodSetOf(styp, 2, 3)
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -190,7 +190,7 @@ func TestSliceMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -258,9 +258,10 @@ func TestArrayMethodOf(t *testing.T) {
 	if v := fmt.Sprint(i.Scale(5)); v != "(500,1000)" {
 		t.Fatalf("have %v, want (500,1000)", v)
 	}
-	// make IntArray
 	styp := reflectx.NamedTypeOf("main", "IntArray", reflect.TypeOf([2]int{}))
-	var typ reflect.Type
+	// make IntArray
+	typ := reflectx.MethodSetOf(styp, 3, 4)
+
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -294,7 +295,7 @@ func TestArrayMethodOf(t *testing.T) {
 	mScale := reflectx.MakeMethod(
 		"Scale",
 		false,
-		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{styp}, false),
+		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{typ}, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := args[0]
 			s := args[1].Int()
@@ -304,7 +305,7 @@ func TestArrayMethodOf(t *testing.T) {
 			return []reflect.Value{r}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mGet,
@@ -387,7 +388,8 @@ func makeDynamicPointType() reflect.Type {
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
 	}
 	styp := reflectx.NamedStructOf("main", "Point", fs)
-	var typ reflect.Type
+	//var typ reflect.Type
+	typ := reflectx.MethodSetOf(styp, 4, 5)
 	mString := reflectx.MakeMethod(
 		"String",
 		false,
@@ -401,7 +403,7 @@ func makeDynamicPointType() reflect.Type {
 	mAdd := reflectx.MakeMethod(
 		"Add",
 		false,
-		reflect.FuncOf([]reflect.Type{styp}, []reflect.Type{styp}, false),
+		reflect.FuncOf([]reflect.Type{typ}, []reflect.Type{typ}, false),
 		func(args []reflect.Value) []reflect.Value {
 			v := reflect.New(typ).Elem()
 			v.Field(0).SetInt(args[0].Field(0).Int() + args[1].Field(0).Int())
@@ -423,7 +425,7 @@ func makeDynamicPointType() reflect.Type {
 	mScale := reflectx.MakeMethod(
 		"Scale",
 		false,
-		reflect.FuncOf([]reflect.Type{reflect.SliceOf(tyInt)}, []reflect.Type{reflect.SliceOf(styp)}, true),
+		reflect.FuncOf([]reflect.Type{reflect.SliceOf(tyInt)}, []reflect.Type{reflect.SliceOf(typ)}, true),
 		func(args []reflect.Value) (result []reflect.Value) {
 			x, y := args[0].Field(0).Int(), args[0].Field(1).Int()
 			r := reflect.MakeSlice(reflect.SliceOf(typ), 0, 0)
@@ -440,7 +442,7 @@ func makeDynamicPointType() reflect.Type {
 	mNew := reflectx.MakeMethod(
 		"New",
 		false,
-		reflect.FuncOf(nil, []reflect.Type{reflect.PtrTo(styp)}, false),
+		reflect.FuncOf(nil, []reflect.Type{reflect.PtrTo(typ)}, false),
 		func(args []reflect.Value) (result []reflect.Value) {
 			v := reflect.New(typ).Elem()
 			v.Field(0).SetInt(args[0].Field(0).Int())
@@ -448,7 +450,7 @@ func makeDynamicPointType() reflect.Type {
 			return []reflect.Value{v.Addr()}
 		},
 	)
-	typ = reflectx.MethodOf(styp, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mAdd,
 		mString,
 		mSet,
@@ -679,8 +681,8 @@ func TestMethodStack(t *testing.T) {
 		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
 	}
 	styp := reflectx.NamedStructOf("main", "Point", fs)
+	typ := reflectx.MethodSetOf(styp, len(testMethodStacks), len(testMethodStacks))
 	var methods []reflectx.Method
-	var typ reflect.Type
 	for _, m := range testMethodStacks {
 		mm := reflectx.MakeMethod(
 			m.name,
@@ -690,7 +692,7 @@ func TestMethodStack(t *testing.T) {
 		)
 		methods = append(methods, mm)
 	}
-	typ = reflectx.MethodOf(styp, methods)
+	reflectx.LoadMethodSet(typ, methods)
 	v := reflect.New(typ).Elem()
 	v.Field(0).SetInt(100)
 	v.Field(1).SetInt(200)
@@ -841,7 +843,7 @@ func TestEmbedMethods1(t *testing.T) {
 			},
 		}
 		typ := reflectx.NamedStructOf("main", "MyPoint1", fs)
-		typ = reflectx.MethodOf(typ, nil)
+		typ = reflectx.StructToMethodSet(typ)
 		if v := typ.NumMethod(); v != 4 {
 			t.Errorf("NumMethod have %v want 4", v)
 		}
@@ -891,7 +893,7 @@ func TestEmbedMethods2(t *testing.T) {
 			},
 		}
 		typ = reflectx.NamedStructOf("main", "MyPoint2", fs)
-		typ = reflectx.MethodOf(typ, nil)
+		typ = reflectx.StructToMethodSet(typ)
 		if v := typ.NumMethod(); v != 5 {
 			t.Errorf("NumMethod have %v want 5", v)
 		}
@@ -961,7 +963,7 @@ func TestEmbedMethods3(t *testing.T) {
 			},
 		}
 		typ := reflectx.NamedStructOf("main", "MyPoint3", fs)
-		typ = reflectx.MethodOf(typ, nil)
+		typ = reflectx.StructToMethodSet(typ)
 		if v := typ.NumMethod(); v != 2 {
 			t.Errorf("NumMethod have %v want 2", v)
 		}
@@ -1050,7 +1052,8 @@ func TestEmbedMethods4(t *testing.T) {
 			},
 		)
 		typ := reflectx.NamedStructOf("main", "MyPoint4", fs)
-		typ = reflectx.MethodOf(typ, []reflectx.Method{
+		typ = reflectx.MethodSetOf(typ, 2, 3)
+		reflectx.LoadMethodSet(typ, []reflectx.Method{
 			mSetIndex,
 			mIndex,
 			mString,

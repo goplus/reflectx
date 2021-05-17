@@ -77,6 +77,19 @@ func checkStoreMethodValue(v reflect.Value) {
 	}
 }
 
+func resizeMethod(typ reflect.Type, count int) error {
+	rt := totype(typ)
+	ut := toUncommonType(rt)
+	if ut == nil {
+		return fmt.Errorf("not found uncommonType of %v", typ)
+	}
+	if uint16(count) > ut.mcount {
+		return fmt.Errorf("too many methods of %v", typ)
+	}
+	ut.xcount = uint16(count)
+	return nil
+}
+
 func updateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
 	ptyp := reflect.PtrTo(typ)
 	pinfos, ok := typInfoMap[ptyp]
@@ -195,7 +208,99 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 	return
 }
 
-func methodOf(styp reflect.Type, methods []Method) reflect.Type {
+func loadMethods(typ reflect.Type, methods []Method) error {
+	sort.Slice(methods, func(i, j int) bool {
+		n := strings.Compare(methods[i].Name, methods[j].Name)
+		if n == 0 && methods[i].Type == methods[j].Type {
+			panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
+		}
+		return n < 0
+	})
+	var mcount, pcount int
+	pcount = len(methods)
+	var mlist []string
+	for _, m := range methods {
+		if !m.Pointer {
+			mlist = append(mlist, m.Name)
+			mcount++
+		}
+	}
+	ptyp := reflect.PtrTo(typ)
+	if err := resizeMethod(typ, mcount); err != nil {
+		return err
+	}
+	if err := resizeMethod(ptyp, pcount); err != nil {
+		return err
+	}
+	rt := totype(typ)
+	prt := totype(ptyp)
+
+	ms := rt.exportedMethods()
+	pms := prt.exportedMethods()
+
+	infos := make([]*methodInfo, mcount, mcount)
+	pinfos := make([]*methodInfo, pcount, pcount)
+	itype := itypeIndex(typ)
+	var index int
+	for i, m := range methods {
+		name := resolveReflectName(newName(m.Name, "", true))
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil)
+		isz := argsTypeSize(inTyp, true)
+		osz := argsTypeSize(outTyp, false)
+		pindex := i
+		if !m.Pointer {
+			pindex = index
+		}
+		onePtr := checkOneFieldPtr(typ)
+		pms[i].name = name
+		pms[i].mtyp = mtyp
+		pms[i].tfn = ptfn
+		pms[i].ifn = pifn
+		pinfos[i] = &methodInfo{
+			inTyp:    inTyp,
+			outTyp:   outTyp,
+			name:     m.Name,
+			index:    pindex,
+			isz:      isz,
+			osz:      osz,
+			pointer:  m.Pointer,
+			variadic: m.Type.IsVariadic(),
+			onePtr:   onePtr,
+		}
+		if !m.Pointer {
+			ms[index].name = name
+			ms[index].mtyp = mtyp
+			ms[index].tfn = tfn
+			ms[index].ifn = ifn
+			infos[index] = &methodInfo{
+				inTyp:    inTyp,
+				outTyp:   outTyp,
+				name:     m.Name,
+				index:    index,
+				isz:      isz,
+				osz:      osz,
+				pointer:  m.Pointer,
+				variadic: m.Type.IsVariadic(),
+				onePtr:   onePtr,
+			}
+			index++
+		}
+	}
+	typInfoMap[typ] = infos
+	typInfoMap[ptyp] = pinfos
+	return nil
+}
+
+func methodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	rt, _ := newType("", "", styp, maxmfunc, 0)
+	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
+	rt.ptrToThis = resolveReflectType(prt)
+	(*ptrType)(unsafe.Pointer(prt)).elem = rt
+	setTypeName(rt, styp.PkgPath(), styp.Name())
+	return toType(rt)
+}
+
+func _methodOf(styp reflect.Type, methods []Method) reflect.Type {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].Type == methods[j].Type {
@@ -213,7 +318,7 @@ func methodOf(styp reflect.Type, methods []Method) reflect.Type {
 		}
 	}
 	rt, tt := newType("", "", styp, mcount, mcount)
-	prt, ptt := newType("", "", reflect.PtrTo(styp), pcount, pcount)
+	prt, ptt := newType("", "", reflect.PtrTo(styp), mcount, pcount)
 	rt.ptrToThis = resolveReflectType(prt)
 
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
@@ -316,6 +421,9 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 
 func resetTypeList() {
 	itypList = nil
+	embedLookupCache = sync.Map{}
+	interfceLookupCache = sync.Map{}
+	structLookupMap = sync.Map{}
 }
 
 var (

@@ -2,6 +2,7 @@ package reflectx
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"sort"
 	"strings"
@@ -194,6 +195,38 @@ func Reset() {
 	ntypeMap = make(map[reflect.Type]*Named)
 }
 
+var embedLookupCache sync.Map
+
+// StructToMethodSet extract method form struct embed fields
+func StructToMethodSet(styp reflect.Type) reflect.Type {
+	if styp.Kind() != reflect.Struct {
+		return styp
+	}
+	ms := extractEmbedMethod(styp)
+	if len(ms) == 0 {
+		return styp
+	}
+	if typ, ok := embedLookupCache.Load(styp); ok {
+		return typ.(reflect.Type)
+	}
+	var methods []Method
+	var mcout, pcount int
+	for _, m := range ms {
+		if !m.Pointer {
+			mcout++
+		}
+		pcount++
+		methods = append(methods, m)
+	}
+	typ := methodSetOf(styp, mcout, pcount)
+	err := loadMethods(typ, methods)
+	if err != nil {
+		log.Panicln("error loadMethods", err)
+	}
+	embedLookupCache.Store(styp, typ)
+	return typ
+}
+
 func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	chk := make(map[string]int)
 	for _, m := range methods {
@@ -211,14 +244,56 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			methods = append(methods, m)
 		}
 	}
-	if len(methods) == 0 {
-		return styp
-	}
-	typ := methodOf(styp, methods)
-	if n, ok := ntypeMap[styp]; ok {
-		ntypeMap[typ] = &Named{Name: n.Name, PkgPath: n.PkgPath, Type: typ, From: n.From, Kind: TkType}
+	typ := methodSetOf(styp, len(methods), len(methods))
+	err := loadMethods(typ, methods)
+	if err != nil {
+		log.Panicln("error loadMethods", err)
 	}
 	return typ
+}
+
+// MethodSetOf is pre define method set of styp
+// maxmfunc - set methodset of T max member func
+// maxpfunc - set methodset of *T + T max member func
+func MethodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	if maxpfunc == 0 {
+		return StructToMethodSet(styp)
+	}
+	chk := make(map[string]int)
+	if styp.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(styp)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			maxpfunc++
+			if !m.Pointer {
+				maxmfunc++
+			}
+		}
+	}
+	typ := methodSetOf(styp, maxmfunc, maxpfunc)
+	return typ
+}
+
+func LoadMethodSet(styp reflect.Type, methods []Method) error {
+	chk := make(map[string]int)
+	for _, m := range methods {
+		chk[m.Name]++
+		if chk[m.Name] > 1 {
+			return fmt.Errorf("method redeclared: %v", m.Name)
+		}
+	}
+	if styp.Kind() == reflect.Struct {
+		ms := extractEmbedMethod(styp)
+		for _, m := range ms {
+			if chk[m.Name] == 1 {
+				continue
+			}
+			methods = append(methods, m)
+		}
+	}
+	return loadMethods(styp, methods)
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
