@@ -206,7 +206,7 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if len(ms) == 0 {
 		return styp
 	}
-	if typ, ok := structLookupCache.Load(styp); ok {
+	if typ, ok := structLookupCache.Load(styp.String()); ok {
 		return typ.(reflect.Type)
 	}
 	var methods []Method
@@ -223,7 +223,7 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if err != nil {
 		log.Panicln("error loadMethods", err)
 	}
-	structLookupCache.Store(styp, typ)
+	structLookupCache.Store(styp.String(), typ)
 	return typ
 }
 

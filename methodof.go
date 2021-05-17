@@ -418,6 +418,8 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 
 func resetTypeList() {
 	itypList = nil
+	structLookupCache = sync.Map{}
+	interfceLookupCache = sync.Map{}
 }
 
 var (
