@@ -195,6 +195,38 @@ func Reset() {
 	ntypeMap = make(map[reflect.Type]*Named)
 }
 
+var structLookupCache sync.Map
+
+// StructToMethodSet extract method form struct embed fields
+func StructToMethodSet(styp reflect.Type) reflect.Type {
+	if styp.Kind() != reflect.Struct {
+		return styp
+	}
+	ms := extractEmbedMethod(styp)
+	if len(ms) == 0 {
+		return styp
+	}
+	if typ, ok := structLookupCache.Load(styp); ok {
+		return typ.(reflect.Type)
+	}
+	var methods []Method
+	var mcout, pcount int
+	for _, m := range ms {
+		if !m.Pointer {
+			mcout++
+		}
+		pcount++
+		methods = append(methods, m)
+	}
+	typ := methodSetOf(styp, mcout, pcount)
+	err := loadMethods(typ, methods)
+	if err != nil {
+		log.Panicln("error loadMethods", err)
+	}
+	structLookupCache.Store(styp, typ)
+	return typ
+}
+
 func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 	chk := make(map[string]int)
 	for _, m := range methods {
@@ -212,7 +244,7 @@ func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
 			methods = append(methods, m)
 		}
 	}
-	typ := MethodSetOf(styp, len(methods), len(methods))
+	typ := methodSetOf(styp, len(methods), len(methods))
 	err := loadMethods(typ, methods)
 	if err != nil {
 		log.Panicln("error loadMethods", err)
@@ -237,7 +269,7 @@ func MethodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 			}
 		}
 	}
-	typ := methodSet(styp, maxmfunc, maxpfunc)
+	typ := methodSetOf(styp, maxmfunc, maxpfunc)
 	return typ
 }
 

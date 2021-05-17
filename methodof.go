@@ -288,7 +288,7 @@ func loadMethods(typ reflect.Type, methods []Method) error {
 	return nil
 }
 
-func methodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+func methodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
 	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
 	rt.ptrToThis = resolveReflectType(prt)
