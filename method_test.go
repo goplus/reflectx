@@ -83,7 +83,7 @@ func TestIntMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	reflectx.LoadMethods(typ, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -190,7 +190,7 @@ func TestSliceMethodOf(t *testing.T) {
 			return []reflect.Value{reflect.ValueOf(int(sum))}
 		},
 	)
-	reflectx.LoadMethods(typ, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mAppend,
@@ -305,7 +305,7 @@ func TestArrayMethodOf(t *testing.T) {
 			return []reflect.Value{r}
 		},
 	)
-	reflectx.LoadMethods(typ, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mString,
 		mSet,
 		mGet,
@@ -450,7 +450,7 @@ func makeDynamicPointType() reflect.Type {
 			return []reflect.Value{v.Addr()}
 		},
 	)
-	reflectx.LoadMethods(typ, []reflectx.Method{
+	reflectx.LoadMethodSet(typ, []reflectx.Method{
 		mAdd,
 		mString,
 		mSet,
@@ -692,7 +692,7 @@ func TestMethodStack(t *testing.T) {
 		)
 		methods = append(methods, mm)
 	}
-	reflectx.LoadMethods(typ, methods)
+	reflectx.LoadMethodSet(typ, methods)
 	v := reflect.New(typ).Elem()
 	v.Field(0).SetInt(100)
 	v.Field(1).SetInt(200)
@@ -1053,7 +1053,7 @@ func TestEmbedMethods4(t *testing.T) {
 		)
 		typ := reflectx.NamedStructOf("main", "MyPoint4", fs)
 		typ = reflectx.MethodSetOf(typ, 2, 3)
-		reflectx.LoadMethods(typ, []reflectx.Method{
+		reflectx.LoadMethodSet(typ, []reflectx.Method{
 			mSetIndex,
 			mIndex,
 			mString,
