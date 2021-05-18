@@ -19,7 +19,6 @@ package reflectx
 import (
 	"path"
 	"reflect"
-	"sync"
 	"unicode"
 	"unicode/utf8"
 	"unsafe"
@@ -138,7 +137,7 @@ var (
 )
 
 var (
-	structLookupMap sync.Map
+	structLookupCache = make(map[string]reflect.Type)
 )
 
 func checkFields(t1, t2 reflect.Type) bool {
@@ -187,13 +186,13 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 			st.fields[i].name = newName(f.Name, string(f.Tag), true)
 		}
 	}
-	if t, ok := structLookupMap.Load(typ.String()); ok {
-		rt := t.(reflect.Type)
-		if checkFields(rt, typ) {
-			return rt
+	str := typ.String()
+	if t, ok := structLookupCache[str]; ok {
+		if checkFields(t, typ) {
+			return t
 		}
 	}
-	structLookupMap.Store(typ.String(), typ)
+	structLookupCache[str] = typ
 	return typ
 }
 

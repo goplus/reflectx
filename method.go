@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 )
 
 // MakeMethod make reflect.Method for MethodOf
@@ -193,9 +192,14 @@ func UpdateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]refl
 func Reset() {
 	resetTypeList()
 	ntypeMap = make(map[reflect.Type]*Named)
+	embedLookupCache = make(map[reflect.Type]reflect.Type)
+	structLookupCache = make(map[string]reflect.Type)
+	interfceLookupCache = make(map[string]reflect.Type)
 }
 
-var embedLookupCache sync.Map
+var (
+	embedLookupCache = make(map[reflect.Type]reflect.Type)
+)
 
 // StructToMethodSet extract method form struct embed fields
 func StructToMethodSet(styp reflect.Type) reflect.Type {
@@ -206,8 +210,8 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if len(ms) == 0 {
 		return styp
 	}
-	if typ, ok := embedLookupCache.Load(styp); ok {
-		return typ.(reflect.Type)
+	if typ, ok := embedLookupCache[styp]; ok {
+		return typ
 	}
 	var methods []Method
 	var mcout, pcount int
@@ -223,7 +227,7 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if err != nil {
 		log.Panicln("error loadMethods", err)
 	}
-	embedLookupCache.Store(styp, typ)
+	embedLookupCache[styp] = typ
 	return typ
 }
 
@@ -305,7 +309,9 @@ func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, meth
 	return NamedTypeOf(pkgpath, name, typ)
 }
 
-var interfceLookupCache sync.Map
+var (
+	interfceLookupCache = make(map[string]reflect.Type)
+)
 
 func InterfaceOf(embedded []reflect.Type, methods []Method) reflect.Type {
 	for _, e := range embedded {
@@ -349,12 +355,13 @@ func InterfaceOf(embedded []reflect.Type, methods []Method) reflect.Type {
 	} else {
 		str = "*interface {}"
 	}
-	if t, ok := interfceLookupCache.Load(str); ok {
-		return t.(reflect.Type)
+	if t, ok := interfceLookupCache[str]; ok {
+		return t
 	}
 	rt.str = resolveReflectName(newName(str, "", false))
-	ti, _ := interfceLookupCache.LoadOrStore(str, toType(rt))
-	return ti.(reflect.Type)
+	typ := toType(rt)
+	interfceLookupCache[str] = typ
+	return typ
 }
 
 func methodStr(name string, typ reflect.Type) string {
