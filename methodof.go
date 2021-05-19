@@ -297,7 +297,11 @@ func methodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())
-	return toType(rt)
+	typ := toType(rt)
+	if nt, ok := ntypeMap[styp]; ok {
+		ntypeMap[typ] = &Named{Name: nt.Name, PkgPath: nt.PkgPath, Type: typ, From: nt.From, Kind: nt.Kind}
+	}
+	return typ
 }
 
 func _methodOf(styp reflect.Type, methods []Method) reflect.Type {
