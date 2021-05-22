@@ -333,6 +333,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	rt.fieldAlign = ort.fieldAlign
 	rt.gcdata = ort.gcdata
 	rt.ptrdata = ort.ptrdata
+	rt.equal = ort.equal
 	rt.str = resolveReflectName(ort.nameOff(ort.str))
 	ut := (*uncommonType)(unsafe.Pointer(tt.Elem().Field(1).UnsafeAddr()))
 	ut.mcount = uint16(mcount)
