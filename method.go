@@ -313,13 +313,13 @@ var (
 	interfceLookupCache = make(map[string]reflect.Type)
 )
 
-func NewInterface(pkgpath string, name string) reflect.Type {
+func NewInterfaceType(pkgpath string, name string) reflect.Type {
 	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
 	setTypeName(rt, pkgpath, name)
 	return toType(rt)
 }
 
-func LoadInterface(typ reflect.Type, embedded []reflect.Type, methods []reflect.Method) error {
+func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []reflect.Method) error {
 	for _, e := range embedded {
 		if e.Kind() != reflect.Interface {
 			return fmt.Errorf("interface contains embedded non-interface %v", e)
@@ -355,14 +355,6 @@ func LoadInterface(typ reflect.Type, embedded []reflect.Type, methods []reflect.
 		})
 		info = append(info, methodStr(m.Name, m.Type))
 	}
-	var str string
-	if len(info) > 0 {
-		str = fmt.Sprintf("*interface { %v }", strings.Join(info, "; "))
-	} else {
-		str = "*interface {}"
-	}
-	//rt.str = resolveReflectName(newName(str, "", false))
-	interfceLookupCache[str] = typ
 	return nil
 }
 

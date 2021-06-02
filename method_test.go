@@ -732,12 +732,12 @@ func checkInterface(t *testing.T, typ, styp reflect.Type) {
 }
 
 func TestInterfaceOf(t *testing.T) {
-	ms := []reflectx.Method{
-		reflectx.Method{
+	ms := []reflect.Method{
+		reflect.Method{
 			Name: "String",
 			Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 		},
-		reflectx.Method{
+		reflect.Method{
 			Name: "Test",
 			Type: reflect.FuncOf(nil, []reflect.Type{tyBool}, false),
 		},
@@ -752,8 +752,8 @@ func TestInterfaceOf(t *testing.T) {
 func TestNamedInterfaceOf(t *testing.T) {
 	pkgpath := "github.com/goplus/reflectx"
 	typ := reflectx.NamedInterfaceOf(pkgpath, "Stringer", nil,
-		[]reflectx.Method{
-			reflectx.Method{
+		[]reflect.Method{
+			reflect.Method{
 				Name: "String",
 				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 			},
@@ -766,8 +766,37 @@ func TestNamedInterfaceOf(t *testing.T) {
 			reflect.TypeOf((*io.Reader)(nil)).Elem(),
 			reflect.TypeOf((*io.Writer)(nil)).Elem(),
 		},
-		[]reflectx.Method{
-			reflectx.Method{
+		[]reflect.Method{
+			reflect.Method{
+				Name: "Close",
+				Type: reflect.FuncOf(nil, []reflect.Type{tyError}, false),
+			},
+		},
+	)
+	checkInterface(t, typ, reflect.TypeOf((*io.ReadWriteCloser)(nil)).Elem())
+}
+
+func TestNamedInterfaceOf2(t *testing.T) {
+	pkgpath := "github.com/goplus/reflectx"
+	typ := reflectx.NewInterfaceType(pkgpath, "Stringer")
+	reflectx.SetInterfaceType(typ, nil,
+		[]reflect.Method{
+			reflect.Method{
+				Name: "String",
+				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
+			},
+		},
+	)
+	checkInterface(t, typ, reflect.TypeOf((*fmt.Stringer)(nil)).Elem())
+
+	typ = reflectx.NewInterfaceType(pkgpath, "ReadWriteCloser")
+	reflectx.SetInterfaceType(typ,
+		[]reflect.Type{
+			reflect.TypeOf((*io.Reader)(nil)).Elem(),
+			reflect.TypeOf((*io.Writer)(nil)).Elem(),
+		},
+		[]reflect.Method{
+			reflect.Method{
 				Name: "Close",
 				Type: reflect.FuncOf(nil, []reflect.Type{tyError}, false),
 			},
@@ -812,12 +841,12 @@ func (s MyPoint4) String() string {
 
 func makeDynamicSetterType() reflect.Type {
 	return reflectx.NamedInterfaceOf("main", "Setter", nil,
-		[]reflectx.Method{
-			reflectx.Method{
+		[]reflect.Method{
+			reflect.Method{
 				Name: "Set",
 				Type: reflect.FuncOf([]reflect.Type{tyInt, tyInt}, nil, false),
 			},
-			reflectx.Method{
+			reflect.Method{
 				Name: "String",
 				Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false),
 			},
