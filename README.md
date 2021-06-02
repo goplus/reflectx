@@ -30,3 +30,5 @@ Golang reflect package hack tools
 ### Interface
 * reflectx.InterfaceOf
 * reflectx.NamedInterfaceOf
+* reflectx.NewInterfaceType
+* reflectx.SetInterfaceType
