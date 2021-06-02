@@ -304,7 +304,7 @@ func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
 	return NamedTypeOf(pkgpath, name, tyEmptyInterface)
 }
 
-func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []Method) reflect.Type {
+func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []reflect.Method) reflect.Type {
 	typ := InterfaceOf(embedded, methods)
 	return NamedTypeOf(pkgpath, name, typ)
 }
@@ -313,14 +313,59 @@ var (
 	interfceLookupCache = make(map[string]reflect.Type)
 )
 
-func InterfaceOf(embedded []reflect.Type, methods []Method) reflect.Type {
+func NewInterfaceType(pkgpath string, name string) reflect.Type {
+	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
+	setTypeName(rt, pkgpath, name)
+	return toType(rt)
+}
+
+func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []reflect.Method) error {
+	for _, e := range embedded {
+		if e.Kind() != reflect.Interface {
+			return fmt.Errorf("interface contains embedded non-interface %v", e)
+		}
+		for i := 0; i < e.NumMethod(); i++ {
+			m := e.Method(i)
+			methods = append(methods, reflect.Method{
+				Name: m.Name,
+				Type: m.Type,
+			})
+		}
+	}
+	sort.Slice(methods, func(i, j int) bool {
+		n := strings.Compare(methods[i].Name, methods[j].Name)
+		if n == 0 && methods[i].Type != methods[j].Type {
+			panic(fmt.Errorf("duplicate method %v", methods[j].Name))
+		}
+		return n < 0
+	})
+	rt := totype(typ)
+	st := (*interfaceType)(toKindType(rt))
+	st.methods = nil
+	var info []string
+	var lastname string
+	for _, m := range methods {
+		if m.Name == lastname {
+			continue
+		}
+		lastname = m.Name
+		st.methods = append(st.methods, imethod{
+			name: resolveReflectName(newName(m.Name, "", true)),
+			typ:  resolveReflectType(totype(m.Type)),
+		})
+		info = append(info, methodStr(m.Name, m.Type))
+	}
+	return nil
+}
+
+func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type {
 	for _, e := range embedded {
 		if e.Kind() != reflect.Interface {
 			panic(fmt.Errorf("interface contains embedded non-interface %v", e))
 		}
 		for i := 0; i < e.NumMethod(); i++ {
 			m := e.Method(i)
-			methods = append(methods, Method{
+			methods = append(methods, reflect.Method{
 				Name: m.Name,
 				Type: m.Type,
 			})
