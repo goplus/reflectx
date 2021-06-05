@@ -22,8 +22,8 @@ Golang reflect package hack tools
 * reflectx.Method
 * reflectx.MakeMethod
 
-* reflectx.MethodSetOf
-* reflectx.LoadMethodSet
+* reflectx.NewMethodSet
+* reflectx.SetMethodSet
 
 * reflectx.StructToMethodSet
 

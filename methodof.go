@@ -208,7 +208,7 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 	return
 }
 
-func loadMethods(typ reflect.Type, methods []Method) error {
+func setMethodSet(typ reflect.Type, methods []Method) error {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].Type == methods[j].Type {
@@ -291,7 +291,7 @@ func loadMethods(typ reflect.Type, methods []Method) error {
 	return nil
 }
 
-func methodSetOf(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
 	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
 	rt.ptrToThis = resolveReflectType(prt)
