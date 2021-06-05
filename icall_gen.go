@@ -10,7 +10,9 @@ import (
 	"strings"
 )
 
-var head = `package reflectx
+var head = `// +build !js js,wasm
+
+package reflectx
 
 import (
 	"log"

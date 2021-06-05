@@ -305,8 +305,9 @@ func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
 }
 
 func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, methods []reflect.Method) reflect.Type {
-	typ := InterfaceOf(embedded, methods)
-	return NamedTypeOf(pkgpath, name, typ)
+	typ := NewInterfaceType(pkgpath, name)
+	SetInterfaceType(typ, embedded, methods)
+	return typ
 }
 
 var (

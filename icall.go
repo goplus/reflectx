@@ -1,3 +1,5 @@
+// +build !js js,wasm
+
 package reflectx
 
 import (
