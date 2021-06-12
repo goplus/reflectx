@@ -232,3 +232,26 @@ var (
 	tyEmptyInterfacePtr = reflect.TypeOf((*interface{})(nil))
 	tyEmptyStruct       = reflect.TypeOf((*struct{})(nil)).Elem()
 )
+
+func SetElem(typ reflect.Type, elem reflect.Type) {
+	rt := totype(typ)
+	switch typ.Kind() {
+	case reflect.Ptr:
+		st := (*ptrType)(toKindType(rt))
+		st.elem = totype(elem)
+	case reflect.Slice:
+		st := (*sliceType)(toKindType(rt))
+		st.elem = totype(elem)
+	case reflect.Array:
+		st := (*arrayType)(toKindType(rt))
+		st.elem = totype(elem)
+	case reflect.Map:
+		st := (*mapType)(toKindType(rt))
+		st.elem = totype(elem)
+	case reflect.Chan:
+		st := (*chanType)(toKindType(rt))
+		st.elem = totype(elem)
+	default:
+		panic("reflect: Elem of invalid type " + typ.String())
+	}
+}
