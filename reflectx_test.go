@@ -284,3 +284,15 @@ func TestNamedTypeStruct(t *testing.T) {
 		t.Fatal("Value != {100 200},", v)
 	}
 }
+
+func TestSetElem(t *testing.T) {
+	typ := reflectx.NamedTypeOf("main", "T", reflect.TypeOf(([]struct{})(nil)))
+	reflectx.SetElem(typ, typ)
+	v := reflect.MakeSlice(typ, 3, 3)
+	v.Index(0).Set(reflect.MakeSlice(typ, 1, 1))
+	v.Index(1).Set(reflect.MakeSlice(typ, 2, 2))
+	s := fmt.Sprintf("%v", v.Interface())
+	if s != "[[[]] [[] []] []]" {
+		t.Fatalf("failed SetElem s=%v", s)
+	}
+}
