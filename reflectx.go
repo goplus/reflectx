@@ -255,3 +255,65 @@ func SetElem(typ reflect.Type, elem reflect.Type) {
 		panic("reflect: Elem of invalid type " + typ.String())
 	}
 }
+
+func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
+	rt := totype(typ)
+	switch typ.Kind() {
+	case reflect.Struct:
+		st := (*structType)(toKindType(rt))
+		for _, field := range st.fields {
+			et := toType(field.typ)
+			if t, ok := m[et.Name()]; ok {
+				field.typ = totype(t)
+			} else {
+				ReplaceType(et, m)
+			}
+		}
+	case reflect.Ptr:
+		st := (*ptrType)(toKindType(rt))
+		et := toType(st.elem)
+		if t, ok := m[et.Name()]; ok {
+			st.elem = totype(t)
+		} else {
+			ReplaceType(et, m)
+		}
+	case reflect.Slice:
+		st := (*sliceType)(toKindType(rt))
+		et := toType(st.elem)
+		if t, ok := m[et.Name()]; ok {
+			st.elem = totype(t)
+		} else {
+			ReplaceType(et, m)
+		}
+	case reflect.Array:
+		st := (*arrayType)(toKindType(rt))
+		et := toType(st.elem)
+		if t, ok := m[et.Name()]; ok {
+			st.elem = totype(t)
+		} else {
+			ReplaceType(et, m)
+		}
+	case reflect.Map:
+		st := (*mapType)(toKindType(rt))
+		kt := toType(st.key)
+		et := toType(st.elem)
+		if t, ok := m[kt.Name()]; ok {
+			st.key = totype(t)
+		} else {
+			ReplaceType(kt, m)
+		}
+		if t, ok := m[et.Name()]; ok {
+			st.elem = totype(t)
+		} else {
+			ReplaceType(et, m)
+		}
+	case reflect.Chan:
+		st := (*chanType)(toKindType(rt))
+		et := toType(st.elem)
+		if t, ok := m[et.Name()]; ok {
+			st.elem = totype(t)
+		} else {
+			ReplaceType(et, m)
+		}
+	}
+}
