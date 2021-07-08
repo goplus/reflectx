@@ -67,6 +67,28 @@ func TestField(t *testing.T) {
 	}
 }
 
+func TestStructOfUnderscore(t *testing.T) {
+	fs := []reflect.StructField{
+		reflect.StructField{
+			Name:    "_",
+			PkgPath: "main",
+			Type:    tyInt,
+		},
+		reflect.StructField{
+			Name:    "_",
+			PkgPath: "main",
+			Type:    tyInt,
+		},
+	}
+	typ := reflectx.NamedStructOf("main", "Point", fs)
+	if typ.Field(0).Name != "_" {
+		t.Fatalf("field name must underscore")
+	}
+	if typ.Field(1).Name != "_" {
+		t.Fatalf("field name must underscore")
+	}
+}
+
 func TestStructOfExport(t *testing.T) {
 	fs := []reflect.StructField{
 		reflect.StructField{

@@ -19,6 +19,7 @@ package reflectx
 import (
 	"path"
 	"reflect"
+	"strconv"
 	"unicode"
 	"unicode/utf8"
 	"unsafe"
@@ -162,6 +163,7 @@ func checkFields(t1, t2 reflect.Type) bool {
 
 func StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
+	underscore := make(map[int]name)
 	fs := make([]reflect.StructField, len(fields))
 	for i := 0; i < len(fields); i++ {
 		f := fields[i]
@@ -171,6 +173,9 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 			if f.Name == "" {
 				f.Name = typeName(f.Type)
 			}
+		} else if f.Name == "_" {
+			underscore[i] = newName("_", string(f.Tag), false)
+			f.Name = "_gop_underscore_" + strconv.Itoa(i)
 		}
 		fs[i] = f
 	}
@@ -179,6 +184,9 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	st := toStructType(rt)
 	for _, i := range anonymous {
 		st.fields[i].offsetEmbed |= 1
+	}
+	for i, n := range underscore {
+		st.fields[i].name = n
 	}
 	if EnableStructOfExportAllField {
 		for i := 0; i < len(fs); i++ {
