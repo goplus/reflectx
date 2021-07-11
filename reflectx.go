@@ -164,6 +164,7 @@ func checkFields(t1, t2 reflect.Type) bool {
 func StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
 	underscore := make(map[int]name)
+	var underscoreCount int
 	fs := make([]reflect.StructField, len(fields))
 	for i := 0; i < len(fields); i++ {
 		f := fields[i]
@@ -174,8 +175,11 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 				f.Name = typeName(f.Type)
 			}
 		} else if f.Name == "_" {
-			underscore[i] = newName("_", string(f.Tag), false)
-			f.Name = "_gop_underscore_" + strconv.Itoa(i)
+			if underscoreCount > 0 {
+				underscore[i] = newName("_", string(f.Tag), false)
+				f.Name = "_gop_underscore_" + strconv.Itoa(i)
+			}
+			underscoreCount++
 		}
 		fs[i] = f
 	}
