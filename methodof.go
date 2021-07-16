@@ -177,9 +177,6 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 	} else {
 		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
 	}
-	if m.Func == nil {
-		return
-	}
 
 	mfn := reflect.MakeFunc(ftyp, m.Func)
 	ptr := tovalue(&mfn).ptr
