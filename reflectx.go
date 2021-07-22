@@ -275,7 +275,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		st := (*structType)(toKindType(rt))
 		for _, field := range st.fields {
 			et := toType(field.typ)
-			if t, ok := m[et.Name()]; ok {
+			if t, ok := m[et.String()]; ok {
 				field.typ = totype(t)
 			} else {
 				ReplaceType(et, m)
@@ -284,7 +284,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 	case reflect.Ptr:
 		st := (*ptrType)(toKindType(rt))
 		et := toType(st.elem)
-		if t, ok := m[et.Name()]; ok {
+		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
 		} else {
 			ReplaceType(et, m)
@@ -292,7 +292,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 	case reflect.Slice:
 		st := (*sliceType)(toKindType(rt))
 		et := toType(st.elem)
-		if t, ok := m[et.Name()]; ok {
+		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
 		} else {
 			ReplaceType(et, m)
@@ -300,7 +300,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 	case reflect.Array:
 		st := (*arrayType)(toKindType(rt))
 		et := toType(st.elem)
-		if t, ok := m[et.Name()]; ok {
+		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
 		} else {
 			ReplaceType(et, m)
@@ -309,12 +309,12 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		st := (*mapType)(toKindType(rt))
 		kt := toType(st.key)
 		et := toType(st.elem)
-		if t, ok := m[kt.Name()]; ok {
+		if t, ok := m[kt.String()]; ok {
 			st.key = totype(t)
 		} else {
 			ReplaceType(kt, m)
 		}
-		if t, ok := m[et.Name()]; ok {
+		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
 		} else {
 			ReplaceType(et, m)
@@ -322,10 +322,30 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 	case reflect.Chan:
 		st := (*chanType)(toKindType(rt))
 		et := toType(st.elem)
-		if t, ok := m[et.Name()]; ok {
+		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
 		} else {
 			ReplaceType(et, m)
+		}
+	case reflect.Func:
+		st := (*funcType)(toKindType(rt))
+		in := st.in()
+		out := st.out()
+		for i := 0; i < len(in); i++ {
+			et := toType(in[i])
+			if t, ok := m[et.String()]; ok {
+				in[i] = totype(t)
+			} else {
+				ReplaceType(et, m)
+			}
+		}
+		for i := 0; i < len(out); i++ {
+			et := toType(out[i])
+			if t, ok := m[et.String()]; ok {
+				out[i] = totype(t)
+			} else {
+				ReplaceType(et, m)
+			}
 		}
 	}
 }
