@@ -347,5 +347,12 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 				ReplaceType(et, m)
 			}
 		}
+	case reflect.Interface:
+		st := (*interfaceType)(toKindType(rt))
+		for i := 0; i < len(st.methods); i++ {
+			tt := typ.Method(i).Type
+			ReplaceType(tt, m)
+			st.methods[i].typ = resolveReflectType(totype(tt))
+		}
 	}
 }
