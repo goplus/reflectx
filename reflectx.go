@@ -243,6 +243,7 @@ var (
 	tyEmptyInterface    = reflect.TypeOf((*interface{})(nil)).Elem()
 	tyEmptyInterfacePtr = reflect.TypeOf((*interface{})(nil))
 	tyEmptyStruct       = reflect.TypeOf((*struct{})(nil)).Elem()
+	tyErrorInterface    = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 func SetElem(typ reflect.Type, elem reflect.Type) {
@@ -268,7 +269,7 @@ func SetElem(typ reflect.Type, elem reflect.Type) {
 	}
 }
 
-func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
+func ReplaceType(typ reflect.Type, m map[string]reflect.Type) (changed bool) {
 	rt := totype(typ)
 	switch typ.Kind() {
 	case reflect.Struct:
@@ -277,6 +278,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 			et := toType(field.typ)
 			if t, ok := m[et.String()]; ok {
 				field.typ = totype(t)
+				changed = true
 			} else {
 				ReplaceType(et, m)
 			}
@@ -286,6 +288,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		et := toType(st.elem)
 		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
+			changed = true
 		} else {
 			ReplaceType(et, m)
 		}
@@ -294,6 +297,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		et := toType(st.elem)
 		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
+			changed = true
 		} else {
 			ReplaceType(et, m)
 		}
@@ -302,6 +306,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		et := toType(st.elem)
 		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
+			changed = true
 		} else {
 			ReplaceType(et, m)
 		}
@@ -311,11 +316,13 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		et := toType(st.elem)
 		if t, ok := m[kt.String()]; ok {
 			st.key = totype(t)
+			changed = true
 		} else {
 			ReplaceType(kt, m)
 		}
 		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
+			changed = true
 		} else {
 			ReplaceType(et, m)
 		}
@@ -324,6 +331,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 		et := toType(st.elem)
 		if t, ok := m[et.String()]; ok {
 			st.elem = totype(t)
+			changed = true
 		} else {
 			ReplaceType(et, m)
 		}
@@ -335,6 +343,7 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 			et := toType(in[i])
 			if t, ok := m[et.String()]; ok {
 				in[i] = totype(t)
+				changed = true
 			} else {
 				ReplaceType(et, m)
 			}
@@ -343,16 +352,22 @@ func ReplaceType(typ reflect.Type, m map[string]reflect.Type) {
 			et := toType(out[i])
 			if t, ok := m[et.String()]; ok {
 				out[i] = totype(t)
+				changed = true
 			} else {
 				ReplaceType(et, m)
 			}
 		}
 	case reflect.Interface:
+		if typ == tyErrorInterface {
+			return
+		}
 		st := (*interfaceType)(toKindType(rt))
 		for i := 0; i < len(st.methods); i++ {
 			tt := typ.Method(i).Type
-			ReplaceType(tt, m)
-			st.methods[i].typ = resolveReflectType(totype(tt))
+			if ReplaceType(tt, m) {
+				st.methods[i].typ = resolveReflectType(totype(tt))
+			}
 		}
 	}
+	return
 }
