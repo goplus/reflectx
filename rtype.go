@@ -356,14 +356,17 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 //go:linkname typesByString reflect.typesByString
 func typesByString(s string) []*_rtype
 
-//go:linkname haveIdenticalUnderlyingType reflect.haveIdenticalUnderlyingType
-func haveIdenticalUnderlyingType(T, V *_rtype, cmpTags bool) bool
-
 //go:linkname typelinks reflect.typelinks
 func typelinks() (sections []unsafe.Pointer, offset [][]int32)
 
 //go:linkname rtypeOff reflect.rtypeOff
 func rtypeOff(section unsafe.Pointer, off int32) *_rtype
+
+//go:linkname haveIdenticalUnderlyingType reflect.haveIdenticalUnderlyingType
+func haveIdenticalUnderlyingType(T, V *_rtype, cmpTags bool) bool
+
+//go:linkname haveIdenticalType reflect.haveIdenticalType
+func haveIdenticalType(T, V reflect.Type, cmpTags bool) bool
 
 func TypeLinks() []reflect.Type {
 	var r []reflect.Type

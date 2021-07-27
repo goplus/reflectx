@@ -138,7 +138,7 @@ var (
 )
 
 var (
-	structLookupCache = make(map[string]reflect.Type)
+	structLookupCache = make(map[string][]reflect.Type)
 )
 
 func checkFields(t1, t2 reflect.Type) bool {
@@ -199,12 +199,16 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 		}
 	}
 	str := typ.String()
-	if t, ok := structLookupCache[str]; ok {
-		if checkFields(t, typ) {
-			return t
+	if ts, ok := structLookupCache[str]; ok {
+		for _, t := range ts {
+			if haveIdenticalType(t, typ, true) {
+				return t
+			}
 		}
+		ts = append(ts, typ)
+	} else {
+		structLookupCache[str] = []reflect.Type{typ}
 	}
-	structLookupCache[str] = typ
 	return typ
 }
 

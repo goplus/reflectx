@@ -193,7 +193,7 @@ func Reset() {
 	resetTypeList()
 	ntypeMap = make(map[reflect.Type]*Named)
 	embedLookupCache = make(map[reflect.Type]reflect.Type)
-	structLookupCache = make(map[string]reflect.Type)
+	structLookupCache = make(map[string][]reflect.Type)
 	interfceLookupCache = make(map[string]reflect.Type)
 }
 
