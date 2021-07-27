@@ -352,3 +352,64 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
 	return typ
 }
+
+//go:linkname typesByString reflect.typesByString
+func typesByString(s string) []*_rtype
+
+//go:linkname haveIdenticalUnderlyingType reflect.haveIdenticalUnderlyingType
+func haveIdenticalUnderlyingType(T, V *_rtype, cmpTags bool) bool
+
+//go:linkname typelinks reflect.typelinks
+func typelinks() (sections []unsafe.Pointer, offset [][]int32)
+
+//go:linkname rtypeOff reflect.rtypeOff
+func rtypeOff(section unsafe.Pointer, off int32) *_rtype
+
+func TypeLinks() []reflect.Type {
+	var r []reflect.Type
+	sections, offset := typelinks()
+	for i, offs := range offset {
+		rodata := sections[i]
+		for _, off := range offs {
+			typ := (*_rtype)(resolveTypeOff(unsafe.Pointer(rodata), off))
+			r = append(r, toType(typ))
+		}
+	}
+	return r
+}
+
+func TypesByString(s string) []reflect.Type {
+	sections, offset := typelinks()
+	var ret []reflect.Type
+
+	for offsI, offs := range offset {
+		section := sections[offsI]
+
+		// We are looking for the first index i where the string becomes >= s.
+		// This is a copy of sort.Search, with f(h) replaced by (*typ[h].String() >= s).
+		i, j := 0, len(offs)
+		for i < j {
+			h := i + (j-i)/2 // avoid overflow when computing h
+			// i ≤ h < j
+			typ := toType(rtypeOff(section, offs[h]))
+			if !(typ.String() >= s) {
+				i = h + 1 // preserves f(i-1) == false
+			} else {
+				j = h // preserves f(j) == true
+			}
+		}
+		// i == j, f(i-1) == false, and f(j) (= f(i)) == true  =>  answer is i.
+
+		// Having found the first, linear scan forward to find the last.
+		// We could do a second binary search, but the caller is going
+		// to do a linear scan anyway.
+		for j := i; j < len(offs); j++ {
+			typ := toType(rtypeOff(section, offs[j]))
+			if typ.String() != s {
+				break
+			}
+			ret = append(ret, typ)
+		}
+	}
+	return ret
+}
