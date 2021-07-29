@@ -19,21 +19,33 @@ import (
 	"unsafe"
 )
 
+var (
+	check_max_itype = true
+	check_max_index = true
+)
+
 func icall(t int, i int, ptrto bool) interface{} {
 	if t >= max_itype_index {
-		log.Println("warning, not support too many types interface call", t)
-		return nil
+		if check_max_itype {
+			check_max_itype = false
+			log.Println("warning, too many types interface call >", t)
+		}
+		return func(p, a unsafe.Pointer) {}
 	}
 	if i >= max_icall_index {
-		log.Println("warning, not support too many methods interface call", i)
-		return nil
+		if check_max_index {
+			check_max_index = false
+			log.Println("warning, too many methods interface call >", i)
+		}
+		return func(p, a unsafe.Pointer) {}
 	}
 	if ptrto {
-		return icall_ptr[t*$max_index+i]
+		return icall_ptr[t*128+i]
 	} else {
-		return icall_typ[t*$max_index+i]
+		return icall_typ[t*128+i]
 	}
 }
+
 
 const max_itype_index = $max_itype
 const max_icall_index = $max_index
