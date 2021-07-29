@@ -282,12 +282,12 @@ func typeId(typ reflect.Type) string {
 }
 
 func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (changed bool) {
-	if typ.PkgPath() == pkg {
-		return
-	}
 	rt := totype(typ)
 	switch typ.Kind() {
 	case reflect.Struct:
+		if typ.PkgPath() != pkg {
+			return
+		}
 		st := (*structType)(toKindType(rt))
 		for _, field := range st.fields {
 			et := toType(field.typ)
@@ -373,6 +373,9 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (chang
 			}
 		}
 	case reflect.Interface:
+		if typ.PkgPath() != pkg {
+			return
+		}
 		if typ == tyErrorInterface {
 			return
 		}
