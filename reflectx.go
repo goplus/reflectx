@@ -281,7 +281,7 @@ func typeId(typ reflect.Type) string {
 	return id + typ.Name()
 }
 
-func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (changed bool) {
+func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp reflect.Type, changed bool) {
 	rt := totype(typ)
 	switch typ.Kind() {
 	case reflect.Struct:
@@ -289,41 +289,53 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (chang
 			return
 		}
 		st := (*structType)(toKindType(rt))
-		for _, field := range st.fields {
-			et := toType(field.typ)
+		for i := 0; i < len(st.fields); i++ {
+			et := toType(st.fields[i].typ)
 			if t, ok := m[typeId(et)]; ok {
-				field.typ = totype(t)
+				st.fields[i].typ = totype(t)
 				changed = true
 			} else {
-				ReplaceType(pkg, et, m)
+				if rtyp, ok := ReplaceType(pkg, et, m); ok {
+					changed = true
+					st.fields[i].typ = totype(rtyp)
+				}
 			}
+		}
+		if changed {
+			return toType(rt), true
 		}
 	case reflect.Ptr:
 		st := (*ptrType)(toKindType(rt))
 		et := toType(st.elem)
 		if t, ok := m[typeId(et)]; ok {
 			st.elem = totype(t)
-			changed = true
+			return reflect.PtrTo(t), true
 		} else {
-			ReplaceType(pkg, et, m)
+			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				return reflect.PtrTo(rtyp), true
+			}
 		}
 	case reflect.Slice:
 		st := (*sliceType)(toKindType(rt))
 		et := toType(st.elem)
 		if t, ok := m[typeId(et)]; ok {
 			st.elem = totype(t)
-			changed = true
+			return reflect.SliceOf(t), true
 		} else {
-			ReplaceType(pkg, et, m)
+			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				return reflect.SliceOf(rtyp), true
+			}
 		}
 	case reflect.Array:
 		st := (*arrayType)(toKindType(rt))
 		et := toType(st.elem)
 		if t, ok := m[typeId(et)]; ok {
 			st.elem = totype(t)
-			changed = true
+			return reflect.ArrayOf(int(st.len), t), true
 		} else {
-			ReplaceType(pkg, et, m)
+			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				return reflect.ArrayOf(int(st.len), rtyp), true
+			}
 		}
 	case reflect.Map:
 		st := (*mapType)(toKindType(rt))
@@ -333,22 +345,33 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (chang
 			st.key = totype(t)
 			changed = true
 		} else {
-			ReplaceType(pkg, kt, m)
+			if rtyp, ok := ReplaceType(pkg, kt, m); ok {
+				st.key = totype(rtyp)
+				changed = true
+			}
 		}
 		if t, ok := m[typeId(et)]; ok {
 			st.elem = totype(t)
 			changed = true
 		} else {
-			ReplaceType(pkg, et, m)
+			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				st.elem = totype(rtyp)
+				changed = true
+			}
+		}
+		if changed {
+			return toType(rt), true
 		}
 	case reflect.Chan:
 		st := (*chanType)(toKindType(rt))
 		et := toType(st.elem)
 		if t, ok := m[typeId(et)]; ok {
 			st.elem = totype(t)
-			changed = true
+			return reflect.ChanOf(typ.ChanDir(), t), true
 		} else {
-			ReplaceType(pkg, et, m)
+			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				return reflect.ChanOf(typ.ChanDir(), rtyp), true
+			}
 		}
 	case reflect.Func:
 		st := (*funcType)(toKindType(rt))
@@ -360,7 +383,10 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (chang
 				in[i] = totype(t)
 				changed = true
 			} else {
-				ReplaceType(pkg, et, m)
+				if rtyp, ok := ReplaceType(pkg, et, m); ok {
+					in[i] = totype(rtyp)
+					changed = true
+				}
 			}
 		}
 		for i := 0; i < len(out); i++ {
@@ -369,8 +395,14 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (chang
 				out[i] = totype(t)
 				changed = true
 			} else {
-				ReplaceType(pkg, et, m)
+				if rtyp, ok := ReplaceType(pkg, et, m); ok {
+					out[i] = totype(rtyp)
+					changed = true
+				}
 			}
+		}
+		if changed {
+			return toType(rt), true
 		}
 	case reflect.Interface:
 		if typ.PkgPath() != pkg {
@@ -382,10 +414,17 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (chang
 		st := (*interfaceType)(toKindType(rt))
 		for i := 0; i < len(st.methods); i++ {
 			tt := typ.Method(i).Type
-			if ReplaceType(pkg, tt, m) {
-				st.methods[i].typ = resolveReflectType(totype(tt))
+			if t, ok := m[typeId(tt)]; ok {
+				st.methods[i].typ = resolveReflectType(totype(t))
+				changed = true
+			} else if rtyp, ok := ReplaceType(pkg, tt, m); ok {
+				st.methods[i].typ = resolveReflectType(totype(rtyp))
+				changed = true
 			}
 		}
+		if changed {
+			return toType(rt), true
+		}
 	}
-	return
+	return nil, false
 }
