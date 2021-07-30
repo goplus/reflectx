@@ -2,10 +2,15 @@ package reflectx
 
 import (
 	"fmt"
+	"go/token"
 	"log"
 	"reflect"
 	"sort"
 	"strings"
+)
+
+var (
+	EnableExportAllMethod = false
 )
 
 // MakeMethod make reflect.Method for MethodOf
@@ -351,7 +356,7 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 		}
 		lastname = m.Name
 		st.methods = append(st.methods, imethod{
-			name: resolveReflectName(newName(m.Name, "", true)),
+			name: resolveReflectName(newName(m.Name, "", methodIsExported(m.Name))),
 			typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
@@ -390,7 +395,7 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 		}
 		lastname = m.Name
 		st.methods = append(st.methods, imethod{
-			name: resolveReflectName(newName(m.Name, "", true)),
+			name: resolveReflectName(newName(m.Name, "", methodIsExported(m.Name))),
 			typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
@@ -408,6 +413,13 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 	typ := toType(rt)
 	interfceLookupCache[str] = typ
 	return typ
+}
+
+func methodIsExported(name string) bool {
+	if EnableExportAllMethod {
+		return true
+	}
+	return token.IsExported(name)
 }
 
 func methodStr(name string, typ reflect.Type) string {
