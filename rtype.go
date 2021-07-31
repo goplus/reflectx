@@ -116,6 +116,7 @@ func totype(typ reflect.Type) *_rtype {
 	return rt
 }
 
+//go:nocheckptr
 func (t *uncommonType) methods() []method {
 	if t == nil || t.mcount == 0 {
 		return nil
@@ -185,6 +186,10 @@ func (t *_rtype) IsVariadic() bool {
 	tt := (*funcType)(unsafe.Pointer(t))
 	return tt.outCount&(1<<15) != 0
 }
+
+// func (t *_rtype) nameOff(off nameOff) name {
+// 	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
+// }
 
 type makeFuncImpl struct {
 	code   uintptr

@@ -165,7 +165,7 @@ func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 // 	return true
 // }
 
-func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type) (inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
+func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type, isexport bool) (inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
 	var in []reflect.Type
 	var out []reflect.Type
 	var ntyp reflect.Type
@@ -176,6 +176,11 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
 	} else {
 		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
+	}
+
+	if !isexport {
+		tfn, ifn, ptfn, pifn = -1, -1, -1, -1
+		return
 	}
 
 	mfn := reflect.MakeFunc(ftyp, m.Func)
@@ -251,8 +256,9 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 	itype := itypeIndex(typ)
 	var index int
 	for i, m := range methods {
-		name := resolveReflectName(newName(m.Name, "", methodIsExported(m.Name)))
-		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil)
+		isexport := methodIsExported(m.Name)
+		name := resolveReflectName(newName(m.Name, "", isexport))
+		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil, isexport)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
 		pindex := i
@@ -305,6 +311,7 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())
+	prt.uncommon().pkgPath = rt.uncommon().pkgPath
 	typ := toType(rt)
 	if nt, ok := ntypeMap[styp]; ok {
 		ntypeMap[typ] = &Named{Name: nt.Name, PkgPath: nt.PkgPath, Type: typ, From: nt.From, Kind: nt.Kind}

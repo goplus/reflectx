@@ -394,8 +394,12 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 			continue
 		}
 		lastname = m.Name
+		n := newName(m.Name, "", methodIsExported(m.Name))
+		if !methodIsExported(m.Name) {
+			n = newName(m.Name, "", methodIsExported(m.Name))
+		}
 		st.methods = append(st.methods, imethod{
-			name: resolveReflectName(newName(m.Name, "", methodIsExported(m.Name))),
+			name: resolveReflectName(n),
 			typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))

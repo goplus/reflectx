@@ -192,6 +192,66 @@ type name struct {
 	bytes *byte
 }
 
+func (n name) data(off int, whySafe string) *byte {
+	return (*byte)(add(unsafe.Pointer(n.bytes), uintptr(off), whySafe))
+}
+
+func (n name) isExported() bool {
+	return (*n.bytes)&(1<<0) != 0
+}
+
+func (n name) nameLen() int {
+	return int(uint16(*n.data(1, "name len field"))<<8 | uint16(*n.data(2, "name len field")))
+}
+
+func (n name) tagLen() int {
+	if *n.data(0, "name flag field")&(1<<1) == 0 {
+		return 0
+	}
+	off := 3 + n.nameLen()
+	return int(uint16(*n.data(off, "name taglen field"))<<8 | uint16(*n.data(off+1, "name taglen field")))
+}
+
+func (n name) name() (s string) {
+	if n.bytes == nil {
+		return
+	}
+	b := (*[4]byte)(unsafe.Pointer(n.bytes))
+
+	hdr := (*stringHeader)(unsafe.Pointer(&s))
+	hdr.Data = unsafe.Pointer(&b[3])
+	hdr.Len = int(b[1])<<8 | int(b[2])
+	return s
+}
+
+func (n name) tag() (s string) {
+	tl := n.tagLen()
+	if tl == 0 {
+		return ""
+	}
+	nl := n.nameLen()
+	hdr := (*stringHeader)(unsafe.Pointer(&s))
+	hdr.Data = unsafe.Pointer(n.data(3+nl+2, "non-empty string"))
+	hdr.Len = tl
+	return s
+}
+
+func (n name) pkgPath() string {
+	if n.bytes == nil || *n.data(0, "name flag field")&(1<<2) == 0 {
+		return ""
+	}
+	off := 3 + n.nameLen()
+	if tl := n.tagLen(); tl > 0 {
+		off += 2 + tl
+	}
+	var nameOff int32
+	// Note that this field may not be aligned in memory,
+	// so we cannot use a direct int32 assignment here.
+	copy((*[4]byte)(unsafe.Pointer(&nameOff))[:], (*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:])
+	pkgPathName := name{(*byte)(resolveTypeOff(unsafe.Pointer(n.bytes), nameOff))}
+	return pkgPathName.name()
+}
+
 // stringHeader is a safe version of StringHeader used within this package.
 type stringHeader struct {
 	Data unsafe.Pointer
@@ -218,7 +278,7 @@ type arrayType struct {
 // chanType represents a channel type.
 type chanType struct {
 	_rtype
-	elem *_rtype  // channel element type
+	elem *_rtype // channel element type
 	dir  uintptr // channel direction (ChanDir)
 }
 
@@ -264,7 +324,7 @@ type sliceType struct {
 // struct field
 type structField struct {
 	name        name    // name is always non-empty
-	typ         *_rtype  // type of field
+	typ         *_rtype // type of field
 	offsetEmbed uintptr // byte offset of field<<1 | isEmbedded
 }
 

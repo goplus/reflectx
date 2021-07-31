@@ -115,6 +115,10 @@ func setTypeName(t *_rtype, pkgpath string, name string) {
 	if t.tflag&tflagUncommon == tflagUncommon {
 		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
 	}
+	if t.Kind() == reflect.Interface {
+		st := (*interfaceType)(toKindType(t))
+		st.pkgPath = newName(pkgpath, "", false)
+	}
 }
 
 func copyType(dst *_rtype, src *_rtype) {
