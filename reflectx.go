@@ -406,7 +406,15 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 			}
 		}
 		if changed {
-			return toType(rt), true
+			ins := make([]reflect.Type, len(in))
+			for i := 0; i < len(in); i++ {
+				ins[i] = toType(in[i])
+			}
+			outs := make([]reflect.Type, len(out))
+			for i := 0; i < len(out); i++ {
+				outs[i] = toType(out[i])
+			}
+			return reflect.FuncOf(ins, outs, typ.IsVariadic()), true
 		}
 	case reflect.Interface:
 		if typ.PkgPath() != pkg {
