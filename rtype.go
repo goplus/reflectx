@@ -422,92 +422,91 @@ func TypesByString(s string) []reflect.Type {
 	return ret
 }
 
-// func Implements(T reflect.Type, U reflect.Type) bool {
-// 	return implements(totype(T), totype(U))
-// }
+func Implements(T reflect.Type, U reflect.Type) bool {
+	return implements(totype(T), totype(U))
+}
 
-// // implements reports whether the type V implements the interface type T.
-// func implements(T, V *_rtype) bool {
-// 	if T.Kind() != reflect.Interface {
-// 		return false
-// 	}
-// 	t := (*interfaceType)(unsafe.Pointer(T))
-// 	if len(t.methods) == 0 {
-// 		return true
-// 	}
+// implements reports whether the type V implements the interface type T.
+func implements(T, V *_rtype) bool {
+	if T.Kind() != reflect.Interface {
+		return false
+	}
+	t := (*interfaceType)(unsafe.Pointer(T))
+	if len(t.methods) == 0 {
+		return true
+	}
 
-// 	// The same algorithm applies in both cases, but the
-// 	// method tables for an interface type and a concrete type
-// 	// are different, so the code is duplicated.
-// 	// In both cases the algorithm is a linear scan over the two
-// 	// lists - T's methods and V's methods - simultaneously.
-// 	// Since method tables are stored in a unique sorted order
-// 	// (alphabetical, with no duplicate method names), the scan
-// 	// through V's methods must hit a match for each of T's
-// 	// methods along the way, or else V does not implement T.
-// 	// This lets us run the scan in overall linear time instead of
-// 	// the quadratic time  a naive search would require.
-// 	// See also ../runtime/iface.go.
-// 	if V.Kind() == reflect.Interface {
-// 		v := (*interfaceType)(unsafe.Pointer(V))
-// 		i := 0
-// 		for j := 0; j < len(v.methods); j++ {
-// 			tm := &t.methods[i]
-// 			tmName := t.nameOff(tm.name)
-// 			vm := &v.methods[j]
-// 			vmName := V.nameOff(vm.name)
-// 			if vmName.name() == tmName.name() && V.typeOff(vm.typ) == t.typeOff(tm.typ) {
-// 				if !tmName.isExported() {
-// 					tmPkgPath := tmName.pkgPath()
-// 					if tmPkgPath == "" {
-// 						tmPkgPath = t.pkgPath.name()
-// 					}
-// 					vmPkgPath := vmName.pkgPath()
-// 					if vmPkgPath == "" {
-// 						vmPkgPath = v.pkgPath.name()
-// 					}
-// 					if tmPkgPath != vmPkgPath {
-// 						continue
-// 					}
-// 				}
-// 				if i++; i >= len(t.methods) {
-// 					return true
-// 				}
-// 			}
-// 		}
-// 		return false
-// 	}
+	// The same algorithm applies in both cases, but the
+	// method tables for an interface type and a concrete type
+	// are different, so the code is duplicated.
+	// In both cases the algorithm is a linear scan over the two
+	// lists - T's methods and V's methods - simultaneously.
+	// Since method tables are stored in a unique sorted order
+	// (alphabetical, with no duplicate method names), the scan
+	// through V's methods must hit a match for each of T's
+	// methods along the way, or else V does not implement T.
+	// This lets us run the scan in overall linear time instead of
+	// the quadratic time  a naive search would require.
+	// See also ../runtime/iface.go.
+	if V.Kind() == reflect.Interface {
+		v := (*interfaceType)(unsafe.Pointer(V))
+		i := 0
+		for j := 0; j < len(v.methods); j++ {
+			tm := &t.methods[i]
+			tmName := t.nameOff(tm.name)
+			vm := &v.methods[j]
+			vmName := V.nameOff(vm.name)
+			if vmName.name() == tmName.name() && V.typeOff(vm.typ) == t.typeOff(tm.typ) {
+				if !tmName.isExported() {
+					tmPkgPath := tmName.pkgPath()
+					if tmPkgPath == "" {
+						tmPkgPath = t.pkgPath.name()
+					}
+					vmPkgPath := vmName.pkgPath()
+					if vmPkgPath == "" {
+						vmPkgPath = v.pkgPath.name()
+					}
+					if tmPkgPath != vmPkgPath {
+						continue
+					}
+				}
+				if i++; i >= len(t.methods) {
+					return true
+				}
+			}
+		}
+		return false
+	}
 
-// 	v := V.uncommon()
-// 	if v == nil {
-// 		return false
-// 	}
-// 	i := 0
-// 	vmethods := v.methods()
-// 	for j := 0; j < int(v.mcount); j++ {
-// 		tm := &t.methods[i]
-// 		tmName := t.nameOff(tm.name)
-// 		vm := vmethods[j]
-// 		vmName := V.nameOff(vm.name)
-// 		log.Println("====", toType(T), tmName.name(), ":", vmName.name(), toType(V.typeOff(vm.mtyp)) == toType(t.typeOff(tm.typ)))
-// 		if vmName.name() == tmName.name() && V.typeOff(vm.mtyp) == t.typeOff(tm.typ) {
-// 			if !tmName.isExported() {
-// 				tmPkgPath := tmName.pkgPath()
-// 				if tmPkgPath == "" {
-// 					tmPkgPath = t.pkgPath.name()
-// 				}
-// 				vmPkgPath := vmName.pkgPath()
-// 				if vmPkgPath == "" {
-// 					vmPkgPath = V.nameOff(v.pkgPath).name()
-// 				}
-// 				if tmPkgPath != vmPkgPath {
-// 					continue
-// 				}
-// 			}
-// 			if i++; i >= len(t.methods) {
-// 				return true
-// 			}
-// 		}
-// 	}
-// 	return false
-// }
+	v := V.uncommon()
+	if v == nil {
+		return false
+	}
+	i := 0
+	vmethods := v.methods()
+	for j := 0; j < int(v.mcount); j++ {
+		tm := &t.methods[i]
+		tmName := t.nameOff(tm.name)
+		vm := vmethods[j]
+		vmName := V.nameOff(vm.name)
+		if vmName.name() == tmName.name() && V.typeOff(vm.mtyp) == t.typeOff(tm.typ) {
+			if !tmName.isExported() {
+				tmPkgPath := tmName.pkgPath()
+				if tmPkgPath == "" {
+					tmPkgPath = t.pkgPath.name()
+				}
+				vmPkgPath := vmName.pkgPath()
+				if vmPkgPath == "" {
+					vmPkgPath = V.nameOff(v.pkgPath).name()
+				}
+				if tmPkgPath != vmPkgPath {
+					continue
+				}
+			}
+			if i++; i >= len(t.methods) {
+				return true
+			}
+		}
+	}
+	return false
+}

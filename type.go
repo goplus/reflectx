@@ -245,11 +245,62 @@ func (n name) pkgPath() string {
 		off += 2 + tl
 	}
 	var nameOff int32
+
+	// copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:], (*[4]byte)(unsafe.Pointer(&nameOff))[:])
+
 	// Note that this field may not be aligned in memory,
 	// so we cannot use a direct int32 assignment here.
 	copy((*[4]byte)(unsafe.Pointer(&nameOff))[:], (*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:])
 	pkgPathName := name{(*byte)(resolveTypeOff(unsafe.Pointer(n.bytes), nameOff))}
 	return pkgPathName.name()
+}
+
+func (n name) setPkgPath(pkgpath nameOff) bool {
+	if n.bytes == nil || *n.data(0, "name flag field")&(1<<2) == 0 {
+		return false
+	}
+	off := 3 + n.nameLen()
+	if tl := n.tagLen(); tl > 0 {
+		off += 2 + tl
+	}
+	copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:], (*[4]byte)(unsafe.Pointer(&pkgpath))[:])
+	return true
+}
+
+func newNameEx(n, tag string, exported bool, pkgpath bool) name {
+	if len(n) > 1<<16-1 {
+		panic("reflect.nameFrom: name too long: " + n)
+	}
+	if len(tag) > 1<<16-1 {
+		panic("reflect.nameFrom: tag too long: " + tag)
+	}
+
+	var bits byte
+	l := 1 + 2 + len(n)
+	if exported {
+		bits |= 1 << 0
+	}
+	if len(tag) > 0 {
+		l += 2 + len(tag)
+		bits |= 1 << 1
+	}
+	if !exported && pkgpath {
+		bits |= 1 << 2
+		l += 4
+	}
+
+	b := make([]byte, l)
+	b[0] = bits
+	b[1] = uint8(len(n) >> 8)
+	b[2] = uint8(len(n))
+	copy(b[3:], n)
+	if len(tag) > 0 {
+		tb := b[3+len(n):]
+		tb[0] = uint8(len(tag) >> 8)
+		tb[1] = uint8(len(tag))
+		copy(tb[2:], tag)
+	}
+	return name{bytes: &b[0]}
 }
 
 // stringHeader is a safe version of StringHeader used within this package.
