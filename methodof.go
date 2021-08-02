@@ -265,7 +265,9 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		if unnamed {
 			nm := newNameEx(m.Name, "", isexport, !isexport)
 			mname = resolveReflectName(nm)
-			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+			if !isexport {
+				nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+			}
 		} else {
 			mname = resolveReflectName(newName(m.Name, "", isexport))
 		}

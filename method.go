@@ -352,13 +352,28 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 	st.methods = nil
 	var info []string
 	var lastname string
+	var unnamed bool
+	if typ.Name() == "" {
+		unnamed = true
+	}
 	for _, m := range methods {
 		if m.Name == lastname {
 			continue
 		}
 		lastname = m.Name
+		isexport := methodIsExported(m.Name)
+		var mname nameOff
+		if unnamed {
+			nm := newNameEx(m.Name, "", isexport, !isexport)
+			mname = resolveReflectName(nm)
+			if !isexport {
+				nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+			}
+		} else {
+			mname = resolveReflectName(newName(m.Name, "", isexport))
+		}
 		st.methods = append(st.methods, imethod{
-			name: resolveReflectName(newName(m.Name, "", methodIsExported(m.Name))),
+			name: mname,
 			typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
@@ -396,9 +411,15 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 			continue
 		}
 		lastname = m.Name
-		n := newName(m.Name, "", methodIsExported(m.Name))
+		isexport := methodIsExported(m.Name)
+		var mname nameOff
+		nm := newNameEx(m.Name, "", isexport, !isexport)
+		mname = resolveReflectName(nm)
+		if !isexport {
+			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+		}
 		st.methods = append(st.methods, imethod{
-			name: resolveReflectName(n),
+			name: mname,
 			typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
