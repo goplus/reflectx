@@ -18,9 +18,10 @@ var (
 // - pointer: flag receiver struct or pointer
 // - typ: method func type without receiver
 // - fn: func with receiver as first argument
-func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []reflect.Value) (result []reflect.Value)) Method {
+func MakeMethod(name string, pkgpath string, pointer bool, typ reflect.Type, fn func(args []reflect.Value) (result []reflect.Value)) Method {
 	return Method{
 		Name:    name,
+		PkgPath: pkgpath,
 		Pointer: pointer,
 		Type:    typ,
 		Func:    fn,
@@ -34,6 +35,7 @@ func MakeMethod(name string, pointer bool, typ reflect.Type, fn func(args []refl
 // - fn: func with receiver as first argument
 type Method struct {
 	Name    string
+	PkgPath string
 	Pointer bool
 	Type    reflect.Type
 	Func    func([]reflect.Value) []reflect.Value
@@ -285,7 +287,7 @@ func NewMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	return typ
 }
 
-func SetMethodSet(styp reflect.Type, methods []Method) error {
+func SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) error {
 	chk := make(map[string]int)
 	for _, m := range methods {
 		chk[m.Name]++
@@ -293,7 +295,7 @@ func SetMethodSet(styp reflect.Type, methods []Method) error {
 			return fmt.Errorf("method redeclared: %v", m.Name)
 		}
 	}
-	if styp.Kind() == reflect.Struct {
+	if extractStructEmbed && styp.Kind() == reflect.Struct {
 		ms := extractEmbedMethod(styp)
 		for _, m := range ms {
 			if chk[m.Name] == 1 {

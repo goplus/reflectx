@@ -3,6 +3,7 @@
 package reflectx
 
 import (
+	"log"
 	"reflect"
 	"unsafe"
 )
@@ -422,6 +423,31 @@ func TypesByString(s string) []reflect.Type {
 	return ret
 }
 
+type T struct {
+	n int
+}
+
+func (t T) close() error {
+	return nil
+}
+
+func (t T) Close() error {
+	return t.close()
+}
+
+type I interface {
+	close() error
+}
+
+func init() {
+	t := struct{ T }{}
+	//	t.n = 10
+	var i I = t
+	rt := reflect.TypeOf(&t)
+	r0 := totype(rt)
+	log.Println(r0.nameOff(r0.methods()[1].name).pkgPath(), i)
+}
+
 func Implements(T reflect.Type, U reflect.Type) bool {
 	return implements(totype(T), totype(U))
 }
@@ -499,6 +525,7 @@ func implements(T, V *_rtype) bool {
 				if vmPkgPath == "" {
 					vmPkgPath = V.nameOff(v.pkgPath).name()
 				}
+				log.Println("~~~~~~", tmPkgPath, ":", vmPkgPath)
 				if tmPkgPath != vmPkgPath {
 					continue
 				}

@@ -255,9 +255,20 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 	pinfos := make([]*methodInfo, pcount, pcount)
 	itype := itypeIndex(typ)
 	var index int
+	var unnamed bool
+	if typ.Name() == "" {
+		unnamed = true
+	}
 	for i, m := range methods {
 		isexport := methodIsExported(m.Name)
-		name := resolveReflectName(newName(m.Name, "", isexport))
+		var mname nameOff
+		if unnamed {
+			nm := newNameEx(m.Name, "", isexport, !isexport)
+			mname = resolveReflectName(nm)
+			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+		} else {
+			mname = resolveReflectName(newName(m.Name, "", isexport))
+		}
 		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil, isexport)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
@@ -266,7 +277,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 			pindex = index
 		}
 		onePtr := checkOneFieldPtr(typ)
-		pms[i].name = name
+		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
 		pms[i].ifn = pifn
@@ -282,7 +293,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 			onePtr:   onePtr,
 		}
 		if !m.Pointer {
-			ms[index].name = name
+			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
 			ms[index].ifn = ifn
