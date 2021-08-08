@@ -224,8 +224,10 @@ type funcType struct {
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*_rtype, []method) {
 	var tt reflect.Value
 	var rt *_rtype
+	var fnoff uint32
 	ort := totype(styp)
-	switch styp.Kind() {
+	skind := styp.Kind()
+	switch skind {
 	case reflect.Struct:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(structType{})},
@@ -290,7 +292,8 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(funcType{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
-			{Name: "M", Type: reflect.ArrayOf(narg, reflect.TypeOf((*_rtype)(nil)))},
+			{Name: "N", Type: reflect.ArrayOf(narg, reflect.TypeOf((*_rtype)(nil)))},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		ost := (*funcType)(unsafe.Pointer(ort))
@@ -298,6 +301,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.outCount = ost.outCount
 		if narg > 0 {
 			args := make([]*_rtype, narg, narg)
+			fnoff = uint32(unsafe.Sizeof(args))
 			for i := 0; i < styp.NumIn(); i++ {
 				args[i] = totype(styp.In(i))
 			}
@@ -344,8 +348,11 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	ut.mcount = uint16(mcount)
 	ut.xcount = uint16(xcount)
 	ut.moff = uint32(unsafe.Sizeof(uncommonType{}))
-	if styp.Kind() == reflect.Interface || styp.Kind() == reflect.Func {
+	if skind == reflect.Interface {
 		return rt, nil
+	} else if skind == reflect.Func {
+		ut.moff += fnoff
+		return rt, tt.Elem().Field(3).Slice(0, mcount).Interface().([]method)
 	}
 	return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
 }
