@@ -285,7 +285,20 @@ func typeId(typ reflect.Type) string {
 	return id + typ.Name()
 }
 
+type replaceTypeContext struct {
+	checking map[reflect.Type]bool
+}
+
 func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp reflect.Type, changed bool) {
+	ctx := &replaceTypeContext{make(map[reflect.Type]bool)}
+	return ctx.replace(pkg, typ, m)
+}
+
+func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp reflect.Type, changed bool) {
+	if ctx.checking[typ] {
+		return
+	}
+	ctx.checking[typ] = true
 	rt := totype(typ)
 	switch typ.Kind() {
 	case reflect.Struct:
@@ -299,7 +312,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 				st.fields[i].typ = totype(t)
 				changed = true
 			} else {
-				if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				if rtyp, ok := ctx.replace(pkg, et, m); ok {
 					changed = true
 					st.fields[i].typ = totype(rtyp)
 				}
@@ -315,7 +328,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 			st.elem = totype(t)
 			return reflect.PtrTo(t), true
 		} else {
-			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+			if rtyp, ok := ctx.replace(pkg, et, m); ok {
 				return reflect.PtrTo(rtyp), true
 			}
 		}
@@ -326,7 +339,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 			st.elem = totype(t)
 			return reflect.SliceOf(t), true
 		} else {
-			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+			if rtyp, ok := ctx.replace(pkg, et, m); ok {
 				return reflect.SliceOf(rtyp), true
 			}
 		}
@@ -337,7 +350,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 			st.elem = totype(t)
 			return reflect.ArrayOf(int(st.len), t), true
 		} else {
-			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+			if rtyp, ok := ctx.replace(pkg, et, m); ok {
 				return reflect.ArrayOf(int(st.len), rtyp), true
 			}
 		}
@@ -346,25 +359,25 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 		kt := toType(st.key)
 		et := toType(st.elem)
 		if t, ok := m[typeId(kt)]; ok {
-			st.key = totype(t)
+			kt = t
 			changed = true
 		} else {
-			if rtyp, ok := ReplaceType(pkg, kt, m); ok {
-				st.key = totype(rtyp)
+			if rtyp, ok := ctx.replace(pkg, kt, m); ok {
+				kt = rtyp
 				changed = true
 			}
 		}
 		if t, ok := m[typeId(et)]; ok {
-			st.elem = totype(t)
+			et = t
 			changed = true
 		} else {
-			if rtyp, ok := ReplaceType(pkg, et, m); ok {
-				st.elem = totype(rtyp)
+			if rtyp, ok := ctx.replace(pkg, et, m); ok {
+				et = rtyp
 				changed = true
 			}
 		}
 		if changed {
-			return toType(rt), true
+			return reflect.MapOf(kt, et), true
 		}
 	case reflect.Chan:
 		st := (*chanType)(toKindType(rt))
@@ -373,7 +386,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 			st.elem = totype(t)
 			return reflect.ChanOf(typ.ChanDir(), t), true
 		} else {
-			if rtyp, ok := ReplaceType(pkg, et, m); ok {
+			if rtyp, ok := ctx.replace(pkg, et, m); ok {
 				return reflect.ChanOf(typ.ChanDir(), rtyp), true
 			}
 		}
@@ -387,7 +400,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 				in[i] = totype(t)
 				changed = true
 			} else {
-				if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				if rtyp, ok := ctx.replace(pkg, et, m); ok {
 					in[i] = totype(rtyp)
 					changed = true
 				}
@@ -399,7 +412,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 				out[i] = totype(t)
 				changed = true
 			} else {
-				if rtyp, ok := ReplaceType(pkg, et, m); ok {
+				if rtyp, ok := ctx.replace(pkg, et, m); ok {
 					out[i] = totype(rtyp)
 					changed = true
 				}
@@ -429,7 +442,7 @@ func ReplaceType(pkg string, typ reflect.Type, m map[string]reflect.Type) (rtyp 
 			if t, ok := m[typeId(tt)]; ok {
 				st.methods[i].typ = resolveReflectType(totype(t))
 				changed = true
-			} else if rtyp, ok := ReplaceType(pkg, tt, m); ok {
+			} else if rtyp, ok := ctx.replace(pkg, tt, m); ok {
 				st.methods[i].typ = resolveReflectType(totype(rtyp))
 				changed = true
 			}
