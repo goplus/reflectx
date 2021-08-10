@@ -301,7 +301,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.outCount = ost.outCount
 		if narg > 0 {
 			args := make([]*_rtype, narg, narg)
-			fnoff = uint32(unsafe.Sizeof(args))
+			fnoff = uint32(unsafe.Sizeof((*_rtype)(nil))) * uint32(narg)
 			for i := 0; i < styp.NumIn(); i++ {
 				args[i] = totype(styp.In(i))
 			}

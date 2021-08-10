@@ -278,7 +278,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		if !m.Pointer {
 			pindex = index
 		}
-		onePtr := checkOneFieldPtr(typ)
+		onePtr := checkOneFieldPtr(typ) || typ.Kind() == reflect.Func
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn

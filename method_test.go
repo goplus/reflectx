@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/goplus/reflectx"
@@ -1139,4 +1140,62 @@ func TestEmbedMethods4(t *testing.T) {
 	fnTest(t, reflect.TypeOf((*Point)(nil)).Elem())
 	// test dynamic embed ptr with methods
 	fnTest(t, makeDynamicPointType())
+}
+
+type itoaFunc func(i int) string
+
+func (f itoaFunc) Itoa(i int) string { return f(i) }
+
+type Itoa interface {
+	Itoa(i int) string
+}
+
+func TestFunc(t *testing.T) {
+	fn := itoaFunc(func(i int) string {
+		return strconv.Itoa(i)
+	})
+	if fn(100) != "100" {
+		t.Fail()
+	}
+	if Itoa(fn).Itoa(100) != "100" {
+		t.Fail()
+	}
+	fnTyp := reflect.TypeOf((*itoaFunc)(nil)).Elem()
+	fnValue := reflect.MakeFunc(fnTyp, func(args []reflect.Value) []reflect.Value {
+		r := strconv.Itoa(int(args[0].Int()))
+		return []reflect.Value{reflect.ValueOf(r)}
+	})
+	if i := fnValue.Interface().(Itoa); i.Itoa(100) != "100" {
+		t.Fail()
+	}
+	styp := reflectx.NamedTypeOf("main", "itoaFunc", reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{tyString}, false))
+	typ := reflectx.NewMethodSet(styp, 1, 1)
+	mItoa := reflectx.MakeMethod("Itoa", "main", false,
+		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{tyString}, false),
+		func(args []reflect.Value) []reflect.Value {
+			return args[0].Call(args[1:])
+		})
+	err := reflectx.SetMethodSet(typ, []reflectx.Method{mItoa}, false)
+	if err != nil {
+		t.Errorf("SetMethodSet error: %v", err)
+	}
+	if typ.NumMethod() != 1 {
+		t.Fail()
+	}
+	v := reflect.MakeFunc(typ, func(args []reflect.Value) []reflect.Value {
+		r := strconv.Itoa(int(args[0].Int()))
+		return []reflect.Value{reflect.ValueOf(r)}
+	})
+	if v.NumMethod() != 1 {
+		t.Fail()
+	}
+	if r := v.Call([]reflect.Value{reflect.ValueOf(100)}); r[0].String() != "100" {
+		t.Fail()
+	}
+	if r := reflectx.MethodByIndex(typ, 0).Func.Call([]reflect.Value{v, reflect.ValueOf(100)}); r[0].String() != "100" {
+		t.Fail()
+	}
+	if r := v.Method(0).Call([]reflect.Value{reflect.ValueOf(100)}); r[0].String() != "100" {
+		t.Fail()
+	}
 }
