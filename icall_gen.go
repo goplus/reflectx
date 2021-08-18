@@ -40,12 +40,11 @@ func icall(t int, i int, ptrto bool) interface{} {
 		return func(p, a unsafe.Pointer) {}
 	}
 	if ptrto {
-		return icall_ptr[t*128+i]
+		return icall_ptr[t*max_icall_index+i]
 	} else {
-		return icall_typ[t*128+i]
+		return icall_typ[t*max_icall_index+i]
 	}
 }
-
 
 const max_itype_index = $max_itype
 const max_icall_index = $max_index
