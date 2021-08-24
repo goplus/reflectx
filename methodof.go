@@ -255,21 +255,12 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 	pinfos := make([]*methodInfo, pcount, pcount)
 	itype := itypeIndex(typ)
 	var index int
-	var unnamed bool
-	if typ.Name() == "" {
-		unnamed = true
-	}
 	for i, m := range methods {
 		isexport := methodIsExported(m.Name)
-		var mname nameOff
-		if unnamed {
-			nm := newNameEx(m.Name, "", isexport, !isexport)
-			mname = resolveReflectName(nm)
-			if !isexport {
-				nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
-			}
-		} else {
-			mname = resolveReflectName(newName(m.Name, "", isexport))
+		nm := newNameEx(m.Name, "", isexport, !isexport)
+		mname := resolveReflectName(nm)
+		if !isexport {
+			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
 		}
 		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil, isexport)
 		isz := argsTypeSize(inTyp, true)
