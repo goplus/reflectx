@@ -3,6 +3,8 @@
 package reflectx
 
 import (
+	"fmt"
+	"io"
 	"reflect"
 	"unsafe"
 )
@@ -427,6 +429,18 @@ func TypesByString(s string) []reflect.Type {
 		}
 	}
 	return ret
+}
+
+func DumpType(w io.Writer, typ reflect.Type) {
+	rt := totype(typ)
+	fmt.Fprintf(w, "%#v\n", rt)
+	for _, m := range rt.methods() {
+		fmt.Fprintf(w, "%v %v (%v)\t\t%#v\n",
+			rt.nameOff(m.name).name(),
+			rt.nameOff(m.name).pkgPath(),
+			toType(rt.typeOff(m.mtyp)),
+			m)
+	}
 }
 
 // func Implements(T reflect.Type, U reflect.Type) bool {

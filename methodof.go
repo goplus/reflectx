@@ -28,6 +28,8 @@ type typeInfo struct {
 }
 
 type methodInfo struct {
+	Func     reflect.Value
+	Type     reflect.Type
 	inTyp    reflect.Type
 	outTyp   reflect.Type
 	name     string
@@ -165,7 +167,7 @@ func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 // 	return true
 // }
 
-func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type, isexport bool) (inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
+func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type, isexport bool) (mfn reflect.Value, inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
 	var in []reflect.Type
 	var out []reflect.Type
 	var ntyp reflect.Type
@@ -178,12 +180,7 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
 	}
 
-	if !isexport {
-		tfn, ifn, ptfn, pifn = -1, -1, -1, -1
-		return
-	}
-
-	mfn := reflect.MakeFunc(ftyp, m.Func)
+	mfn = reflect.MakeFunc(ftyp, m.Func)
 	ptr := tovalue(&mfn).ptr
 
 	sz := int(inTyp.Size())
@@ -262,7 +259,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		if !isexport {
 			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
 		}
-		inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil, isexport)
+		mfn, inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil, isexport)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
 		pindex := i
@@ -275,6 +272,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		pms[i].tfn = ptfn
 		pms[i].ifn = pifn
 		pinfos[i] = &methodInfo{
+			Func:     mfn,
 			inTyp:    inTyp,
 			outTyp:   outTyp,
 			name:     m.Name,
@@ -291,6 +289,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 			ms[index].tfn = tfn
 			ms[index].ifn = ifn
 			infos[index] = &methodInfo{
+				Func:     mfn,
 				inTyp:    inTyp,
 				outTyp:   outTyp,
 				name:     m.Name,
@@ -489,9 +488,10 @@ func i_x(itype int, index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool)
 	info := infos[index]
 	var method reflect.Method
 	if ptrto && !info.pointer {
-		method = MethodByIndex(typ.Elem(), info.index)
+		method.Func = info.Func
 	} else {
 		method = MethodByIndex(typ, info.index)
+		method.Func = info.Func
 	}
 	var receiver reflect.Value
 	if !ptrto && info.onePtr {
@@ -503,7 +503,7 @@ func i_x(itype int, index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool)
 		}
 	}
 	in := []reflect.Value{receiver}
-	if inCount := method.Type.NumIn(); inCount > 1 {
+	if inCount := method.Func.Type().NumIn(); inCount > 1 {
 		sz := info.inTyp.Size()
 		buf := make([]byte, sz, sz)
 		if sz > info.isz {
