@@ -21,6 +21,16 @@ import (
 	"unsafe"
 )
 
+// memmove copies size bytes to dst from src. No write barriers are used.
+//go:noescape
+//go:linkname memmove reflect.memmove
+func memmove(dst, src unsafe.Pointer, size uintptr)
+
+// typedmemmove copies a value of type t to dst from src.
+//go:noescape
+//go:linkname typedmemmove reflect.typedmemmove
+func typedmemmove(t *_rtype, dst, src unsafe.Pointer)
+
 // resolveNameOff resolves a name offset from a base pointer.
 // The (*rtype).nameOff method is a convenience wrapper for this function.
 // Implemented in the runtime package.
