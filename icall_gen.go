@@ -11,7 +11,7 @@ import (
 )
 
 var head = `// +build !js js,wasm
-// +build !go1.17
+// +build !go1.17 go1.17,!goexperiment.regabireflect
 
 package reflectx
 
