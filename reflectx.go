@@ -115,7 +115,11 @@ func setTypeName(t *_rtype, pkgpath string, name string) {
 	if t.tflag&tflagUncommon == tflagUncommon {
 		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
 	}
-	if t.Kind() == reflect.Interface {
+	switch t.Kind() {
+	case reflect.Struct:
+		st := (*structType)(toKindType(t))
+		st.pkgPath = newName(pkgpath, "", false)
+	case reflect.Interface:
 		st := (*interfaceType)(toKindType(t))
 		st.pkgPath = newName(pkgpath, "", false)
 	}
