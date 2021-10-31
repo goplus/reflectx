@@ -1,3 +1,4 @@
+//go:build !js || (js && wasm)
 // +build !js js,wasm
 
 package reflectx
@@ -112,10 +113,15 @@ type funcTypeFixed128 struct {
 	args [128]*_rtype
 }
 
+// emptyInterface is the header for an interface{} value.
+type emptyInterface struct {
+	typ  *_rtype
+	word unsafe.Pointer
+}
+
 func totype(typ reflect.Type) *_rtype {
-	v := reflect.Zero(typ)
-	rt := (*Value)(unsafe.Pointer(&v)).typ
-	return rt
+	e := (*emptyInterface)(unsafe.Pointer(&typ))
+	return (*_rtype)(e.word)
 }
 
 //go:nocheckptr
