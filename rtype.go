@@ -10,15 +10,15 @@ import (
 	"unsafe"
 )
 
-func toStructType(t *_rtype) *structType {
+func toStructType(t *rtype) *structType {
 	return (*structType)(unsafe.Pointer(t))
 }
 
-func toKindType(t *_rtype) unsafe.Pointer {
+func toKindType(t *rtype) unsafe.Pointer {
 	return unsafe.Pointer(t)
 }
 
-func toUncommonType(t *_rtype) *uncommonType {
+func toUncommonType(t *rtype) *uncommonType {
 	if t.tflag&tflagUncommon == 0 {
 		return nil
 	}
@@ -69,7 +69,7 @@ func toUncommonType(t *_rtype) *uncommonType {
 		return &(*u)(unsafe.Pointer(t)).u
 	default:
 		type u struct {
-			_rtype
+			rtype
 			u uncommonType
 		}
 		return &(*u)(unsafe.Pointer(t)).u
@@ -90,38 +90,38 @@ type uncommonType struct {
 
 type funcTypeFixed4 struct {
 	funcType
-	args [4]*_rtype
+	args [4]*rtype
 }
 type funcTypeFixed8 struct {
 	funcType
-	args [8]*_rtype
+	args [8]*rtype
 }
 type funcTypeFixed16 struct {
 	funcType
-	args [16]*_rtype
+	args [16]*rtype
 }
 type funcTypeFixed32 struct {
 	funcType
-	args [32]*_rtype
+	args [32]*rtype
 }
 type funcTypeFixed64 struct {
 	funcType
-	args [64]*_rtype
+	args [64]*rtype
 }
 type funcTypeFixed128 struct {
 	funcType
-	args [128]*_rtype
+	args [128]*rtype
 }
 
 // emptyInterface is the header for an interface{} value.
 type emptyInterface struct {
-	typ  *_rtype
+	typ  *rtype
 	word unsafe.Pointer
 }
 
-func totype(typ reflect.Type) *_rtype {
+func totype(typ reflect.Type) *rtype {
 	e := (*emptyInterface)(unsafe.Pointer(&typ))
-	return (*_rtype)(e.word)
+	return (*rtype)(e.word)
 }
 
 //go:nocheckptr
@@ -144,11 +144,11 @@ func tovalue(v *reflect.Value) *Value {
 	return (*Value)(unsafe.Pointer(v))
 }
 
-func (t *_rtype) uncommon() *uncommonType {
+func (t *rtype) uncommon() *uncommonType {
 	return toUncommonType(t)
 }
 
-func (t *_rtype) exportedMethods() []method {
+func (t *rtype) exportedMethods() []method {
 	ut := t.uncommon()
 	if ut == nil {
 		return nil
@@ -156,7 +156,7 @@ func (t *_rtype) exportedMethods() []method {
 	return ut.exportedMethods()
 }
 
-func (t *_rtype) methods() []method {
+func (t *rtype) methods() []method {
 	ut := t.uncommon()
 	if ut == nil {
 		return nil
@@ -164,7 +164,7 @@ func (t *_rtype) methods() []method {
 	return ut.methods()
 }
 
-func (t *funcType) in() []*_rtype {
+func (t *funcType) in() []*rtype {
 	uadd := unsafe.Sizeof(*t)
 	if t.tflag&tflagUncommon != 0 {
 		uadd += unsafe.Sizeof(uncommonType{})
@@ -172,10 +172,10 @@ func (t *funcType) in() []*_rtype {
 	if t.inCount == 0 {
 		return nil
 	}
-	return (*[1 << 20]*_rtype)(add(unsafe.Pointer(t), uadd, "t.inCount > 0"))[:t.inCount:t.inCount]
+	return (*[1 << 20]*rtype)(add(unsafe.Pointer(t), uadd, "t.inCount > 0"))[:t.inCount:t.inCount]
 }
 
-func (t *funcType) out() []*_rtype {
+func (t *funcType) out() []*rtype {
 	uadd := unsafe.Sizeof(*t)
 	if t.tflag&tflagUncommon != 0 {
 		uadd += unsafe.Sizeof(uncommonType{})
@@ -184,10 +184,10 @@ func (t *funcType) out() []*_rtype {
 	if outCount == 0 {
 		return nil
 	}
-	return (*[1 << 20]*_rtype)(add(unsafe.Pointer(t), uadd, "outCount > 0"))[t.inCount : t.inCount+outCount : t.inCount+outCount]
+	return (*[1 << 20]*rtype)(add(unsafe.Pointer(t), uadd, "outCount > 0"))[t.inCount : t.inCount+outCount : t.inCount+outCount]
 }
 
-func (t *_rtype) IsVariadic() bool {
+func (t *rtype) IsVariadic() bool {
 	if t.Kind() != reflect.Func {
 		panic("reflect: IsVariadic of non-func type " + toType(t).String())
 	}
@@ -224,14 +224,14 @@ type bitVector struct {
 //		[2]*rtype    // [0] is in, [1] is out
 //	}
 type funcType struct {
-	_rtype
+	rtype
 	inCount  uint16
 	outCount uint16 // top bit is set if last input parameter is ...
 }
 
-func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*_rtype, []method) {
+func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
 	var tt reflect.Value
-	var rt *_rtype
+	var rt *rtype
 	var fnoff uint32
 	ort := totype(styp)
 	skind := styp.Kind()
@@ -300,7 +300,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(funcType{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
-			{Name: "N", Type: reflect.ArrayOf(narg, reflect.TypeOf((*_rtype)(nil)))},
+			{Name: "N", Type: reflect.ArrayOf(narg, reflect.TypeOf((*rtype)(nil)))},
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
@@ -308,8 +308,8 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.inCount = ost.inCount
 		st.outCount = ost.outCount
 		if narg > 0 {
-			args := make([]*_rtype, narg, narg)
-			fnoff = uint32(unsafe.Sizeof((*_rtype)(nil))) * uint32(narg)
+			args := make([]*rtype, narg, narg)
+			fnoff = uint32(unsafe.Sizeof((*rtype)(nil))) * uint32(narg)
 			for i := 0; i < styp.NumIn(); i++ {
 				args[i] = totype(styp.In(i))
 			}
@@ -317,7 +317,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 			for i := 0; i < styp.NumOut(); i++ {
 				args[index+i] = totype(styp.Out(i))
 			}
-			copy(tt.Elem().Field(2).Slice(0, narg).Interface().([]*_rtype), args)
+			copy(tt.Elem().Field(2).Slice(0, narg).Interface().([]*rtype), args)
 		}
 	case reflect.Map:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
@@ -337,12 +337,12 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.flags = ost.flags
 	default:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
-			{Name: "S", Type: reflect.TypeOf(_rtype{})},
+			{Name: "S", Type: reflect.TypeOf(rtype{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 	}
-	rt = (*_rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 	rt.size = ort.size
 	rt.tflag = ort.tflag | tflagUncommon
 	rt.kind = ort.kind
@@ -374,16 +374,16 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 }
 
 //go:linkname typesByString reflect.typesByString
-func typesByString(s string) []*_rtype
+func typesByString(s string) []*rtype
 
 //go:linkname typelinks reflect.typelinks
 func typelinks() (sections []unsafe.Pointer, offset [][]int32)
 
 //go:linkname rtypeOff reflect.rtypeOff
-func rtypeOff(section unsafe.Pointer, off int32) *_rtype
+func rtypeOff(section unsafe.Pointer, off int32) *rtype
 
 //go:linkname haveIdenticalUnderlyingType reflect.haveIdenticalUnderlyingType
-func haveIdenticalUnderlyingType(T, V *_rtype, cmpTags bool) bool
+func haveIdenticalUnderlyingType(T, V *rtype, cmpTags bool) bool
 
 //go:linkname haveIdenticalType reflect.haveIdenticalType
 func haveIdenticalType(T, V reflect.Type, cmpTags bool) bool
@@ -394,7 +394,7 @@ func TypeLinks() []reflect.Type {
 	for i, offs := range offset {
 		rodata := sections[i]
 		for _, off := range offs {
-			typ := (*_rtype)(resolveTypeOff(unsafe.Pointer(rodata), off))
+			typ := (*rtype)(resolveTypeOff(unsafe.Pointer(rodata), off))
 			r = append(r, toType(typ))
 		}
 	}

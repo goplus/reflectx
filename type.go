@@ -29,7 +29,7 @@ func memmove(dst, src unsafe.Pointer, size uintptr)
 // typedmemmove copies a value of type t to dst from src.
 //go:noescape
 //go:linkname typedmemmove reflect.typedmemmove
-func typedmemmove(t *_rtype, dst, src unsafe.Pointer)
+func typedmemmove(t *rtype, dst, src unsafe.Pointer)
 
 // resolveNameOff resolves a name offset from a base pointer.
 // The (*rtype).nameOff method is a convenience wrapper for this function.
@@ -64,23 +64,23 @@ func newName(n, tag string, exported bool) name
 func resolveReflectName(n name) nameOff
 
 //go:linkname toType reflect.toType
-func toType(t *_rtype) reflect.Type
+func toType(t *rtype) reflect.Type
 
-func (t *_rtype) nameOff(off nameOff) name {
+func (t *rtype) nameOff(off nameOff) name {
 	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
 }
 
-func (t *_rtype) typeOff(off typeOff) *_rtype {
-	return (*_rtype)(resolveTypeOff(unsafe.Pointer(t), int32(off)))
+func (t *rtype) typeOff(off typeOff) *rtype {
+	return (*rtype)(resolveTypeOff(unsafe.Pointer(t), int32(off)))
 }
 
-func (t *_rtype) textOff(off textOff) unsafe.Pointer {
+func (t *rtype) textOff(off textOff) unsafe.Pointer {
 	return resolveTextOff(unsafe.Pointer(t), int32(off))
 }
 
 // resolveReflectType adds a *rtype to the reflection lookup map in the runtime.
 // It returns a new typeOff that can be used to refer to the pointer.
-func resolveReflectType(t *_rtype) typeOff {
+func resolveReflectType(t *rtype) typeOff {
 	return typeOff(addReflectOff(unsafe.Pointer(t)))
 }
 
@@ -138,7 +138,7 @@ const (
 	tflagRegularMemory tflag = 1 << 3
 )
 
-type _rtype struct {
+type rtype struct {
 	size       uintptr
 	ptrdata    uintptr // number of bytes in the type that can contain pointers
 	hash       uint32  // hash of type; avoids computation in hash tables
@@ -160,7 +160,7 @@ const (
 	kindMask        = (1 << 5) - 1
 )
 
-func (t *_rtype) Kind() reflect.Kind {
+func (t *rtype) Kind() reflect.Kind {
 	return reflect.Kind(t.kind & kindMask)
 }
 
@@ -192,16 +192,16 @@ const (
 
 // arrayType represents a fixed array type.
 type arrayType struct {
-	_rtype
-	elem  *_rtype // array element type
-	slice *_rtype // slice type
+	rtype
+	elem  *rtype // array element type
+	slice *rtype // slice type
 	len   uintptr
 }
 
 // chanType represents a channel type.
 type chanType struct {
-	_rtype
-	elem *_rtype // channel element type
+	rtype
+	elem *rtype // channel element type
 	dir  uintptr // channel direction (ChanDir)
 }
 
@@ -213,17 +213,17 @@ type imethod struct {
 
 // interfaceType represents an interface type.
 type interfaceType struct {
-	_rtype
+	rtype
 	pkgPath name      // import path
 	methods []imethod // sorted by hash
 }
 
 // mapType represents a map type.
 type mapType struct {
-	_rtype
-	key    *_rtype // map key type
-	elem   *_rtype // map element (value) type
-	bucket *_rtype // internal bucket structure
+	rtype
+	key    *rtype // map key type
+	elem   *rtype // map element (value) type
+	bucket *rtype // internal bucket structure
 	// function for hashing keys (ptr to key, seed) -> hash
 	hasher     func(unsafe.Pointer, uintptr) uintptr
 	keysize    uint8  // size of key slot
@@ -234,20 +234,20 @@ type mapType struct {
 
 // ptrType represents a pointer type.
 type ptrType struct {
-	_rtype
-	elem *_rtype // pointer element (pointed at) type
+	rtype
+	elem *rtype // pointer element (pointed at) type
 }
 
 // sliceType represents a slice type.
 type sliceType struct {
-	_rtype
-	elem *_rtype // slice element type
+	rtype
+	elem *rtype // slice element type
 }
 
 // struct field
 type structField struct {
 	name        name    // name is always non-empty
-	typ         *_rtype // type of field
+	typ         *rtype // type of field
 	offsetEmbed uintptr // byte offset of field<<1 | isEmbedded
 }
 
@@ -261,7 +261,7 @@ func (f *structField) embedded() bool {
 
 // structType represents a struct type.
 type structType struct {
-	_rtype
+	rtype
 	pkgPath name
 	fields  []structField // sorted by offset
 }

@@ -101,7 +101,7 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }
 
-func setTypeName(t *_rtype, pkgpath string, name string) {
+func setTypeName(t *rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
 	}
@@ -125,7 +125,7 @@ func setTypeName(t *_rtype, pkgpath string, name string) {
 	}
 }
 
-func copyType(dst *_rtype, src *_rtype) {
+func copyType(dst *rtype, src *rtype) {
 	dst.size = src.size
 	dst.kind = src.kind
 	dst.equal = src.equal
