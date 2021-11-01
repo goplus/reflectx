@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -54,7 +55,7 @@ var templ_fn = `	func(p, a unsafeptr) { i_x($itype, $index, p, unsafeptr(&a), $p
 `
 
 func main() {
-	writeFile("./icall.go", 256, 128)
+	writeFile("./icall.go", 64, 256)
 }
 
 func writeFile(filename string, max_itype int, max_index int) {

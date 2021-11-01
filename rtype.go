@@ -88,6 +88,11 @@ type uncommonType struct {
 	_       uint32  // unused
 }
 
+type funcTypeFixed1 struct {
+	funcType
+	args [1]*rtype
+}
+
 type funcTypeFixed4 struct {
 	funcType
 	args [4]*rtype
@@ -233,10 +238,90 @@ type funcType struct {
 	outCount uint16 // top bit is set if last input parameter is ...
 }
 
+type offFuncType struct {
+	funcType
+	uncommonType
+	args [128]*rtype
+}
+
+func SetUnderlying(typ reflect.Type, styp reflect.Type) {
+	rt := totype(typ)
+	ort := totype(styp)
+	switch styp.Kind() {
+	case reflect.Struct:
+		st := (*structType)(unsafe.Pointer(rt))
+		ost := (*structType)(unsafe.Pointer(ort))
+		st.fields = ost.fields
+	case reflect.Ptr:
+		st := (*ptrType)(unsafe.Pointer(rt))
+		ost := (*ptrType)(unsafe.Pointer(ort))
+		st.elem = ost.elem
+	case reflect.Slice:
+		st := (*sliceType)(unsafe.Pointer(rt))
+		ost := (*sliceType)(unsafe.Pointer(ort))
+		st.elem = ost.elem
+	case reflect.Array:
+		st := (*arrayType)(unsafe.Pointer(rt))
+		ost := (*arrayType)(unsafe.Pointer(ort))
+		st.elem = ost.elem
+		st.slice = ost.slice
+		st.len = ost.len
+	case reflect.Chan:
+		st := (*chanType)(unsafe.Pointer(rt))
+		ost := (*chanType)(unsafe.Pointer(ort))
+		st.elem = ost.elem
+		st.dir = ost.dir
+	case reflect.Interface:
+		st := (*interfaceType)(unsafe.Pointer(rt))
+		ost := (*interfaceType)(unsafe.Pointer(ort))
+		st.methods = ost.methods
+	case reflect.Map:
+		st := (*mapType)(unsafe.Pointer(rt))
+		ost := (*mapType)(unsafe.Pointer(ort))
+		st.key = ost.key
+		st.elem = ost.elem
+		st.bucket = ost.bucket
+		st.hasher = ost.hasher
+		st.keysize = ost.keysize
+		st.valuesize = ost.valuesize
+		st.bucketsize = ost.bucketsize
+		st.flags = ost.flags
+	case reflect.Func:
+		st := (*funcType)(unsafe.Pointer(rt))
+		ost := (*funcType)(unsafe.Pointer(ort))
+		st.inCount = ost.inCount
+		st.outCount = ost.outCount
+		narg := ost.inCount + ost.outCount
+		if narg > 0 {
+			args := make([]*rtype, narg, narg)
+			for i := 0; i < styp.NumIn(); i++ {
+				args[i] = totype(styp.In(i))
+			}
+			index := styp.NumIn()
+			for i := 0; i < styp.NumOut(); i++ {
+				args[index+i] = totype(styp.Out(i))
+			}
+			dst := (*offFuncType)(unsafe.Pointer(rt))
+			for i, a := range args {
+				dst.args[i] = a
+			}
+		}
+	}
+	rt.size = ort.size
+	rt.tflag = ort.tflag | tflagUncommon
+	rt.kind = ort.kind
+	rt.align = ort.align
+	rt.fieldAlign = ort.fieldAlign
+	rt.gcdata = ort.gcdata
+	rt.ptrdata = ort.ptrdata
+	rt.equal = ort.equal
+	//rt.str = resolveReflectName(ort.nameOff(ort.str))
+}
+
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
-	var tt reflect.Value
 	var rt *rtype
 	var fnoff uint32
+	var tt reflect.Value
 	ort := totype(styp)
 	skind := styp.Kind()
 	switch skind {
@@ -541,64 +626,3 @@ func DumpType(w io.Writer, typ reflect.Type) {
 // 	}
 // 	return false
 // }
-
-func AllNumMethod(typ reflect.Type) int {
-	return totype(typ).AllNumMethod()
-}
-
-func AllMethod(typ reflect.Type, i int) reflect.Method {
-	return totype(typ).AllMethod(i)
-}
-
-func (t *rtype) AllNumMethod() int {
-	return len(t.methods())
-}
-
-func (t *rtype) AllMethod(i int) (m reflect.Method) {
-	methods := t.methods()
-	if i < 0 || i >= len(methods) {
-		panic("reflect: Method index out of range")
-	}
-	p := methods[i]
-	pname := t.nameOff(p.name)
-	m.Name = pname.name()
-	m.Index = i
-	fl := flag(reflect.Func)
-	mtyp := t.typeOff(p.mtyp)
-	if mtyp == nil {
-		return
-	}
-	ft := (*funcType)(unsafe.Pointer(mtyp))
-	in := make([]reflect.Type, 0, 1+len(ft.in()))
-	in = append(in, toType(t))
-	for _, arg := range ft.in() {
-		in = append(in, toType(arg))
-	}
-	out := make([]reflect.Type, 0, len(ft.out()))
-	for _, ret := range ft.out() {
-		out = append(out, toType(ret))
-	}
-	mt := reflect.FuncOf(in, out, ft.IsVariadic())
-	m.Type = mt
-	tfn := t.textOff(p.tfn)
-	fn := unsafe.Pointer(&tfn)
-	m.Func = toValue(Value{totype(mt), fn, fl})
-	return m
-}
-
-func (t *rtype) AllMethodByName(name string) (m reflect.Method, ok bool) {
-	if t.Kind() == reflect.Interface {
-		return toType(t).MethodByName(name)
-	}
-	ut := t.uncommon()
-	if ut == nil {
-		return reflect.Method{}, false
-	}
-	// TODO(mdempsky): Binary search.
-	for i, p := range ut.methods() {
-		if t.nameOff(p.name).name() == name {
-			return t.AllMethod(i), true
-		}
-	}
-	return reflect.Method{}, false
-}

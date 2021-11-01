@@ -201,7 +201,7 @@ type arrayType struct {
 // chanType represents a channel type.
 type chanType struct {
 	rtype
-	elem *rtype // channel element type
+	elem *rtype  // channel element type
 	dir  uintptr // channel direction (ChanDir)
 }
 
@@ -247,7 +247,7 @@ type sliceType struct {
 // struct field
 type structField struct {
 	name        name    // name is always non-empty
-	typ         *rtype // type of field
+	typ         *rtype  // type of field
 	offsetEmbed uintptr // byte offset of field<<1 | isEmbedded
 }
 
