@@ -44,7 +44,7 @@ type methodInfo struct {
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
 	//m := typ.Method(index)
-	m := totype(typ).AllMethod(index)
+	m := totype(typ).MethodX(index)
 	if isMethod(typ) {
 		tovalue(&m.Func).flag |= flagIndir
 	}
@@ -53,7 +53,7 @@ func MethodByIndex(typ reflect.Type, index int) reflect.Method {
 
 func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	//m, ok = typ.MethodByName(name)
-	m, ok = totype(typ).AllMethodByName(name)
+	m, ok = totype(typ).MethodByNameX(name)
 	if !ok {
 		return
 	}
