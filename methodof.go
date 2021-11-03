@@ -29,8 +29,8 @@ type typeInfo struct {
 }
 
 type methodInfo struct {
-	Func     reflect.Value
 	Type     reflect.Type
+	Func     reflect.Value
 	inTyp    reflect.Type
 	outTyp   reflect.Type
 	name     string
@@ -276,6 +276,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		pms[i].tfn = ptfn
 		pms[i].ifn = pifn
 		pinfos[i] = &methodInfo{
+			Type:     ptyp,
 			Func:     mfn,
 			inTyp:    inTyp,
 			outTyp:   outTyp,
@@ -293,6 +294,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 			ms[index].tfn = tfn
 			ms[index].ifn = ifn
 			infos[index] = &methodInfo{
+				Type:     typ,
 				Func:     mfn,
 				inTyp:    inTyp,
 				outTyp:   outTyp,
