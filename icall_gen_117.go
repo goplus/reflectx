@@ -25,7 +25,7 @@ var (
 	check_max_index = true
 )
 
-func icall(t int, i int, ptrto bool, output bool) interface{} {
+func icall(t int, i int, max int, ptrto bool, output bool) interface{} {
 	if t >= max_itype_index {
 		if check_max_itype {
 			check_max_itype = false

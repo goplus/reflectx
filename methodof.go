@@ -170,11 +170,11 @@ func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 // 	return true
 // }
 
-func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, rmap map[reflect.Type]reflect.Type, isexport bool) (mfn reflect.Value, inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
+func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i int, index int, max int, pmax int, isexport bool) (mfn reflect.Value, inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ifn, ptfn, pifn textOff) {
 	var in []reflect.Type
 	var out []reflect.Type
 	var ntyp reflect.Type
-	in, out, ntyp, inTyp, outTyp = parserMethodType(m.Type, rmap)
+	in, out, ntyp, inTyp, outTyp = parserMethodType(m.Type, nil)
 	mtyp = resolveReflectType(totype(ntyp))
 	var ftyp reflect.Type
 	if m.Pointer {
@@ -188,7 +188,7 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 	ptr := tovalue(&mfn).ptr
 
 	sz := int(inTyp.Size())
-	ifunc := icall(itype, i, true, output)
+	ifunc := icall(itype, i, pmax, true, output)
 
 	if ifunc == nil {
 		log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
@@ -202,7 +202,7 @@ func createMethod(itype int, typ reflect.Type, ptyp reflect.Type, m Method, i in
 			return args[0].Elem().Method(index).Call(args[1:])
 		})
 		ptfn = resolveReflectText(tovalue(&cv).ptr)
-		ifunc := icall(itype, index, false, output)
+		ifunc := icall(itype, index, max, false, output)
 		if ifunc == nil {
 			log.Printf("warning cannot wrapper method index:%v, size: %v\n", i, sz)
 		} else {
@@ -263,7 +263,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		if !isexport {
 			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
 		}
-		mfn, inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, nil, isexport)
+		mfn, inTyp, outTyp, mtyp, tfn, ifn, ptfn, pifn := createMethod(itype, typ, ptyp, m, i, index, mcount, pcount, isexport)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
 		pindex := i
