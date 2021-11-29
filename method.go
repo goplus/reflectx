@@ -202,6 +202,8 @@ func Reset() {
 	embedLookupCache = make(map[reflect.Type]reflect.Type)
 	structLookupCache = make(map[string][]reflect.Type)
 	interfceLookupCache = make(map[string]reflect.Type)
+	typInfoMap = make(map[reflect.Type][]*methodInfo)
+	valueInfoMap = make(map[reflect.Value]typeInfo)
 }
 
 var (
