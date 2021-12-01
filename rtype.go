@@ -308,7 +308,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		}
 	}
 	rt.size = ort.size
-	rt.tflag |= tflagUncommon | tflagExtraStar
+	rt.tflag |= tflagUncommon | tflagExtraStar | tflagNamed
 	rt.kind = ort.kind
 	rt.align = ort.align
 	rt.fieldAlign = ort.fieldAlign
@@ -316,6 +316,49 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	rt.ptrdata = ort.ptrdata
 	rt.equal = ort.equal
 	//rt.str = resolveReflectName(ort.nameOff(ort.str))
+	if isRegularMemory(typ) {
+		rt.tflag |= tflagRegularMemory
+	}
+}
+
+// go/src/cmd/compile/internal/gc/alg.go#algtype1
+// IsRegularMemory reports whether t can be compared/hashed as regular memory.
+func isRegularMemory(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Func, reflect.Map, reflect.Slice, reflect.String, reflect.Interface:
+		return false
+	case reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+		return false
+	case reflect.Array:
+		b := isRegularMemory(t.Elem())
+		if b {
+			return true
+		}
+		if t.Len() == 0 {
+			return true
+		}
+		return b
+	case reflect.Struct:
+		n := t.NumField()
+		switch n {
+		case 0:
+			return true
+		case 1:
+			f := t.Field(0)
+			if f.Name == "_" {
+				return false
+			}
+			return isRegularMemory(f.Type)
+		default:
+			for i := 0; i < n; i++ {
+				f := t.Field(i)
+				if f.Name == "_" || !isRegularMemory(f.Type) {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
