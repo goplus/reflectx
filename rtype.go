@@ -308,7 +308,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		}
 	}
 	rt.size = ort.size
-	rt.tflag = ort.tflag | tflagUncommon | tflagExtraStar
+	rt.tflag |= tflagUncommon | tflagExtraStar
 	rt.kind = ort.kind
 	rt.align = ort.align
 	rt.fieldAlign = ort.fieldAlign
