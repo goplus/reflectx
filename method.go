@@ -203,7 +203,7 @@ func Reset() {
 	structLookupCache = make(map[string][]reflect.Type)
 	interfceLookupCache = make(map[string]reflect.Type)
 	typInfoMap = make(map[reflect.Type][]*methodInfo)
-	valueInfoMap = make(map[reflect.Value]typeInfo)
+	//valueInfoMap = make(map[reflect.Value]typeInfo)
 }
 
 var (
