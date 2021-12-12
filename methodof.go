@@ -24,8 +24,8 @@ func resetMethodList() {
 }
 
 // register method info
-func registerMethod(ptrto bool, info *methodInfo) (ifn unsafe.Pointer) {
-	fn := icall(len(methodList), ptrto)
+func registerMethod(info *methodInfo) (ifn unsafe.Pointer) {
+	fn := icall(len(methodList))
 	methodList = append(methodList, info)
 	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
 }
@@ -35,16 +35,14 @@ func isMethod(typ reflect.Type) (ok bool) {
 }
 
 type methodInfo struct {
-	Type     reflect.Type
-	Recv     reflect.Type
 	Func     reflect.Value
+	Type     reflect.Type
 	inTyp    reflect.Type
 	outTyp   reflect.Type
-	name     string
-	index    int
 	isz      uintptr
 	osz      uintptr
-	pointer  bool
+	ptr      bool
+	indirect bool
 	variadic bool
 	onePtr   bool
 }
@@ -161,26 +159,20 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
-		pindex := i
-		if !m.Pointer {
-			pindex = index
-		}
 		onePtr := checkOneFieldPtr(typ) || typ.Kind() == reflect.Func
 		pinfo := &methodInfo{
 			Type:     typ,
-			Recv:     ptyp,
 			Func:     mfn,
 			inTyp:    inTyp,
 			outTyp:   outTyp,
-			name:     m.Name,
-			index:    pindex,
 			isz:      isz,
 			osz:      osz,
-			pointer:  m.Pointer,
+			ptr:      true,
+			indirect: !m.Pointer,
 			variadic: m.Type.IsVariadic(),
 			onePtr:   onePtr,
 		}
-		pifn := registerMethod(true, pinfo)
+		pifn := registerMethod(pinfo)
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
@@ -189,19 +181,15 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		if !m.Pointer {
 			info := &methodInfo{
 				Type:     typ,
-				Recv:     typ,
 				Func:     mfn,
 				inTyp:    inTyp,
 				outTyp:   outTyp,
-				name:     m.Name,
-				index:    index,
 				isz:      isz,
 				osz:      osz,
-				pointer:  m.Pointer,
 				variadic: m.Type.IsVariadic(),
 				onePtr:   onePtr,
 			}
-			ifn := registerMethod(false, info)
+			ifn := registerMethod(info)
 			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
@@ -335,29 +323,19 @@ type iparam struct {
 // 	return
 // }
 
-func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) {
-	// if index >= methodSize {
-	// 	panic(fmt.Errorf("too many method calls by index: %v > %v", index, methodSize))
-	// }
+func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 	info := methodList[index]
-	var method reflect.Method
-	if ptrto && !info.pointer {
-		method.Func = info.Func
-	} else {
-		method = MethodByIndex(info.Recv, info.index)
-		method.Func = info.Func
-	}
 	var receiver reflect.Value
-	if !ptrto && info.onePtr {
+	if !info.ptr && info.onePtr {
 		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
 	} else {
 		receiver = reflect.NewAt(info.Type, ptr)
-		if !ptrto || !info.pointer {
+		if !info.ptr || info.indirect {
 			receiver = receiver.Elem()
 		}
 	}
 	in := []reflect.Value{receiver}
-	if inCount := method.Func.Type().NumIn(); inCount > 1 {
+	if inCount := info.Func.Type().NumIn(); inCount > 1 {
 		sz := info.inTyp.Size()
 		buf := make([]byte, sz, sz)
 		if sz > info.isz {
@@ -386,7 +364,7 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) {
 			}
 		}
 	}
-	r := method.Func.Call(in)
+	r := info.Func.Call(in)
 	if info.outTyp.NumField() > 0 {
 		out := reflect.New(info.outTyp).Elem()
 		for i, v := range r {
