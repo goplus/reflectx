@@ -19,15 +19,13 @@ package reflectx
 func icall(i int) interface{} {
 	return icall_array[i]
 }
-
-const max_icall_size = $max_index
 `
 
 var templ_fn = `	func(p, a unsafeptr) { i_x($index, p, unsafeptr(&a)) },
 `
 
 func main() {
-	writeFile("./icall.go", 10240)
+	writeFile("./icall.go", 1024)
 }
 
 func writeFile(filename string, max_index int) {

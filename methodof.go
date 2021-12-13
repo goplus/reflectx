@@ -5,28 +5,46 @@ package reflectx
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"sort"
 	"strings"
 	"unsafe"
 )
 
-type unsafeptr = unsafe.Pointer
+var (
+	MethodList []*MethodInfo
+)
+
+func PresetMethods(array []interface{}) {
+	icall_array = array
+}
+
+func icall(i int) interface{} {
+	if i >= len(icall_array) {
+		log.Printf("github.com/goplus/reflectx: must increase preset, cannot alloc method %v > %v\n", i, len(icall_array))
+		return nil
+	}
+	return icall_array[i]
+}
 
 var (
-	methodType = make(map[reflect.Type]bool)
-	methodList []*methodInfo
+	methodType  = make(map[reflect.Type]bool)
+	icall_array []interface{}
 )
 
 func resetMethodList() {
-	methodList = nil
+	MethodList = nil
 	methodType = make(map[reflect.Type]bool)
 }
 
 // register method info
-func registerMethod(info *methodInfo) (ifn unsafe.Pointer) {
-	fn := icall(len(methodList))
-	methodList = append(methodList, info)
+func registerMethod(info *MethodInfo) (ifn unsafe.Pointer) {
+	fn := icall(len(MethodList))
+	if fn == nil {
+		return nil
+	}
+	MethodList = append(MethodList, info)
 	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
 }
 
@@ -34,17 +52,17 @@ func isMethod(typ reflect.Type) (ok bool) {
 	return methodType[typ]
 }
 
-type methodInfo struct {
+type MethodInfo struct {
 	Func     reflect.Value
 	Type     reflect.Type
-	inTyp    reflect.Type
-	outTyp   reflect.Type
-	isz      uintptr
-	osz      uintptr
-	ptr      bool
-	indirect bool
-	variadic bool
-	onePtr   bool
+	InTyp    reflect.Type
+	OutTyp   reflect.Type
+	InSize   uintptr
+	OutSize  uintptr
+	Pointer  bool
+	Indirect bool
+	Variadic bool
+	OnePtr   bool
 }
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
@@ -160,17 +178,17 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
 		onePtr := checkOneFieldPtr(typ) || typ.Kind() == reflect.Func
-		pinfo := &methodInfo{
+		pinfo := &MethodInfo{
 			Type:     typ,
 			Func:     mfn,
-			inTyp:    inTyp,
-			outTyp:   outTyp,
-			isz:      isz,
-			osz:      osz,
-			ptr:      true,
-			indirect: !m.Pointer,
-			variadic: m.Type.IsVariadic(),
-			onePtr:   onePtr,
+			InTyp:    inTyp,
+			OutTyp:   outTyp,
+			InSize:   isz,
+			OutSize:  osz,
+			Pointer:  true,
+			Indirect: !m.Pointer,
+			Variadic: m.Type.IsVariadic(),
+			OnePtr:   onePtr,
 		}
 		pifn := registerMethod(pinfo)
 		pms[i].name = mname
@@ -179,15 +197,15 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		pms[i].ifn = resolveReflectText(pifn)
 
 		if !m.Pointer {
-			info := &methodInfo{
+			info := &MethodInfo{
 				Type:     typ,
 				Func:     mfn,
-				inTyp:    inTyp,
-				outTyp:   outTyp,
-				isz:      isz,
-				osz:      osz,
-				variadic: m.Type.IsVariadic(),
-				onePtr:   onePtr,
+				InTyp:    inTyp,
+				OutTyp:   outTyp,
+				InSize:   isz,
+				OutSize:  osz,
+				Variadic: m.Type.IsVariadic(),
+				OnePtr:   onePtr,
 			}
 			ifn := registerMethod(info)
 			ms[index].name = mname
@@ -324,33 +342,33 @@ type iparam struct {
 // }
 
 func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
-	info := methodList[index]
+	info := MethodList[index]
 	var receiver reflect.Value
-	if !info.ptr && info.onePtr {
+	if !info.Pointer && info.OnePtr {
 		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
 	} else {
 		receiver = reflect.NewAt(info.Type, ptr)
-		if !info.ptr || info.indirect {
+		if !info.Pointer || info.Indirect {
 			receiver = receiver.Elem()
 		}
 	}
 	in := []reflect.Value{receiver}
 	if inCount := info.Func.Type().NumIn(); inCount > 1 {
-		sz := info.inTyp.Size()
+		sz := info.InTyp.Size()
 		buf := make([]byte, sz, sz)
-		if sz > info.isz {
-			sz = info.isz
+		if sz > info.InSize {
+			sz = info.InSize
 		}
 		for i := uintptr(0); i < sz; i++ {
 			buf[i] = *(*byte)(add(p, i, ""))
 		}
 		var inArgs reflect.Value
 		if sz == 0 {
-			inArgs = reflect.New(info.inTyp).Elem()
+			inArgs = reflect.New(info.InTyp).Elem()
 		} else {
-			inArgs = reflect.NewAt(info.inTyp, unsafe.Pointer(&buf[0])).Elem()
+			inArgs = reflect.NewAt(info.InTyp, unsafe.Pointer(&buf[0])).Elem()
 		}
-		if info.variadic {
+		if info.Variadic {
 			for i := 1; i < inCount-1; i++ {
 				in = append(in, inArgs.Field(i-1))
 			}
@@ -365,14 +383,14 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 		}
 	}
 	r := info.Func.Call(in)
-	if info.outTyp.NumField() > 0 {
-		out := reflect.New(info.outTyp).Elem()
+	if info.OutTyp.NumField() > 0 {
+		out := reflect.New(info.OutTyp).Elem()
 		for i, v := range r {
 			out.Field(i).Set(v)
 		}
 		po := unsafe.Pointer(out.UnsafeAddr())
-		for i := uintptr(0); i < info.osz; i++ {
-			*(*byte)(add(p, info.isz+i, "")) = *(*byte)(add(po, uintptr(i), ""))
+		for i := uintptr(0); i < info.OutSize; i++ {
+			*(*byte)(add(p, info.InSize+i, "")) = *(*byte)(add(po, uintptr(i), ""))
 		}
 	}
 }

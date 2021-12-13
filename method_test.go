@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/goplus/reflectx"
+	_ "github.com/goplus/reflectx/icall/icall10"
 )
 
 var (
