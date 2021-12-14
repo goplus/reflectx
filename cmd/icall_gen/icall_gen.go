@@ -141,9 +141,11 @@ func main() {
 
 func writeFile(filename string, pkgName string, size int) error {
 	dir, _ := filepath.Split(filename)
-	err := os.MkdirAll(dir, 0777)
-	if err != nil {
-		return fmt.Errorf("make dir %v error: %v", dir, err)
+	if dir != "" {
+		err := os.MkdirAll(dir, 0777)
+		if err != nil {
+			return fmt.Errorf("make dir %v error: %v", dir, err)
+		}
 	}
 
 	var buf bytes.Buffer

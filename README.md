@@ -40,5 +40,16 @@ set env
 * reflectx.NewInterfaceType
 * reflectx.SetInterfaceType
 
-### SetElem
-* reflectx.SetElem
+
+### methods preset
+* preset
+```
+import _ "github.com/goplus/reflectx/icall/icall[2^n]"
+```
+* custom
+```
+cmd/icall_gen
+```
+```
+icall_gen -o icall1k.go -pkg main -size 10000
+```
