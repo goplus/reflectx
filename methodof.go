@@ -12,40 +12,82 @@ import (
 	"unsafe"
 )
 
-var (
-	MethodList []*MethodInfo
-)
-
-func PresetMethods(array []interface{}) {
-	icall_array = array
+type MethodProvider interface {
+	Push(info *MethodInfo) (ifn unsafe.Pointer) // push method info
+	Len() int                                   // methods len
+	Cap() int                                   // methods capacity
+	Clear()                                     // clear all methods
 }
 
-func icall(i int) interface{} {
-	if i >= len(icall_array) {
-		log.Printf("github.com/goplus/reflectx: must increase preset, cannot alloc method %v > %v\n", i, len(icall_array))
-		return nil
+type mpList struct {
+	list     []MethodProvider
+	cur      MethodProvider
+	mpIndex  int
+	curCap   int
+	curIndex int
+	maxCap   int
+	allIndex int
+}
+
+func (p *mpList) Clear() {
+	p.mpIndex = 0
+	p.allIndex = 0
+	p.curIndex = 0
+	for _, v := range p.list {
+		v.Clear()
 	}
-	return icall_array[i]
+	p.cur = p.list[0]
+	p.curCap = p.cur.Cap()
+}
+
+func (p *mpList) Add(mp MethodProvider) {
+	for _, v := range p.list {
+		if v == mp {
+			return
+		}
+	}
+	p.list = append(p.list, mp)
+	p.maxCap += mp.Cap()
+	if len(p.list) == 1 {
+		p.cur = p.list[0]
+		p.curCap = p.cur.Cap()
+	}
+}
+
+func (p *mpList) Push(info *MethodInfo) (ifn unsafe.Pointer) {
+	p.allIndex++
+	p.curIndex++
+	if p.curIndex >= p.curCap {
+		p.mpIndex++
+		if p.mpIndex >= len(p.list) {
+			log.Printf("warning, cannot alloc method %v > %v, import _ %q\n",
+				p.allIndex+1, p.maxCap, "github.com/goplus/reflectx/icall/icall[2^n]")
+			return nil
+		}
+		p.cur = p.list[p.mpIndex]
+		p.curIndex = 0
+		p.curCap = p.cur.Cap()
+	}
+	return p.cur.Push(info)
+}
+
+func AddMethodProvider(mp MethodProvider) {
+	mps.Add(mp)
 }
 
 var (
-	methodType  = make(map[reflect.Type]bool)
-	icall_array []interface{}
+	methodType = make(map[reflect.Type]bool)
+	mps        mpList
 )
 
 func resetMethodList() {
-	MethodList = nil
 	methodType = make(map[reflect.Type]bool)
+	mps.Clear()
 }
 
 // register method info
 func registerMethod(info *MethodInfo) (ifn unsafe.Pointer) {
-	fn := icall(len(MethodList))
-	if fn == nil {
-		return nil
-	}
-	MethodList = append(MethodList, info)
-	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
+	return mps.Push(info)
 }
 
 func isMethod(typ reflect.Type) (ok bool) {
@@ -341,59 +383,59 @@ type iparam struct {
 // 	return
 // }
 
-func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
-	info := MethodList[index]
-	var receiver reflect.Value
-	if !info.Pointer && info.OnePtr {
-		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
-	} else {
-		receiver = reflect.NewAt(info.Type, ptr)
-		if !info.Pointer || info.Indirect {
-			receiver = receiver.Elem()
-		}
-	}
-	in := []reflect.Value{receiver}
-	if inCount := info.Func.Type().NumIn(); inCount > 1 {
-		sz := info.InTyp.Size()
-		buf := make([]byte, sz, sz)
-		if sz > info.InSize {
-			sz = info.InSize
-		}
-		for i := uintptr(0); i < sz; i++ {
-			buf[i] = *(*byte)(add(p, i, ""))
-		}
-		var inArgs reflect.Value
-		if sz == 0 {
-			inArgs = reflect.New(info.InTyp).Elem()
-		} else {
-			inArgs = reflect.NewAt(info.InTyp, unsafe.Pointer(&buf[0])).Elem()
-		}
-		if info.Variadic {
-			for i := 1; i < inCount-1; i++ {
-				in = append(in, inArgs.Field(i-1))
-			}
-			slice := inArgs.Field(inCount - 2)
-			for i := 0; i < slice.Len(); i++ {
-				in = append(in, slice.Index(i))
-			}
-		} else {
-			for i := 1; i < inCount; i++ {
-				in = append(in, inArgs.Field(i-1))
-			}
-		}
-	}
-	r := info.Func.Call(in)
-	if info.OutTyp.NumField() > 0 {
-		out := reflect.New(info.OutTyp).Elem()
-		for i, v := range r {
-			out.Field(i).Set(v)
-		}
-		po := unsafe.Pointer(out.UnsafeAddr())
-		for i := uintptr(0); i < info.OutSize; i++ {
-			*(*byte)(add(p, info.InSize+i, "")) = *(*byte)(add(po, uintptr(i), ""))
-		}
-	}
-}
+// func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
+// 	info := MethodList[index]
+// 	var receiver reflect.Value
+// 	if !info.Pointer && info.OnePtr {
+// 		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
+// 	} else {
+// 		receiver = reflect.NewAt(info.Type, ptr)
+// 		if !info.Pointer || info.Indirect {
+// 			receiver = receiver.Elem()
+// 		}
+// 	}
+// 	in := []reflect.Value{receiver}
+// 	if inCount := info.Func.Type().NumIn(); inCount > 1 {
+// 		sz := info.InTyp.Size()
+// 		buf := make([]byte, sz, sz)
+// 		if sz > info.InSize {
+// 			sz = info.InSize
+// 		}
+// 		for i := uintptr(0); i < sz; i++ {
+// 			buf[i] = *(*byte)(add(p, i, ""))
+// 		}
+// 		var inArgs reflect.Value
+// 		if sz == 0 {
+// 			inArgs = reflect.New(info.InTyp).Elem()
+// 		} else {
+// 			inArgs = reflect.NewAt(info.InTyp, unsafe.Pointer(&buf[0])).Elem()
+// 		}
+// 		if info.Variadic {
+// 			for i := 1; i < inCount-1; i++ {
+// 				in = append(in, inArgs.Field(i-1))
+// 			}
+// 			slice := inArgs.Field(inCount - 2)
+// 			for i := 0; i < slice.Len(); i++ {
+// 				in = append(in, slice.Index(i))
+// 			}
+// 		} else {
+// 			for i := 1; i < inCount; i++ {
+// 				in = append(in, inArgs.Field(i-1))
+// 			}
+// 		}
+// 	}
+// 	r := info.Func.Call(in)
+// 	if info.OutTyp.NumField() > 0 {
+// 		out := reflect.New(info.OutTyp).Elem()
+// 		for i, v := range r {
+// 			out.Field(i).Set(v)
+// 		}
+// 		po := unsafe.Pointer(out.UnsafeAddr())
+// 		for i := uintptr(0); i < info.OutSize; i++ {
+// 			*(*byte)(add(p, info.InSize+i, "")) = *(*byte)(add(po, uintptr(i), ""))
+// 		}
+// 	}
+// }
 
 // func i_x_dyn(i int, ptr unsafe.Pointer, p unsafe.Pointer, ptrto bool) bool {
 // 	var receiver reflect.Value
