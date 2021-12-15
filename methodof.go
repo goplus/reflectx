@@ -36,8 +36,10 @@ func (p *mpList) Clear() {
 	for _, v := range p.list {
 		v.Clear()
 	}
-	p.cur = p.list[0]
-	p.curCap = p.cur.Cap()
+	if len(p.list) >= 1 {
+		p.cur = p.list[0]
+		p.curCap = p.cur.Cap()
+	}
 }
 
 func (p *mpList) Add(mp MethodProvider) {
