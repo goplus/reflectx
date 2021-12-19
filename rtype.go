@@ -208,13 +208,13 @@ func (t *rtype) IsVariadic() bool {
 // 	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
 // }
 
-type makeFuncImpl struct {
-	code   uintptr
-	stack  *bitVector // ptrmap for both args and results
-	argLen uintptr    // just args
-	ftyp   *funcType
-	fn     func([]reflect.Value) []reflect.Value
-}
+// type makeFuncImpl struct {
+// 	code   uintptr
+// 	stack  *bitVector // ptrmap for both args and results
+// 	argLen uintptr    // just args
+// 	ftyp   *funcType
+// 	fn     func([]reflect.Value) []reflect.Value
+// }
 
 type bitVector struct {
 	n    uint32 // number of bits

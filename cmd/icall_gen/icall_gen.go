@@ -17,9 +17,54 @@ var (
 	presetSize = flag.Int("size", 0, "set methods preset size")
 )
 
-var head = `//go:build (!js || (js && wasm)) && (!go1.17 || (go1.17 && !goexperiment.regabireflect))
+func main() {
+	flag.Parse()
+	if *output == "" || *pkgName == "" || *presetSize == 0 {
+		flag.Usage()
+		return
+	}
+	// write icall.go
+	err := writeFile(*output, *pkgName, *presetSize)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	// write icall_regabi.go
+	err = writeRegAbi(*output, *pkgName, *presetSize)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+}
+
+func writeFile(filename string, pkgName string, size int) error {
+	dir, _ := filepath.Split(filename)
+	if dir != "" {
+		err := os.MkdirAll(dir, 0777)
+		if err != nil {
+			return fmt.Errorf("make dir %v error: %v", dir, err)
+		}
+	}
+
+	var buf bytes.Buffer
+	r := strings.NewReplacer("$pkgname", pkgName, "$max_size", strconv.Itoa(size))
+	buf.WriteString(r.Replace(head))
+
+	fnWrite := func(name string, t string) {
+		buf.WriteString(fmt.Sprintf("\nvar %v = []interface{}{\n", name))
+		for i := 0; i < size; i++ {
+			r := strings.NewReplacer("$index", strconv.Itoa(i))
+			buf.WriteString(r.Replace(t))
+		}
+		buf.WriteString("}\n")
+	}
+	fnWrite("icall_array", templ_fn)
+	return ioutil.WriteFile(filename, buf.Bytes(), 0666)
+}
+
+var head = `//go:build (!js || (js && wasm)) && (!go1.17 || (go1.17 && !goexperiment.regabireflect) || (go1.18 && !amd64) || (go1.18 && !goexperiment.regabireflect))
 // +build !js js,wasm
-// +build !go1.17 go1.17,!goexperiment.regabireflect
+// +build !go1.17 go1.17,!goexperiment.regabireflect go1.18,!amd64 go1.18,!goexperiment.regabireflect
 
 package $pkgname
 
@@ -125,41 +170,3 @@ type unsafeptr = unsafe.Pointer
 
 var templ_fn = `	func(p, a unsafeptr) { i_x($index, p, unsafeptr(&a)) },
 `
-
-func main() {
-	flag.Parse()
-	if *output == "" || *pkgName == "" || *presetSize == 0 {
-		flag.Usage()
-		return
-	}
-	err := writeFile(*output, *pkgName, *presetSize)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-}
-
-func writeFile(filename string, pkgName string, size int) error {
-	dir, _ := filepath.Split(filename)
-	if dir != "" {
-		err := os.MkdirAll(dir, 0777)
-		if err != nil {
-			return fmt.Errorf("make dir %v error: %v", dir, err)
-		}
-	}
-
-	var buf bytes.Buffer
-	r := strings.NewReplacer("$pkgname", pkgName, "$max_size", strconv.Itoa(size))
-	buf.WriteString(r.Replace(head))
-
-	fnWrite := func(name string, t string) {
-		buf.WriteString(fmt.Sprintf("\nvar %v = []interface{}{\n", name))
-		for i := 0; i < size; i++ {
-			r := strings.NewReplacer("$index", strconv.Itoa(i))
-			buf.WriteString(r.Replace(t))
-		}
-		buf.WriteString("}\n")
-	}
-	fnWrite("icall_array", templ_fn)
-	return ioutil.WriteFile(filename, buf.Bytes(), 0666)
-}
