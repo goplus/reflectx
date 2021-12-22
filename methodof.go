@@ -175,7 +175,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn
 func setMethodSet(typ reflect.Type, methods []Method) error {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
-		if n == 0 && methods[i].Type == methods[j].Type {
+		if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
 			panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
 		}
 		return n < 0

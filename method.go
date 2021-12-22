@@ -288,17 +288,17 @@ func NewMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 }
 
 func SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) error {
-	chk := make(map[string]int)
+	chk := make(map[string]Method)
 	for _, m := range methods {
-		chk[m.Name]++
-		if chk[m.Name] > 1 {
+		if v, ok := chk[m.Name]; ok && v.PkgPath == m.PkgPath {
 			return fmt.Errorf("method redeclared: %v", m.Name)
 		}
+		chk[m.Name] = m
 	}
 	if extractStructEmbed && styp.Kind() == reflect.Struct {
 		ms := extractEmbedMethod(styp)
 		for _, m := range ms {
-			if chk[m.Name] == 1 {
+			if _, ok := chk[m.Name]; ok {
 				continue
 			}
 			methods = append(methods, m)
