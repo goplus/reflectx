@@ -20,6 +20,7 @@ func callReflect(ctxt unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r un
 func moveMakeFuncArgPtrs(ctx unsafe.Pointer, r unsafe.Pointer)
 
 var infos []*MethodInfo
+var funcs []reflect.Value
 
 type bitvector struct {
 	n        int32 // # of bits
@@ -77,12 +78,22 @@ type RegArgs struct {
 
 //go:nocheckptr
 func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
-	//mctx := (*reflectMethodValue)(c)
-	info := infos[index]
+	//info := infos[index]
 	//p := unsafe.Pointer(*(**uintptr)(r))
-	// log.Println("methodReflect", mctx.stack, info.Name)
 	//reg := (*RegArgs)(r)
-	//var v0 reflect.Value
+	ctx := tovalue(&funcs[index]).ptr
+	//impl := (*makeFuncImpl)(ctx)
+	moveMakeFuncArgPtrs(ctx, r)
+	callReflect(ctx, add(frame, 8, "frame"), retValid, r)
+}
+
+func spillArgs()
+func unspillArgs()
+
+func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
+	fn := icall_fn[len(infos)]
+	infos = append(infos, info)
+
 	ftyp := info.Func.Type()
 	toPtr := !info.Pointer || info.Indirect
 	if toPtr {
@@ -108,39 +119,8 @@ func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r un
 		}
 		return info.Func.Call(args)
 	})
-	ctx := tovalue(&v).ptr
-	//impl := (*makeFuncImpl)(ctx)
-	//impl.regPtrs = reg.
-	// impl.makeFuncCtxt.stack = mctx.makeFuncCtxt.stack
-	// impl.regPtrs = mctx.makeFuncCtxt.regPtrs
-	// impl.makeFuncCtxt. = mctx.argLen
-	//impl.argLen = uintptr(info.Func.Type().NumIn()) // + info.Func.Type().NumOut())
-	//log.Println("callReflect", impl.argLen, impl)
-	moveMakeFuncArgPtrs(ctx, r)
-	callReflect(ctx, frame, retValid, r)
-}
+	funcs = append(funcs, v)
 
-/*
-	// methodValue contains a stack map for use by the runtime
-	_, _, abi := funcLayout(ftyp, nil)
-	fv := &methodValue{
-		makeFuncCtxt: makeFuncCtxt{
-			fn:      code,
-			stack:   abi.stackPtrs,
-			argLen:  abi.stackCallArgsSize,
-			regPtrs: abi.inRegPtrs,
-		},
-		method: int(v.flag) >> flagMethodShift,
-		rcvr:   rcvr,
-	}
-*/
-
-func spillArgs()
-func unspillArgs()
-
-func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
-	fn := icall_fn[len(infos)]
-	infos = append(infos, info)
 	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
 }
 
