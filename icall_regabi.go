@@ -84,8 +84,10 @@ func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r un
 	ctx := tovalue(&funcs[index]).ptr
 	//impl := (*makeFuncImpl)(ctx)
 	moveMakeFuncArgPtrs(ctx, r)
-	callReflect(ctx, add(frame, 8, "frame"), retValid, r)
+	callReflect(ctx, unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
 }
+
+const ptrSize = (32 << (^uint(0) >> 63)) / 8
 
 func spillArgs()
 func unspillArgs()
