@@ -32,6 +32,7 @@ type reflectMethodValue struct {
 	argLen uintptr    // just args
 }
 
+/*
 type IntArgRegBitmap [(9 + 7) / 8]uint8
 
 // Set sets the i'th bit of the bitmap to 1.
@@ -72,26 +73,67 @@ type RegArgs struct {
 	// register contains or will contain a valid Go pointer.
 	ReturnIsPtr IntArgRegBitmap
 }
+*/
 
+//go:nocheckptr
 func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
+	//mctx := (*reflectMethodValue)(c)
 	info := infos[index]
-	p := unsafe.Pointer(*(**uintptr)(r))
-	reg := (*RegArgs)(r)
-	if !info.Pointer || info.Indirect {
-		reg.Ints[0] = *(*uintptr)(unsafe.Pointer(p))
-	} else {
-		reg.Ints[0] = uintptr(p)
+	//p := unsafe.Pointer(*(**uintptr)(r))
+	// log.Println("methodReflect", mctx.stack, info.Name)
+	//reg := (*RegArgs)(r)
+	//var v0 reflect.Value
+	ftyp := info.Func.Type()
+	toPtr := !info.Pointer || info.Indirect
+	if toPtr {
+		numIn := ftyp.NumIn()
+		numOut := ftyp.NumOut()
+		in := make([]reflect.Type, numIn, numIn)
+		out := make([]reflect.Type, numOut, numOut)
+		in[0] = reflect.PtrTo(info.Type)
+		for i := 1; i < numIn; i++ {
+			in[i] = ftyp.In(i)
+		}
+		for i := 0; i < numOut; i++ {
+			out[i] = ftyp.Out(i)
+		}
+		ftyp = reflect.FuncOf(in, out, ftyp.IsVariadic())
 	}
-	v := reflect.MakeFunc(info.Func.Type(), func(args []reflect.Value) []reflect.Value {
+	v := reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
+		if toPtr {
+			args[0] = args[0].Elem()
+		}
 		if info.Variadic {
 			return info.Func.CallSlice(args)
 		}
 		return info.Func.Call(args)
 	})
 	ctx := tovalue(&v).ptr
+	//impl := (*makeFuncImpl)(ctx)
+	//impl.regPtrs = reg.
+	// impl.makeFuncCtxt.stack = mctx.makeFuncCtxt.stack
+	// impl.regPtrs = mctx.makeFuncCtxt.regPtrs
+	// impl.makeFuncCtxt. = mctx.argLen
+	//impl.argLen = uintptr(info.Func.Type().NumIn()) // + info.Func.Type().NumOut())
+	//log.Println("callReflect", impl.argLen, impl)
 	moveMakeFuncArgPtrs(ctx, r)
 	callReflect(ctx, frame, retValid, r)
 }
+
+/*
+	// methodValue contains a stack map for use by the runtime
+	_, _, abi := funcLayout(ftyp, nil)
+	fv := &methodValue{
+		makeFuncCtxt: makeFuncCtxt{
+			fn:      code,
+			stack:   abi.stackPtrs,
+			argLen:  abi.stackCallArgsSize,
+			regPtrs: abi.inRegPtrs,
+		},
+		method: int(v.flag) >> flagMethodShift,
+		rcvr:   rcvr,
+	}
+*/
 
 func spillArgs()
 func unspillArgs()

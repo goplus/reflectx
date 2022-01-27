@@ -89,6 +89,10 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	NO_LOCAL_POINTERS		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·spillArgs(SB)		\
+	MOVQ	DX, 24(SP)	\
+	MOVQ	DX, 0(SP)	\
+	MOVQ	R12, 8(SP)	\
+	CALL	reflect·moveMakeFuncArgPtrs(SB)	\
 	MOVQ	24(SP), DX		\
 	MOVQ	DX, 0(SP)		\
 	LEAQ	argframe+0(FP), CX		\
