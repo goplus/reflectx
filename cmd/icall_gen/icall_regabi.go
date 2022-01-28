@@ -13,7 +13,7 @@ import (
 func writeRegAbi(filename string, pkgName string, size int) error {
 	dir, f := filepath.Split(filename)
 	if dir != "" {
-		err := os.MkdirAll(dir, 0777)
+		err := os.MkdirAll(dir, 0755)
 		if err != nil {
 			return fmt.Errorf("make dir %v error: %v", dir, err)
 		}
@@ -40,34 +40,29 @@ var (
 `, i, i))
 	}
 
-	err := ioutil.WriteFile(gofile, buf.Bytes(), 0666)
+	err := ioutil.WriteFile(gofile, buf.Bytes(), 0644)
 	if err != nil {
 		return err
 	}
 
-	asm117file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go117_amd64.s", 1))
-	asm118file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go118_amd64.s", 1))
+	asm_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_amd64.s", 1))
 	fnWrite := func(filename string, tmpl string, size int) error {
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
 		for i := 0; i < size; i++ {
 			buf.WriteString(fmt.Sprintf("MAKE_FUNC_FN(·f%v,·x%v)\n", i, i))
 		}
-		return ioutil.WriteFile(filename, buf.Bytes(), 0666)
+		return ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	}
-	err = fnWrite(asm117file, regabi_go117_amd64, size)
-	if err != nil {
-		return err
-	}
-	err = fnWrite(asm118file, regabi_go118_amd64, size)
+	err = fnWrite(asm_amd64_file, regabi_amd64, size)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-var icall_regabi = `//go:build (go1.17 && goexperiment.regabireflect) || (go1.18 && amd64) || (go1.18 && goexperiment.regabireflect)
-// +build go1.17,goexperiment.regabireflect go1.18,amd64 go1.18,goexperiment.regabireflect
+var icall_regabi = `//go:build go1.17 && goexperiment.regabireflect
+// +build go1.17,goexperiment.regabireflect
 
 package $pkgname
 
@@ -86,27 +81,55 @@ type provider struct {
 //go:linkname callReflect reflect.callReflect
 func callReflect(ctxt unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer)
 
-var infos []*reflectx.MethodInfo
+//go:linkname moveMakeFuncArgPtrs reflect.moveMakeFuncArgPtrs
+func moveMakeFuncArgPtrs(ctx unsafe.Pointer, r unsafe.Pointer)
 
-func i_x(index int, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
-	info := infos[index]
-	this := reflect.NewAt(info.Type, unsafe.Pointer(*(**uintptr)(r)))
-	if !info.Pointer || info.Indirect {
-		this = this.Elem()
+var infos []*reflectx.MethodInfo
+var funcs []reflect.Value
+var fnptr []unsafe.Pointer
+
+func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
+	moveMakeFuncArgPtrs(fnptr[index], r)
+	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
+}
+
+const ptrSize = (32 << (^uint(0) >> 63)) / 8
+
+func spillArgs()
+func unspillArgs()
+
+func (p *provider) Push(info *reflectx.MethodInfo) (ifn unsafe.Pointer) {
+	fn := icall_fn[len(infos)]
+	infos = append(infos, info)
+
+	ftyp := info.Func.Type()
+	toPtr := (!info.Pointer && !info.OnePtr) || info.Indirect
+	if toPtr {
+		numIn := ftyp.NumIn()
+		numOut := ftyp.NumOut()
+		in := make([]reflect.Type, numIn, numIn)
+		out := make([]reflect.Type, numOut, numOut)
+		in[0] = reflect.PtrTo(info.Type)
+		for i := 1; i < numIn; i++ {
+			in[i] = ftyp.In(i)
+		}
+		for i := 0; i < numOut; i++ {
+			out[i] = ftyp.Out(i)
+		}
+		ftyp = reflect.FuncOf(in, out, ftyp.IsVariadic())
 	}
-	v := reflect.MakeFunc(info.Func.Type(), func(args []reflect.Value) []reflect.Value {
-		args[0] = this
+	v := reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
+		if toPtr {
+			args[0] = args[0].Elem()
+		}
 		if info.Variadic {
 			return info.Func.CallSlice(args)
 		}
 		return info.Func.Call(args)
 	})
-	callReflect(tovalue(&v).ptr, frame, retValid, r)
-}
+	funcs = append(funcs, v)
+	fnptr = append(fnptr, (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&v)).ptr)
 
-func (p *provider) Push(info *reflectx.MethodInfo) (ifn unsafe.Pointer) {
-	fn := icall_fn[len(infos)]
-	infos = append(infos, info)
 	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
 }
 
@@ -120,6 +143,8 @@ func (p *provider) Cap() int {
 
 func (p *provider) Clear() {
 	infos = nil
+	funcs = nil
+	fnptr = nil
 }
 
 var (
@@ -130,22 +155,11 @@ func init() {
 	reflectx.AddMethodProvider(&mp)
 }
 
-type Value struct {
-	typ  unsafe.Pointer
-	ptr  unsafe.Pointer
-	flag uintptr
-}
-
-func tovalue(v *reflect.Value) *Value {
-	return (*Value)(unsafe.Pointer(v))
-}
-
 type unsafeptr = unsafe.Pointer
-
 `
 
-var regabi_go117_amd64 = `//go:build go1.17 && !go1.18
-// +build go1.17,!go1.18
+var regabi_amd64 = `//go:build go1.17 && goexperiment.regabireflect
+// +build go1.17,goexperiment.regabireflect
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -234,10 +248,6 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	NO_LOCAL_POINTERS		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·spillArgs(SB)		\
-	MOVQ	DX, 24(SP)		\
-	MOVQ	DX, 0(SP)		\
-	MOVQ	R12, 8(SP)		\
-	CALL	reflect·moveMakeFuncArgPtrs(SB)		\
 	MOVQ	24(SP), DX		\
 	MOVQ	DX, 0(SP)		\
 	LEAQ	argframe+0(FP), CX		\
@@ -251,59 +261,5 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·unspillArgs(SB)		\
 	RET
-`
 
-var regabi_go118_amd64 = `//go:build go1.18
-// +build go1.18
-
-
-// Copyright 2012 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-#include "textflag.h"
-#include "funcdata.h"
-#include "go_asm.h"
-
-// The frames of each of the two functions below contain two locals, at offsets
-// that are known to the runtime.
-//
-// The first local is a bool called retValid with a whole pointer-word reserved
-// for it on the stack. The purpose of this word is so that the runtime knows
-// whether the stack-allocated return space contains valid values for stack
-// scanning.
-//
-// The second local is an abi.RegArgs value whose offset is also known to the
-// runtime, so that a stack map for it can be constructed, since it contains
-// pointers visible to the GC.
-#define LOCAL_RETVALID 32
-#define LOCAL_REGARGS 40
-
-// makeFuncStub is the code half of the function returned by MakeFunc.
-// See the comment on the declaration of makeFuncStub in makefunc.go
-// for more details.
-// No arg size here; runtime pulls arg map out of the func value.
-// This frame contains two locals. See the comment above LOCAL_RETVALID.
-#define MAKE_FUNC_FN(NAME,FNCALL)		\
-TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
-	NO_LOCAL_POINTERS		\
-	LEAQ	LOCAL_REGARGS(SP), R12		\
-	CALL	runtime·spillArgs(SB)		\
-	MOVQ	DX, 24(SP)		\
-	MOVQ	DX, 0(SP)		\
-	MOVQ	R12, 8(SP)		\
-	CALL	reflect·moveMakeFuncArgPtrs(SB)		\
-	MOVQ	24(SP), DX		\
-	MOVQ	DX, 0(SP)		\
-	LEAQ	argframe+0(FP), CX		\
-	MOVQ	CX, 8(SP)		\
-	MOVB	$0, LOCAL_RETVALID(SP)		\
-	LEAQ	LOCAL_RETVALID(SP), AX		\
-	MOVQ	AX, 16(SP)		\
-	LEAQ	LOCAL_REGARGS(SP), AX		\
-	MOVQ	AX, 24(SP)		\
-	CALL	FNCALL(SB)		\
-	LEAQ	LOCAL_REGARGS(SP), R12		\
-	CALL	runtime·unspillArgs(SB)		\
-	RET
 `

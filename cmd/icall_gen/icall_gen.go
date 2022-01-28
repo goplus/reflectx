@@ -62,9 +62,8 @@ func writeFile(filename string, pkgName string, size int) error {
 	return ioutil.WriteFile(filename, buf.Bytes(), 0666)
 }
 
-var head = `//go:build (!js || (js && wasm)) && (!go1.17 || (go1.17 && !goexperiment.regabireflect) || (go1.18 && !amd64) || (go1.18 && !goexperiment.regabireflect))
-// +build !js js,wasm
-// +build !go1.17 go1.17,!goexperiment.regabireflect go1.18,!amd64 go1.18,!goexperiment.regabireflect
+var head = `//go:build !go1.17 || (go1.17 && !goexperiment.regabireflect)
+// +build !go1.17 go1.17,!goexperiment.regabireflect
 
 package $pkgname
 

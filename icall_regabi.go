@@ -63,7 +63,7 @@ func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
 		return info.Func.Call(args)
 	})
 	funcs = append(funcs, v)
-	fnptr = append(fnptr, tovalue(&v).ptr)
+	fnptr = append(fnptr, (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&v)).ptr)
 
 	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
 }
@@ -78,6 +78,8 @@ func (p *provider) Cap() int {
 
 func (p *provider) Clear() {
 	infos = nil
+	funcs = nil
+	fnptr = nil
 }
 
 var (
