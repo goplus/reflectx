@@ -6,9 +6,9 @@ Golang reflect package hack tools
 [![Go1.16](https://github.com/goplus/reflectx/workflows/Go1.16/badge.svg)](https://github.com/goplus/reflectx/actions?query=workflow%3AGo1.16)
 [![Go1.17](https://github.com/goplus/reflectx/workflows/Go1.17/badge.svg)](https://github.com/goplus/reflectx/actions?query=workflow%3AGo1.17)
 
-### RegAbi
+### RegAbi ( Go.17/Go1.18 )
 
-* amd64 support Go1.17/Go1.18 regabi
+* amd64 support regabi
 
 * arm64 set env `GOEXPERIMENT=noregabi`
 
