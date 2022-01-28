@@ -4,12 +4,13 @@ Golang reflect package hack tools
 [![Go1.14](https://github.com/goplus/reflectx/workflows/Go1.14/badge.svg)](https://github.com/goplus/reflectx/actions?query=workflow%3AGo1.14)
 [![Go1.15](https://github.com/goplus/reflectx/workflows/Go1.15/badge.svg)](https://github.com/goplus/reflectx/actions?query=workflow%3AGo1.15)
 [![Go1.16](https://github.com/goplus/reflectx/workflows/Go1.16/badge.svg)](https://github.com/goplus/reflectx/actions?query=workflow%3AGo1.16)
+[![Go1.17](https://github.com/goplus/reflectx/workflows/Go1.17/badge.svg)](https://github.com/goplus/reflectx/actions?query=workflow%3AGo1.17)
 
-**Go1.17**
+### RegAbi
 
-set env
+* amd64 support Go1.17/Go1.18 regabi
 
-`GOEXPERIMENT=noregabi`
+* arm64 set env `GOEXPERIMENT=noregabi`
 
 
 ### Field
