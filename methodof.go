@@ -97,6 +97,7 @@ func isMethod(typ reflect.Type) (ok bool) {
 }
 
 type MethodInfo struct {
+	Name     string
 	Func     reflect.Value
 	Type     reflect.Type
 	InTyp    reflect.Type
@@ -221,8 +222,15 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
-		onePtr := checkOneFieldPtr(typ) || typ.Kind() == reflect.Func
+		var onePtr bool
+		switch typ.Kind() {
+		case reflect.Func, reflect.Chan, reflect.Map:
+			onePtr = true
+		default:
+			onePtr = checkOneFieldPtr(typ)
+		}
 		pinfo := &MethodInfo{
+			Name:     m.Name,
 			Type:     typ,
 			Func:     mfn,
 			InTyp:    inTyp,
@@ -242,6 +250,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 
 		if !m.Pointer {
 			info := &MethodInfo{
+				Name:     m.Name,
 				Type:     typ,
 				Func:     mfn,
 				InTyp:    inTyp,

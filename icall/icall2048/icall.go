@@ -1,5 +1,4 @@
-//go:build (!js || (js && wasm)) && (!go1.17 || (go1.17 && !goexperiment.regabireflect))
-// +build !js js,wasm
+//go:build !go1.17 || (go1.17 && !goexperiment.regabireflect)
 // +build !go1.17 go1.17,!goexperiment.regabireflect
 
 package icall
