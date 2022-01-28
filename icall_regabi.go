@@ -97,7 +97,12 @@ func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
 	infos = append(infos, info)
 
 	ftyp := info.Func.Type()
-	toPtr := !info.Pointer || info.Indirect
+	var toPtr bool
+	switch info.Type.Kind() {
+	case reflect.Map, reflect.Func, reflect.Chan:
+	default:
+		toPtr = (!info.Pointer || info.Indirect)
+	}
 	if toPtr {
 		numIn := ftyp.NumIn()
 		numOut := ftyp.NumOut()

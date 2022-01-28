@@ -1196,8 +1196,6 @@ func TestFunc(t *testing.T) {
 	if r := reflectx.MethodByIndex(typ, 0).Func.Call([]reflect.Value{v, reflect.ValueOf(100)}); r[0].String() != "100" {
 		t.Fail()
 	}
-	return
-	// TODO fixed
 	if r := v.Method(0).Call([]reflect.Value{reflect.ValueOf(100)}); r[0].String() != "100" {
 		t.Fail()
 	}
