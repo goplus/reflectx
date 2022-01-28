@@ -931,7 +931,7 @@ func TestEmbedMethods1(t *testing.T) {
 }
 
 // TODO fixed
-func _TestEmbedMethods2(t *testing.T) {
+func TestEmbedMethods2(t *testing.T) {
 	// MyPoint2
 	typ := reflect.TypeOf((*MyPoint2)(nil)).Elem()
 	if v := typ.NumMethod(); v != 5 {
