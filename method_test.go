@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/goplus/reflectx"
 )
@@ -1198,5 +1199,76 @@ func TestFunc(t *testing.T) {
 	}
 	if r := v.Method(0).Call([]reflect.Value{reflect.ValueOf(100)}); r[0].String() != "100" {
 		t.Fail()
+	}
+}
+
+type chanType chan int
+
+func (ch chanType) Send(n int) {
+	ch <- n
+}
+
+func (ch chanType) Recv() (n int) {
+	t := time.NewTimer(1e9)
+	defer t.Stop()
+	select {
+	case n = <-ch:
+	case <-t.C:
+		n = -1
+	}
+	return
+}
+
+func TestChan(t *testing.T) {
+	c := make(chanType)
+	go func() {
+		c.Send(100)
+	}()
+	if n := c.Recv(); n != 100 {
+		t.Fatalf("recv %v", n)
+	}
+	styp := reflectx.NamedTypeOf("main", "chanType", reflect.TypeOf((chan int)(nil)))
+	typ := reflectx.NewMethodSet(styp, 2, 2)
+	mSend := reflectx.MakeMethod(
+		"Send",
+		"main",
+		false,
+		reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
+		func(args []reflect.Value) []reflect.Value {
+			args[0].Send(args[1])
+			return nil
+		})
+	mRecv := reflectx.MakeMethod(
+		"Recv",
+		"main",
+		false,
+		reflect.FuncOf(nil, []reflect.Type{tyInt}, false),
+		func(args []reflect.Value) []reflect.Value {
+			t := time.NewTimer(1e9)
+			n, r, _ := reflect.Select([]reflect.SelectCase{
+				{reflect.SelectRecv, args[0], reflect.Value{}},
+				{reflect.SelectRecv, reflect.ValueOf(t.C), reflect.Value{}},
+			})
+			if n != 0 {
+				return []reflect.Value{reflect.ValueOf(-1)}
+			}
+			return []reflect.Value{r}
+		})
+	err := reflectx.SetMethodSet(typ, []reflectx.Method{
+		mSend,
+		mRecv,
+	}, false)
+	if err != nil {
+		t.Errorf("SetMethodSet error: %v", err)
+	}
+	if typ.NumMethod() != 2 {
+		t.Fatal()
+	}
+	ch := reflect.MakeChan(typ, 0)
+	go func() {
+		ch.MethodByName("Send").Call([]reflect.Value{reflect.ValueOf(100)})
+	}()
+	if r := ch.MethodByName("Recv").Call(nil); r[0].Int() != 100 {
+		t.Fatalf("recv %v", r[0])
 	}
 }
