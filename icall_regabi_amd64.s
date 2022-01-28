@@ -1,5 +1,5 @@
-//go:build go1.17 && goexperiment.regabireflect && !go1.18
-// +build go1.17,goexperiment.regabireflect,!go1.18
+//go:build go1.17 && goexperiment.regabireflect
+// +build go1.17,goexperiment.regabireflect
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -23,6 +23,7 @@
 #define LOCAL_RETVALID 32
 #define LOCAL_REGARGS 40
 
+// spillArgs stores return values from registers to a *internal/abi.RegArgs in R12.
 TEXT ·spillArgs(SB),NOSPLIT,$0-0
 	MOVQ AX, 0(R12)
 	MOVQ BX, 8(R12)

@@ -1,5 +1,5 @@
-//go:build !go1.17 || (go1.17 && !goexperiment.regabireflect) || (go1.18 && !amd64) || (go1.18 && !goexperiment.regabireflect)
-// +build !go1.17 go1.17,!goexperiment.regabireflect go1.18,!amd64 go1.18,!goexperiment.regabireflect
+//go:build !go1.17 || (go1.17 && !goexperiment.regabireflect)
+// +build !go1.17 go1.17,!goexperiment.regabireflect
 
 package reflectx
 

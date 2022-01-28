@@ -1,5 +1,5 @@
-//go:build (go1.17 && goexperiment.regabireflect) || (go1.18 && amd64) || (go1.18 && goexperiment.regabireflect)
-// +build go1.17,goexperiment.regabireflect go1.18,amd64 go1.18,goexperiment.regabireflect
+//go:build go1.17 && goexperiment.regabireflect
+// +build go1.17,goexperiment.regabireflect
 
 package reflectx
 
@@ -21,70 +21,12 @@ func moveMakeFuncArgPtrs(ctx unsafe.Pointer, r unsafe.Pointer)
 
 var infos []*MethodInfo
 var funcs []reflect.Value
-
-type bitvector struct {
-	n        int32 // # of bits
-	bytedata *uint8
-}
-
-type reflectMethodValue struct {
-	fn     uintptr
-	stack  *bitvector // ptrmap for both args and results
-	argLen uintptr    // just args
-}
-
-/*
-type IntArgRegBitmap [(9 + 7) / 8]uint8
-
-// Set sets the i'th bit of the bitmap to 1.
-func (b *IntArgRegBitmap) Set(i int) {
-	b[i/8] |= uint8(1) << (i % 8)
-}
+var fnptr []unsafe.Pointer
 
 //go:nosplit
-func (b *IntArgRegBitmap) Get(i int) bool {
-	return b[i/8]&(uint8(1)<<(i%8)) != 0
-}
-
-const IntArgRegs = 9
-const FloatArgRegs = 15
-
-type RegArgs struct {
-	// Values in these slots should be precisely the bit-by-bit
-	// representation of how they would appear in a register.
-	//
-	// This means that on big endian arches, integer values should
-	// be in the top bits of the slot. Floats are usually just
-	// directly represented, but some architectures treat narrow
-	// width floating point values specially (e.g. they're promoted
-	// first, or they need to be NaN-boxed).
-	Ints   [IntArgRegs]uintptr  // untyped integer registers
-	Floats [FloatArgRegs]uint64 // untyped float registers
-
-	// Fields above this point are known to assembly.
-
-	// Ptrs is a space that duplicates Ints but with pointer type,
-	// used to make pointers passed or returned  in registers
-	// visible to the GC by making the type unsafe.Pointer.
-	Ptrs [IntArgRegs]unsafe.Pointer
-
-	// ReturnIsPtr is a bitmap that indicates which registers
-	// contain or will contain pointers on the return path from
-	// a reflectcall. The i'th bit indicates whether the i'th
-	// register contains or will contain a valid Go pointer.
-	ReturnIsPtr IntArgRegBitmap
-}
-*/
-
-//go:nocheckptr
 func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
-	//info := infos[index]
-	//p := unsafe.Pointer(*(**uintptr)(r))
-	//reg := (*RegArgs)(r)
-	ctx := tovalue(&funcs[index]).ptr
-	//impl := (*makeFuncImpl)(ctx)
-	moveMakeFuncArgPtrs(ctx, r)
-	callReflect(ctx, unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
+	moveMakeFuncArgPtrs(fnptr[index], r)
+	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
 }
 
 const ptrSize = (32 << (^uint(0) >> 63)) / 8
@@ -122,6 +64,7 @@ func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
 		return info.Func.Call(args)
 	})
 	funcs = append(funcs, v)
+	fnptr = append(fnptr, tovalue(&v).ptr)
 
 	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
 }
