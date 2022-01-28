@@ -23,7 +23,6 @@ var infos []*MethodInfo
 var funcs []reflect.Value
 var fnptr []unsafe.Pointer
 
-//go:nosplit
 func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
 	moveMakeFuncArgPtrs(fnptr[index], r)
 	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)

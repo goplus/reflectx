@@ -281,7 +281,7 @@ var testInterfaceType = []reflect.Type{
 }
 
 func TestNamedInterface(t *testing.T) {
-	pkgpath := reflect.TypeOf((*interface{})(nil)).Elem().PkgPath()
+	pkgpath := "main"
 	for i, styp := range testInterfaceType {
 		name := fmt.Sprintf("T%v", i)
 		typ := reflectx.NamedTypeOf(pkgpath, name, styp)
