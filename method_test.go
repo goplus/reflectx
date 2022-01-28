@@ -1272,3 +1272,70 @@ func TestChan(t *testing.T) {
 		t.Fatalf("recv %v", r[0])
 	}
 }
+
+type Map map[int]string
+
+func (m Map) Set(k int, v string) {
+	m[k] = v
+}
+
+func (m Map) Get(k int) (string, bool) {
+	r, ok := m[k]
+	return r, ok
+}
+
+func TestMap(t *testing.T) {
+	{
+		m := make(Map)
+		m.Set(100, "Hello")
+		r, ok := m.Get(100)
+		if !ok {
+			t.Fail()
+		}
+		if r != "Hello" {
+			t.Fail()
+		}
+	}
+	styp := reflectx.NamedTypeOf("main", "Map", reflect.TypeOf((*map[int]string)(nil)).Elem())
+	typ := reflectx.NewMethodSet(styp, 2, 2)
+	mSet := reflectx.MakeMethod(
+		"Set",
+		"main",
+		false,
+		reflect.FuncOf([]reflect.Type{tyInt, tyString}, nil, false),
+		func(args []reflect.Value) []reflect.Value {
+			args[0].SetMapIndex(args[1], args[2])
+			return nil
+		})
+	mGet := reflectx.MakeMethod(
+		"Get",
+		"main",
+		false,
+		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{tyString, tyBool}, false),
+		func(args []reflect.Value) []reflect.Value {
+			r := args[0].MapIndex(args[1])
+			if r.IsValid() {
+				return []reflect.Value{r, reflect.ValueOf(true)}
+			}
+			return []reflect.Value{r, reflect.ValueOf(false)}
+		})
+	err := reflectx.SetMethodSet(typ, []reflectx.Method{
+		mSet,
+		mGet,
+	}, false)
+	if err != nil {
+		t.Errorf("SetMethodSet error: %v", err)
+	}
+	if typ.NumMethod() != 2 {
+		t.Fatal()
+	}
+	v := reflect.MakeMap(typ)
+	v.MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(100), reflect.ValueOf("Hello")})
+	r := v.MethodByName("Get").Call([]reflect.Value{reflect.ValueOf(100)})
+	if len(r) != 2 {
+		t.Fail()
+	}
+	if fmt.Sprint(r[0]) != "Hello" || fmt.Sprint(r[1]) != "true" {
+		t.Fatal(r[0], r[1])
+	}
+}
