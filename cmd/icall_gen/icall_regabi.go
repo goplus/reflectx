@@ -33,12 +33,6 @@ var (
 	icall_fn = []func(){%v}
 )
 `, strings.Join(ar, ",")))
-	for i := 0; i < size; i++ {
-		buf.WriteString(fmt.Sprintf(`func x%v(c unsafeptr, f unsafeptr, v *bool, r unsafeptr) {
-	i_x(%v, c, f, v, r)
-}
-`, i, i))
-	}
 
 	err := ioutil.WriteFile(gofile, buf.Bytes(), 0644)
 	if err != nil {
@@ -50,7 +44,7 @@ var (
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
 		for i := 0; i < size; i++ {
-			buf.WriteString(fmt.Sprintf("MAKE_FUNC_FN(·f%v,·x%v)\n", i, i))
+			buf.WriteString(fmt.Sprintf("MAKE_FUNC_FN(·f%v,%v)\n", i, i))
 		}
 		return ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	}
@@ -155,7 +149,6 @@ func init() {
 	reflectx.AddMethodProvider(&mp)
 }
 
-type unsafeptr = unsafe.Pointer
 `
 
 var regabi_amd64 = `//go:build go1.17 && goexperiment.regabireflect
@@ -243,7 +236,7 @@ TEXT ·unspillArgs(SB),NOSPLIT,$0-0
 // for more details.
 // No arg size here; runtime pulls arg map out of the func value.
 // This frame contains two locals. See the comment above LOCAL_RETVALID.
-#define MAKE_FUNC_FN(NAME,FNCALL)		\
+#define MAKE_FUNC_FN(NAME,INDEX)		\
 TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	NO_LOCAL_POINTERS		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
@@ -257,7 +250,9 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	MOVQ	AX, 16(SP)		\
 	LEAQ	LOCAL_REGARGS(SP), AX		\
 	MOVQ	AX, 24(SP)		\
-	CALL	FNCALL(SB)		\
+	MOVQ	$INDEX, AX		\
+	MOVQ	AX, 32(SP)		\
+	CALL	·i_x(SB)		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·unspillArgs(SB)		\
 	RET
