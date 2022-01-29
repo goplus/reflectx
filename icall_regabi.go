@@ -90,8 +90,6 @@ func init() {
 	AddMethodProvider(&mp)
 }
 
-type unsafeptr = unsafe.Pointer
-
 func f0()
 func f1()
 func f2()
