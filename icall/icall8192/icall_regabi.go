@@ -25,7 +25,7 @@ var infos []*reflectx.MethodInfo
 var funcs []reflect.Value
 var fnptr []unsafe.Pointer
 
-func i_x(index int, c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer) {
+func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
 	moveMakeFuncArgPtrs(fnptr[index], r)
 	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
 }
