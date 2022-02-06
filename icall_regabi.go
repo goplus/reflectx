@@ -23,12 +23,15 @@ var infos []*MethodInfo
 var funcs []reflect.Value
 var fnptr []unsafe.Pointer
 
-func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
+func i_amd64(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
 	moveMakeFuncArgPtrs(fnptr[index], r)
-	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
+	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+8), retValid, r)
 }
 
-const ptrSize = (32 << (^uint(0) >> 63)) / 8
+func i_arm64(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
+	moveMakeFuncArgPtrs(fnptr[index], r)
+	callReflect(fnptr[index], frame, retValid, r)
+}
 
 func spillArgs()
 func unspillArgs()

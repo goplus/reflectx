@@ -40,6 +40,7 @@ var (
 	}
 
 	asm_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_amd64.s", 1))
+	asm_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_arm64.s", 1))
 	fnWrite := func(filename string, tmpl string, size int) error {
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
@@ -49,6 +50,10 @@ var (
 		return ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	}
 	err = fnWrite(asm_amd64_file, regabi_amd64, size)
+	if err != nil {
+		return err
+	}
+	err = fnWrite(asm_arm64_file, regabi_arm64, size)
 	if err != nil {
 		return err
 	}
@@ -82,12 +87,15 @@ var infos []*reflectx.MethodInfo
 var funcs []reflect.Value
 var fnptr []unsafe.Pointer
 
-func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
+func i_amd64(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
 	moveMakeFuncArgPtrs(fnptr[index], r)
-	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+ptrSize), retValid, r)
+	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+8), retValid, r)
 }
 
-const ptrSize = (32 << (^uint(0) >> 63)) / 8
+func i_arm64(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
+	moveMakeFuncArgPtrs(fnptr[index], r)
+	callReflect(fnptr[index], frame, retValid, r)
+}
 
 func spillArgs()
 func unspillArgs()
@@ -252,9 +260,63 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	MOVQ	AX, 24(SP)		\
 	MOVQ	$INDEX, AX		\
 	MOVQ	AX, 32(SP)		\
-	CALL	·i_x(SB)		\
+	CALL	·i_amd64(SB)		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·unspillArgs(SB)		\
+	RET
+
+`
+
+var regabi_arm64 = `//go:build go1.18 && goexperiment.regabireflect
+// +build go1.18,goexperiment.regabireflect
+
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+#include "textflag.h"
+#include "funcdata.h"
+
+// The frames of each of the two functions below contain two locals, at offsets
+// that are known to the runtime.
+//
+// The first local is a bool called retValid with a whole pointer-word reserved
+// for it on the stack. The purpose of this word is so that the runtime knows
+// whether the stack-allocated return space contains valid values for stack
+// scanning.
+//
+// The second local is an abi.RegArgs value whose offset is also known to the
+// runtime, so that a stack map for it can be constructed, since it contains
+// pointers visible to the GC.
+#define LOCAL_RETVALID 40
+#define LOCAL_REGARGS 48
+
+// The frame size of the functions below is
+// 32 (args of callReflect) + 8 (bool + padding) + 392 (abi.RegArgs) = 432.
+
+// makeFuncStub is the code half of the function returned by MakeFunc.
+// See the comment on the declaration of makeFuncStub in makefunc.go
+// for more details.
+// No arg size here, runtime pulls arg map out of the func value.
+#define MAKE_FUNC_FN(NAME,INDEX)		\
+TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
+	NO_LOCAL_POINTERS		\
+	ADD	$LOCAL_REGARGS, RSP, R20		\
+	CALL	runtime·spillArgs(SB)		\
+	MOVD	32(RSP), R26		\
+	MOVD	R26, 8(RSP)		\
+	MOVD	$argframe+0(FP), R3		\
+	MOVD	R3, 16(RSP)		\
+	MOVB	$0, LOCAL_RETVALID(RSP)		\
+	ADD	$LOCAL_RETVALID, RSP, R3		\
+	MOVD	R3, 24(RSP)		\
+	ADD	$LOCAL_REGARGS, RSP, R3		\
+	MOVD	R3, 32(RSP)		\
+	MOVD	$INDEX, R3		\
+	MOVD	R3, 40(RSP)		\
+	CALL	·i_arm64(SB)		\
+	ADD	$LOCAL_REGARGS, RSP, R20		\
+	CALL	runtime·unspillArgs(SB)		\
 	RET
 
 `

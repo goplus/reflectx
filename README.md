@@ -9,8 +9,8 @@ Golang reflect package hack tools
 ### RegAbi ( Go.17/Go1.18 )
 
 * amd64 support regabi
-
-* arm64 set env `GOEXPERIMENT=noregabi` on Go1.18
+* arm64 support regabi
+* ppc64/ppc64le set env `GOEXPERIMENT=noregabi` on Go1.18
 
 
 ### Field
@@ -47,7 +47,7 @@ Golang reflect package hack tools
 ```
 import _ "github.com/goplus/reflectx/icall/icall[2^n]"
 ```
-* custom
+* install icall_gen
 ```
 go get github.com/goplus/reflectx/cmd/icall_gen
 ```
