@@ -90,7 +90,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	CALL	·spillArgs(SB)		\
 	MOVQ	24(SP), DX		\
 	MOVQ	DX, 0(SP)		\
-	LEAQ	argframe+0(FP), CX		\
+	LEAQ	argframe+8(FP), CX		\
 	MOVQ	CX, 8(SP)		\
 	MOVB	$0, LOCAL_RETVALID(SP)		\
 	LEAQ	LOCAL_RETVALID(SP), AX		\
@@ -99,7 +99,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	MOVQ	AX, 24(SP)		\
 	MOVQ	$INDEX, AX		\
 	MOVQ	AX, 32(SP)		\
-	CALL	·i_amd64(SB)		\
+	CALL	·i_x(SB)		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·unspillArgs(SB)		\
 	RET
