@@ -49,7 +49,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$336		\
 	MOVD	R3, FIXED_FRAME+24(R1)		\
 	MOVD	$INDEX, R3		\
 	MOVD	R3, FIXED_FRAME+32(R1)		\
-	BL	·i_ppc64x(SB)		\
+	BL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, R1, R20		\
 	CALL	runtime·unspillArgs(SB)		\
 	RET

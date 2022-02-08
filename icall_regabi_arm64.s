@@ -45,7 +45,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
 	MOVD	R3, 32(RSP)		\
 	MOVD	$INDEX, R3		\
 	MOVD	R3, 40(RSP)		\
-	CALL	·i_arm64(SB)		\
+	CALL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, RSP, R20		\
 	CALL	runtime·unspillArgs(SB)		\
 	RET

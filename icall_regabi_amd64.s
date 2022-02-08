@@ -84,6 +84,7 @@ TEXT ·unspillArgs(SB),NOSPLIT,$0-0
 // for more details.
 // No arg size here; runtime pulls arg map out of the func value.
 // This frame contains two locals. See the comment above LOCAL_RETVALID.
+// amd64 argframe+8(FP) offset to func from method
 #define MAKE_FUNC_FN(NAME,INDEX)		\
 TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	NO_LOCAL_POINTERS		\
@@ -91,7 +92,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	CALL	·spillArgs(SB)		\
 	MOVQ	24(SP), DX		\
 	MOVQ	DX, 0(SP)		\
-	LEAQ	argframe+0(FP), CX		\
+	LEAQ	argframe+8(FP), CX		\
 	MOVQ	CX, 8(SP)		\
 	MOVB	$0, LOCAL_RETVALID(SP)		\
 	LEAQ	LOCAL_RETVALID(SP), AX		\
@@ -100,7 +101,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	MOVQ	AX, 24(SP)		\
 	MOVQ	$INDEX, AX		\
 	MOVQ	AX, 32(SP)		\
-	CALL	·i_amd64(SB)		\
+	CALL	·i_x(SB)		\
 	LEAQ	LOCAL_REGARGS(SP), R12		\
 	CALL	·unspillArgs(SB)		\
 	RET
