@@ -33,6 +33,11 @@ func i_arm64(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Po
 	callReflect(fnptr[index], frame, retValid, r)
 }
 
+func i_ppc64x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
+	moveMakeFuncArgPtrs(fnptr[index], r)
+	callReflect(fnptr[index], unsafe.Pointer(uintptr(frame)+8), retValid, r)
+}
+
 func spillArgs()
 func unspillArgs()
 
