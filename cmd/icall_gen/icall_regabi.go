@@ -101,12 +101,9 @@ func spillArgs()
 func unspillArgs()
 
 func (p *provider) Push(info *reflectx.MethodInfo) (ifn unsafe.Pointer) {
-	fn := icall_fn[len(infos)]
-	infos = append(infos, info)
-
-	ftyp := info.Func.Type()
-	toPtr := (!info.Pointer && !info.OnePtr) || info.Indirect
-	if toPtr {
+	var fn reflect.Value
+	if (!info.Pointer && !info.OnePtr) || info.Indirect {
+		ftyp := info.Func.Type()
 		numIn := ftyp.NumIn()
 		numOut := ftyp.NumOut()
 		in := make([]reflect.Type, numIn, numIn)
@@ -119,20 +116,21 @@ func (p *provider) Push(info *reflectx.MethodInfo) (ifn unsafe.Pointer) {
 			out[i] = ftyp.Out(i)
 		}
 		ftyp = reflect.FuncOf(in, out, ftyp.IsVariadic())
-	}
-	v := reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
-		if toPtr {
+		fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
 			args[0] = args[0].Elem()
-		}
-		if info.Variadic {
-			return info.Func.CallSlice(args)
-		}
-		return info.Func.Call(args)
-	})
-	funcs = append(funcs, v)
-	fnptr = append(fnptr, (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&v)).ptr)
-
-	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
+			if info.Variadic {
+				return info.Func.CallSlice(args)
+			}
+			return info.Func.Call(args)
+		})
+	} else {
+		fn = info.Func
+	}
+	funcs = append(funcs, fn)
+	fnptr = append(fnptr, (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&fn)).ptr)
+	icall := icall_fn[len(infos)]
+	infos = append(infos, info)
+	return unsafe.Pointer(reflect.ValueOf(icall).Pointer())
 }
 
 func (p *provider) Len() int {
