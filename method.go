@@ -176,26 +176,6 @@ func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
 	return true
 }
 
-// func UpdateMethod(typ reflect.Type, methods []Method, rmap map[reflect.Type]reflect.Type) bool {
-// 	chk := make(map[string]int)
-// 	for _, m := range methods {
-// 		chk[m.Name]++
-// 		if chk[m.Name] > 1 {
-// 			panic(fmt.Sprintf("method redeclared: %v", m.Name))
-// 		}
-// 	}
-// 	if typ.Kind() == reflect.Struct {
-// 		ms := extractEmbedMethod(typ)
-// 		for _, m := range ms {
-// 			if chk[m.Name] == 1 {
-// 				continue
-// 			}
-// 			methods = append(methods, m)
-// 		}
-// 	}
-// 	return updateMethod(typ, methods, rmap)
-// }
-
 func Reset() {
 	resetMethodList()
 	ntypeMap = make(map[reflect.Type]*Named)
@@ -237,31 +217,6 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	embedLookupCache[styp] = typ
 	return typ
 }
-
-// func MethodOf(styp reflect.Type, methods []Method) reflect.Type {
-// 	chk := make(map[string]int)
-// 	for _, m := range methods {
-// 		chk[m.Name]++
-// 		if chk[m.Name] > 1 {
-// 			panic(fmt.Sprintf("method redeclared: %v", m.Name))
-// 		}
-// 	}
-// 	if styp.Kind() == reflect.Struct {
-// 		ms := extractEmbedMethod(styp)
-// 		for _, m := range ms {
-// 			if chk[m.Name] == 1 {
-// 				continue
-// 			}
-// 			methods = append(methods, m)
-// 		}
-// 	}
-// 	typ := methodSetOf(styp, len(methods), len(methods))
-// 	err := loadMethods(typ, methods)
-// 	if err != nil {
-// 		log.Panicln("error loadMethods", err)
-// 	}
-// 	return typ
-// }
 
 // NewMethodSet is pre define method set of styp
 // maxmfunc - set methodset of T max member func
