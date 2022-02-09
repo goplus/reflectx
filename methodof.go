@@ -211,6 +211,13 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 	ms := rt.methods()
 	pms := prt.methods()
 
+	var onePtr bool
+	switch typ.Kind() {
+	case reflect.Func, reflect.Chan, reflect.Map:
+		onePtr = true
+	case reflect.Struct:
+		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
+	}
 	var index int
 	for i, m := range methods {
 		isexport := methodIsExported(m.Name)
@@ -222,13 +229,6 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
-		var onePtr bool
-		switch typ.Kind() {
-		case reflect.Func, reflect.Chan, reflect.Map:
-			onePtr = true
-		default:
-			onePtr = checkOneFieldPtr(typ)
-		}
 		pinfo := &MethodInfo{
 			Name:     m.Name,
 			Type:     typ,
@@ -285,12 +285,6 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 		ntypeMap[typ] = &Named{Name: nt.Name, PkgPath: nt.PkgPath, Type: typ, From: nt.From, Kind: nt.Kind}
 	}
 	return typ
-}
-
-func checkOneFieldPtr(typ reflect.Type) bool {
-	return typ.Kind() == reflect.Struct &&
-		typ.NumField() == 1 &&
-		typ.Field(0).Type.Kind() == reflect.Ptr
 }
 
 const (
