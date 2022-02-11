@@ -46,14 +46,18 @@ func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
 		for i := 0; i < numOut; i++ {
 			out[i] = ftyp.Out(i)
 		}
-		ftyp = reflect.FuncOf(in, out, ftyp.IsVariadic())
-		fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
-			args[0] = args[0].Elem()
-			if info.Variadic {
+		ftyp = reflect.FuncOf(in, out, info.Variadic)
+		if info.Variadic {
+			fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
+				args[0] = args[0].Elem()
 				return info.Func.CallSlice(args)
-			}
-			return info.Func.Call(args)
-		})
+			})
+		} else {
+			fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
+				args[0] = args[0].Elem()
+				return info.Func.Call(args)
+			})
+		}
 	} else {
 		fn = info.Func
 	}
