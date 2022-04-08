@@ -241,8 +241,12 @@ type funcType struct {
 type offFuncType struct {
 	funcType
 	uncommonType
-	args [128]*rtype
+	args [1]*rtype // 1 ~ 128
 }
+
+var (
+	typOfType = reflect.TypeOf((*rtype)(nil))
+)
 
 func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	rt := totype(typ)
@@ -302,9 +306,13 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 				args[index+i] = totype(styp.Out(i))
 			}
 			dst := (*offFuncType)(unsafe.Pointer(rt))
-			for i, a := range args {
-				dst.args[i] = a
-			}
+			// for i, a := range args {
+			// 	dst.args[i] = a
+			// }
+			// dynamic array for race
+			typ := reflect.ArrayOf(int(narg), typOfType)
+			ar := reflect.NewAt(typ, unsafe.Pointer(&dst.args)).Elem()
+			copy(ar.Slice(0, int(narg)).Interface().([]*rtype), args)
 		}
 	}
 	rt.size = ort.size
