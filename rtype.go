@@ -238,15 +238,16 @@ type funcType struct {
 	outCount uint16 // top bit is set if last input parameter is ...
 }
 
-type offFuncType struct {
+type uncommonFuncType struct {
 	funcType
 	uncommonType
-	args [1]*rtype // 1 ~ 128
+	args [1]*rtype
 }
 
-var (
-	typOfType = reflect.TypeOf((*rtype)(nil))
-)
+func uncommonFuncTypeArgs(rt *rtype, nargs int) []*rtype {
+	f := (*uncommonFuncType)(unsafe.Pointer(rt))
+	return (*[1 << 16]*rtype)(unsafe.Pointer(&f.args))[:nargs:nargs]
+}
 
 func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	rt := totype(typ)
@@ -297,22 +298,14 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		st.outCount = ost.outCount
 		narg := ost.inCount + ost.outCount
 		if narg > 0 {
-			args := make([]*rtype, narg, narg)
-			for i := 0; i < styp.NumIn(); i++ {
+			args := uncommonFuncTypeArgs(rt, int(narg))
+			var i int
+			for i = 0; i < int(st.inCount); i++ {
 				args[i] = totype(styp.In(i))
 			}
-			index := styp.NumIn()
-			for i := 0; i < styp.NumOut(); i++ {
-				args[index+i] = totype(styp.Out(i))
+			for j := 0; j < int(st.outCount); j++ {
+				args[i+j] = totype(styp.Out(j))
 			}
-			dst := (*offFuncType)(unsafe.Pointer(rt))
-			// for i, a := range args {
-			// 	dst.args[i] = a
-			// }
-			// dynamic array for race
-			typ := reflect.ArrayOf(int(narg), typOfType)
-			ar := reflect.NewAt(typ, unsafe.Pointer(&dst.args)).Elem()
-			copy(ar.Slice(0, int(narg)).Interface().([]*rtype), args)
 		}
 	}
 	rt.size = ort.size
