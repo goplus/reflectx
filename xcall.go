@@ -30,6 +30,9 @@ func (t *rtype) MethodX(i int) (m reflect.Method) {
 	m.Name = pname.name()
 	m.Index = i
 	fl := flag(reflect.Func)
+	if t.tflag&tflagUserMethod != 0 {
+		fl |= flagIndir
+	}
 	mtyp := t.typeOff(p.mtyp)
 	if mtyp == nil {
 		return
@@ -56,13 +59,11 @@ func (t *rtype) MethodByNameX(name string) (m reflect.Method, ok bool) {
 	if t.Kind() == reflect.Interface {
 		return toType(t).MethodByName(name)
 	}
-	ut := t.uncommon()
-	if ut == nil {
-		return reflect.Method{}, false
-	}
-	for i, p := range ut.methods() {
-		if t.nameOff(p.name).name() == name {
-			return t.MethodX(i), true
+	if ut := t.uncommon(); ut != nil {
+		for i, p := range ut.methods() {
+			if t.nameOff(p.name).name() == name {
+				return t.MethodX(i), true
+			}
 		}
 	}
 	return reflect.Method{}, false
