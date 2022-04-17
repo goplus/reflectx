@@ -136,6 +136,9 @@ const (
 	// tflagRegularMemory means that equal and hash functions can treat
 	// this type as a single region of t.size bytes.
 	tflagRegularMemory tflag = 1 << 3
+
+	// tflagUserMethod means the type has reflctx user methods
+	tflagUserMethod tflag = 1 << 7
 )
 
 type rtype struct {

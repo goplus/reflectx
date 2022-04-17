@@ -78,12 +78,10 @@ func AddMethodProvider(mp MethodProvider) {
 }
 
 var (
-	methodType = make(map[reflect.Type]bool)
-	mps        mpList
+	mps mpList
 )
 
 func resetMethodList() {
-	methodType = make(map[reflect.Type]bool)
 	mps.Clear()
 }
 
@@ -92,9 +90,9 @@ func registerMethod(info *MethodInfo) (ifn unsafe.Pointer) {
 	return mps.Push(info)
 }
 
-func isMethod(typ reflect.Type) (ok bool) {
-	return methodType[typ]
-}
+// func isMethod(typ reflect.Type) (ok bool) {
+// 	return totype(typ).tflag&tflagUserMethod != 0
+// }
 
 type MethodInfo struct {
 	Name     string
@@ -111,23 +109,11 @@ type MethodInfo struct {
 }
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
-	//m := typ.Method(index)
-	m := totype(typ).MethodX(index)
-	if isMethod(typ) {
-		tovalue(&m.Func).flag |= flagIndir
-	}
-	return m
+	return totype(typ).MethodX(index)
 }
 
 func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
-	//m, ok = typ.MethodByName(name)
 	m, ok = totype(typ).MethodByNameX(name)
-	if !ok {
-		return
-	}
-	if isMethod(typ) {
-		tovalue(&m.Func).flag |= flagIndir
-	}
 	return
 }
 
@@ -268,8 +254,8 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 			index++
 		}
 	}
-	methodType[typ] = true
-	methodType[ptyp] = true
+	rt.tflag |= tflagUserMethod
+	prt.tflag |= tflagUserMethod
 	return nil
 }
 
