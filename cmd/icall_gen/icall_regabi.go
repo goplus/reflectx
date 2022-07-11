@@ -42,6 +42,7 @@ var (
 	asm_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_amd64.s", 1))
 	asm_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_arm64.s", 1))
 	asm_ppc64x_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_ppc64x.s", 1))
+	asm_riscv64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_riscv64.s", 1))
 	fnWrite := func(filename string, tmpl string, size int) error {
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
@@ -62,11 +63,15 @@ var (
 	if err != nil {
 		return err
 	}
+	err = fnWrite(asm_riscv64_file, regabi_riscv64, size)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-var icall_regabi = `//go:build go1.17 && goexperiment.regabireflect
-// +build go1.17,goexperiment.regabireflect
+var icall_regabi = `//go:build (go1.17 && goexperiment.regabireflect) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le)
+// +build go1.17,goexperiment.regabireflect go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le
 
 package $pkgname
 
@@ -161,8 +166,8 @@ func init() {
 
 `
 
-var regabi_amd64 = `//go:build go1.17 && goexperiment.regabireflect
-// +build go1.17,goexperiment.regabireflect
+var regabi_amd64 = `//go:build (go1.17 && goexperiment.regabireflect) || go1.18
+// +build go1.17,goexperiment.regabireflect go1.18
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -269,8 +274,8 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 
 `
 
-var regabi_arm64 = `//go:build go1.18 && goexperiment.regabireflect
-// +build go1.18,goexperiment.regabireflect
+var regabi_arm64 = `//go:build (go1.18 && goexperiment.regabireflect) || go1.19
+// +build go1.18,goexperiment.regabireflect go1.19
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -323,9 +328,8 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
 
 `
 
-var regabi_ppc64x = `//go:build go1.18 && goexperiment.regabireflect && (ppc64 || ppc64le)
-// +build go1.18
-// +build goexperiment.regabireflect
+var regabi_ppc64x = `//go:build ((go1.18 && goexperiment.regabireflect) || go1.19) && (ppc64 || ppc64le)
+// +build go1.18,goexperiment.regabireflect go1.19
 // +build ppc64 ppc64le
 
 // Copyright 2012 The Go Authors. All rights reserved.
@@ -376,6 +380,60 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$336		\
 	MOVD	R3, FIXED_FRAME+32(R1)		\
 	BL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, R1, R20		\
+	CALL	runtime·unspillArgs(SB)		\
+	RET
+
+`
+
+var regabi_riscv64 = `//go:build go1.19 && goexperiment.regabireflect
+// +build go1.19,goexperiment.regabireflect
+
+// Copyright 2019 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+#include "textflag.h"
+#include "funcdata.h"
+
+// The frames of each of the two functions below contain two locals, at offsets
+// that are known to the runtime.
+//
+// The first local is a bool called retValid with a whole pointer-word reserved
+// for it on the stack. The purpose of this word is so that the runtime knows
+// whether the stack-allocated return space contains valid values for stack
+// scanning.
+//
+// The second local is an abi.RegArgs value whose offset is also known to the
+// runtime, so that a stack map for it can be constructed, since it contains
+// pointers visible to the GC.
+#define LOCAL_RETVALID 40
+#define LOCAL_REGARGS 48
+
+// The frame size of the functions below is
+// 32 (args of callReflect/callMethod) + (8 bool with padding) + 392 (abi.RegArgs) = 432.
+
+// makeFuncStub is the code half of the function returned by MakeFunc.
+// See the comment on the declaration of makeFuncStub in makefunc.go
+// for more details.
+// No arg size here, runtime pulls arg map out of the func value.
+#define MAKE_FUNC_FN(NAME,INDEX)		\
+TEXT NAME(SB),(NOSPLIT|WRAPPER),$432	\
+	NO_LOCAL_POINTERS	\
+	ADD	$LOCAL_REGARGS, SP, X25 	\
+	CALL	runtime·spillArgs(SB)	\
+	MOV	32(SP), CTXT 		\
+	MOV	CTXT, 8(SP)		\
+	MOV	$argframe+0(FP), T0		\
+	MOV	T0, 16(SP)		\
+	MOV	ZERO, LOCAL_RETVALID(SP)		\
+	ADD	$LOCAL_RETVALID, SP, T1		\
+	MOV	T1, 24(SP)		\
+	ADD	$LOCAL_REGARGS, SP, T1		\
+	MOV	T1, 32(SP)		\
+	MOV	$INDEX, T1		\
+	MOV	T1, 40(RSP)		\
+	CALL	·i_x(SB)		\
+	ADD	$LOCAL_REGARGS, SP, X25 		\
 	CALL	runtime·unspillArgs(SB)		\
 	RET
 
