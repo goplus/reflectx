@@ -1,5 +1,5 @@
-//go:build go1.17 && goexperiment.regabireflect
-// +build go1.17,goexperiment.regabireflect
+//go:build (go1.17 && goexperiment.regabireflect) || (go1.19 && goexperiment.regabiargs) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le)
+// +build go1.17,goexperiment.regabireflect go1.19,goexperiment.regabiargs go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le
 
 package icall
 

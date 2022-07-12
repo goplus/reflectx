@@ -1,7 +1,7 @@
-//go:build (go1.18 && goexperiment.regabireflect) || go1.19
-// +build go1.18,goexperiment.regabireflect go1.19
+//go:build go1.19 && goexperiment.regabiargs
+// +build go1.19,goexperiment.regabiargs
 
-// Copyright 2012 The Go Authors. All rights reserved.
+// Copyright 2019 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -23,30 +23,30 @@
 #define LOCAL_REGARGS 48
 
 // The frame size of the functions below is
-// 32 (args of callReflect) + 8 (bool + padding) + 392 (abi.RegArgs) = 432.
+// 32 (args of callReflect/callMethod) + (8 bool with padding) + 392 (abi.RegArgs) = 432.
 
 // makeFuncStub is the code half of the function returned by MakeFunc.
 // See the comment on the declaration of makeFuncStub in makefunc.go
 // for more details.
 // No arg size here, runtime pulls arg map out of the func value.
 #define MAKE_FUNC_FN(NAME,INDEX)		\
-TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
-	NO_LOCAL_POINTERS		\
-	ADD	$LOCAL_REGARGS, RSP, R20		\
-	CALL	runtime·spillArgs(SB)		\
-	MOVD	32(RSP), R26		\
-	MOVD	R26, 8(RSP)		\
-	MOVD	$argframe+0(FP), R3		\
-	MOVD	R3, 16(RSP)		\
-	MOVB	$0, LOCAL_RETVALID(RSP)		\
-	ADD	$LOCAL_RETVALID, RSP, R3		\
-	MOVD	R3, 24(RSP)		\
-	ADD	$LOCAL_REGARGS, RSP, R3		\
-	MOVD	R3, 32(RSP)		\
-	MOVD	$INDEX, R3		\
-	MOVD	R3, 40(RSP)		\
+TEXT NAME(SB),(NOSPLIT|WRAPPER),$432	\
+	NO_LOCAL_POINTERS	\
+	ADD	$LOCAL_REGARGS, SP, X25 	\
+	CALL	runtime·spillArgs(SB)	\
+	MOV	32(SP), CTXT 		\
+	MOV	CTXT, 8(SP)		\
+	MOV	$argframe+0(FP), T0		\
+	MOV	T0, 16(SP)		\
+	MOV	ZERO, LOCAL_RETVALID(SP)		\
+	ADD	$LOCAL_RETVALID, SP, T1		\
+	MOV	T1, 24(SP)		\
+	ADD	$LOCAL_REGARGS, SP, T1		\
+	MOV	T1, 32(SP)		\
+	MOV	$INDEX, T1		\
+	MOV	T1, 40(SP)		\
 	CALL	·i_x(SB)		\
-	ADD	$LOCAL_REGARGS, RSP, R20		\
+	ADD	$LOCAL_REGARGS, SP, X25 		\
 	CALL	runtime·unspillArgs(SB)		\
 	RET
 

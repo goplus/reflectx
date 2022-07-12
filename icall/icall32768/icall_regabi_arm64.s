@@ -1,5 +1,5 @@
-//go:build go1.18 && goexperiment.regabireflect
-// +build go1.18,goexperiment.regabireflect
+//go:build (go1.18 && goexperiment.regabireflect) || go1.19
+// +build go1.18,goexperiment.regabireflect go1.19
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style

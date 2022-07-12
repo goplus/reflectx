@@ -1,3 +1,4 @@
+//go:build go1.17
 // +build go1.17
 
 package reflectx
@@ -41,6 +42,16 @@ func (n name) data(off int, whySafe string) *byte {
 
 func (n name) isExported() bool {
 	return (*n.bytes)&(1<<0) != 0
+}
+
+// go1.19
+func (n name) embedded() bool {
+	return (*n.bytes)&(1<<3) != 0
+}
+
+// go1.19
+func (n name) setEmbedded() {
+	(*n.bytes) |= 1 << 3
 }
 
 func (n name) hasTag() bool {
