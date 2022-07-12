@@ -1,5 +1,5 @@
-//go:build go1.19 && goexperiment.regabireflect
-// +build go1.19,goexperiment.regabireflect
+//go:build go1.19 && goexperiment.regabiargs
+// +build go1.19,goexperiment.regabiargs
 
 // Copyright 2019 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -44,7 +44,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432	\
 	ADD	$LOCAL_REGARGS, SP, T1		\
 	MOV	T1, 32(SP)		\
 	MOV	$INDEX, T1		\
-	MOV	T1, 40(RSP)		\
+	MOV	T1, 40(SP)		\
 	CALL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, SP, X25 		\
 	CALL	runtime·unspillArgs(SB)		\

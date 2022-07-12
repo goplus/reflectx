@@ -70,8 +70,8 @@ var (
 	return nil
 }
 
-var icall_regabi = `//go:build (go1.17 && goexperiment.regabireflect) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le)
-// +build go1.17,goexperiment.regabireflect go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le
+var icall_regabi = `//go:build (go1.17 && goexperiment.regabireflect) || (go1.19 && goexperiment.regabiargs) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le)
+// +build go1.17,goexperiment.regabireflect go1.19,goexperiment.regabiargs go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le
 
 package $pkgname
 
@@ -385,8 +385,8 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$336		\
 
 `
 
-var regabi_riscv64 = `//go:build go1.19 && goexperiment.regabireflect
-// +build go1.19,goexperiment.regabireflect
+var regabi_riscv64 = `//go:build go1.19 && goexperiment.regabiargs
+// +build go1.19,goexperiment.regabiargs
 
 // Copyright 2019 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -431,7 +431,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432	\
 	ADD	$LOCAL_REGARGS, SP, T1		\
 	MOV	T1, 32(SP)		\
 	MOV	$INDEX, T1		\
-	MOV	T1, 40(RSP)		\
+	MOV	T1, 40(SP)		\
 	CALL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, SP, X25 		\
 	CALL	runtime·unspillArgs(SB)		\
