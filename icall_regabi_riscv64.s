@@ -44,7 +44,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432	\
 	ADD	$LOCAL_REGARGS, SP, T1		\
 	MOV	T1, 32(SP)		\
 	MOV	$INDEX, T1		\
-	MOV	T1, 40(RSP)		\
+	MOV	T1, 40(SP)		\
 	CALL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, SP, X25 		\
 	CALL	runtime·unspillArgs(SB)		\
