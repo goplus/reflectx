@@ -16,7 +16,7 @@ support ABI0 and ABIInternal
 
 	- Go1.17: amd64
 	- Go1.18: amd64 arm64 ppc64/ppc64le
-
+	- Go1.19: amd64 arm64 ppc64/ppc64le riscv64
 
 
 ### Field
