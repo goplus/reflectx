@@ -9,10 +9,6 @@ import (
 	"strings"
 )
 
-var (
-	EnableExportAllMethod = false
-)
-
 // MakeMethod make reflect.Method for MethodOf
 // - name: method name
 // - pointer: flag receiver struct or pointer
@@ -395,9 +391,6 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 }
 
 func methodIsExported(name string) bool {
-	if EnableExportAllMethod {
-		return true
-	}
 	return token.IsExported(name)
 }
 

@@ -142,10 +142,6 @@ func isExported(name string) bool {
 }
 
 var (
-	EnableStructOfExportAllField bool
-)
-
-var (
 	structLookupCache = make(map[string][]reflect.Type)
 )
 
@@ -199,12 +195,6 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	}
 	for i, n := range underscore {
 		st.fields[i].name = n
-	}
-	if EnableStructOfExportAllField {
-		for i := 0; i < len(fs); i++ {
-			f := fs[i]
-			st.fields[i].name = newName(f.Name, string(f.Tag), true)
-		}
 	}
 	str := typ.String()
 	if ts, ok := structLookupCache[str]; ok {
