@@ -217,7 +217,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	} else {
 		structLookupCache[str] = []reflect.Type{typ}
 	}
-	if isRegularMemory(typ) {
+	if rt.tflag == 0 && isRegularMemory(typ) {
 		rt.tflag |= tflagRegularMemory
 	}
 	return typ
