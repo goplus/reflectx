@@ -72,10 +72,12 @@ func extraFieldMethod(ifield int, typ reflect.Type, skip map[string]bool) (metho
 }
 
 func parserFuncIO(typ reflect.Type) (in, out []reflect.Type) {
-	for i := 0; i < typ.NumIn(); i++ {
+	numIn := typ.NumIn()
+	numOut := typ.NumOut()
+	for i := 0; i < numIn; i++ {
 		in = append(in, typ.In(i))
 	}
-	for i := 0; i < typ.NumOut(); i++ {
+	for i := 0; i < numOut; i++ {
 		out = append(out, typ.Out(i))
 	}
 	return
@@ -451,7 +453,9 @@ func replaceType(typ reflect.Type, rmap map[reflect.Type]reflect.Type) reflect.T
 func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
-	for i := 0; i < mtyp.NumIn(); i++ {
+	numIn := mtyp.NumIn()
+	numOut := mtyp.NumOut()
+	for i := 0; i < numIn; i++ {
 		t := mtyp.In(i)
 		if rmap != nil {
 			t = replaceType(t, rmap)
@@ -462,7 +466,7 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 			Type: t,
 		})
 	}
-	for i := 0; i < mtyp.NumOut(); i++ {
+	for i := 0; i < numOut; i++ {
 		t := mtyp.Out(i)
 		if rmap != nil {
 			t = replaceType(t, rmap)

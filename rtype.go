@@ -296,14 +296,16 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		ost := (*funcType)(unsafe.Pointer(ort))
 		st.inCount = ost.inCount
 		st.outCount = ost.outCount
-		narg := ost.inCount + ost.outCount
+		numIn := typ.NumIn()
+		numOut := typ.NumOut()
+		narg := numIn + numOut
 		if narg > 0 {
-			args := uncommonFuncTypeArgs(rt, int(narg))
+			args := uncommonFuncTypeArgs(rt, narg)
 			var i int
-			for i = 0; i < int(st.inCount); i++ {
+			for i = 0; i < numIn; i++ {
 				args[i] = totype(styp.In(i))
 			}
-			for j := 0; j < int(st.outCount); j++ {
+			for j := 0; j < numOut; j++ {
 				args[i+j] = totype(styp.Out(j))
 			}
 		}
@@ -389,7 +391,9 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.elem = ost.elem
 		st.dir = ost.dir
 	case reflect.Func:
-		narg := styp.NumIn() + styp.NumOut()
+		numIn := styp.NumIn()
+		numOut := styp.NumOut()
+		narg := numIn + numOut
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(funcType{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
@@ -403,12 +407,12 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		if narg > 0 {
 			args := make([]*rtype, narg, narg)
 			fnoff = uint32(unsafe.Sizeof((*rtype)(nil))) * uint32(narg)
-			for i := 0; i < styp.NumIn(); i++ {
+			var i int
+			for i = 0; i < numIn; i++ {
 				args[i] = totype(styp.In(i))
 			}
-			index := styp.NumIn()
-			for i := 0; i < styp.NumOut(); i++ {
-				args[index+i] = totype(styp.Out(i))
+			for j := 0; j < numOut; j++ {
+				args[i+j] = totype(styp.Out(j))
 			}
 			copy(tt.Elem().Field(2).Slice(0, narg).Interface().([]*rtype), args)
 		}
