@@ -148,10 +148,18 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn
 
 	tfn = resolveReflectText(unsafe.Pointer(ptr))
 	if !m.Pointer {
-		ctyp := reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
-		cv := reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
-			return args[0].Elem().Method(index).Call(args[1:])
-		})
+		variadic := m.Type.IsVariadic()
+		ctyp := reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, variadic)
+		var cv reflect.Value
+		if variadic {
+			cv = reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
+				return args[0].Elem().Method(index).CallSlice(args[1:])
+			})
+		} else {
+			cv = reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
+				return args[0].Elem().Method(index).Call(args[1:])
+			})
+		}
 		ptfn = resolveReflectText(tovalue(&cv).ptr)
 	} else {
 		ptfn = tfn
