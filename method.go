@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unsafe"
 )
 
 // MakeMethod make reflect.Method for MethodOf
@@ -334,6 +335,9 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 	return nil
 }
 
+//go:linkname interequal runtime.interequal
+func interequal(p, q unsafe.Pointer) bool
+
 func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type {
 	for _, e := range embedded {
 		if e.Kind() != reflect.Interface {
@@ -376,6 +380,9 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 			typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
+	}
+	if len(st.methods) > 0 {
+		rt.equal = interequal
 	}
 	var str string
 	if len(info) > 0 {
