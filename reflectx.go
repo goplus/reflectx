@@ -207,6 +207,22 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	} else {
 		structLookupCache[str] = []reflect.Type{typ}
 	}
+	if underscoreCount > 0 {
+		// fix equal for blank fields
+		rt.equal = func(p, q unsafe.Pointer) bool {
+			for i, ft := range st.fields {
+				if fields[i].Name == "_" {
+					continue
+				}
+				pi := add(p, ft.offset(), "&x.field safe")
+				qi := add(q, ft.offset(), "&x.field safe")
+				if !ft.typ.equal(pi, qi) {
+					return false
+				}
+			}
+			return true
+		}
+	}
 	if rt.tflag == 0 && isRegularMemory(typ) {
 		rt.tflag |= tflagRegularMemory
 	}
