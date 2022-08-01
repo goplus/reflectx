@@ -341,3 +341,38 @@ func TestSetElem(t *testing.T) {
 		t.Fatalf("failed SetElem s=%v", s)
 	}
 }
+
+func TestNamedStructComparable(t *testing.T) {
+	fs := []reflect.StructField{
+		reflect.StructField{Name: "_", PkgPath: "main", Type: reflect.TypeOf(0)},
+		reflect.StructField{Name: "x", PkgPath: "main", Type: reflect.TypeOf(0)},
+	}
+	typ := reflectx.NamedStructOf("main", "blankStruct", fs)
+	v1 := reflect.New(typ).Elem()
+	reflectx.Field(v1, 0).SetInt(100)
+	reflectx.Field(v1, 1).SetInt(200)
+	v2 := reflect.New(typ).Elem()
+	reflectx.Field(v2, 0).SetInt(-100)
+	reflectx.Field(v2, 1).SetInt(200)
+	if v1.Interface() != v2.Interface() {
+		t.Fatal("failed struct equal")
+	}
+}
+
+func TestNamedStructUncomparable(t *testing.T) {
+	fs := []reflect.StructField{
+		reflect.StructField{Name: "_", PkgPath: "main", Type: reflect.TypeOf(0)},
+		reflect.StructField{Name: "fn", PkgPath: "main", Type: reflect.TypeOf(func() {})},
+	}
+	typ := reflectx.NamedStructOf("main", "funcStruct", fs)
+	v1 := reflect.New(typ).Elem()
+	v2 := reflect.New(typ).Elem()
+	defer func() {
+		if err := recover(); err == nil {
+			t.Fatal("must panic comparing uncomparable type")
+		}
+	}()
+	if v1.Interface() == v2.Interface() {
+		t.Fatal("must panic")
+	}
+}
