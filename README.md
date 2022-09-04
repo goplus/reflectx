@@ -6,6 +6,7 @@ Golang reflect package hack tools
 [![Go1.16](https://github.com/goplus/reflectx/workflows/Go1.16/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go116.yml)
 [![Go1.17](https://github.com/goplus/reflectx/workflows/Go1.17/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go117.yml)
 [![Go1.18](https://github.com/goplus/reflectx/workflows/Go1.18/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go118.yml)
+[![Go1.19](https://github.com/goplus/reflectx/workflows/Go1.19/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go119.yml)
 
 ### ABI
 
