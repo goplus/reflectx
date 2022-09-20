@@ -18,6 +18,10 @@ func toKindType(t *rtype) unsafe.Pointer {
 	return unsafe.Pointer(t)
 }
 
+//go:linkname toUncommonType reflect.(*rtype).uncommon
+func toUncommonType(t *rtype) *uncommonType
+
+/*
 func toUncommonType(t *rtype) *uncommonType {
 	if t.tflag&tflagUncommon == 0 {
 		return nil
@@ -75,6 +79,7 @@ func toUncommonType(t *rtype) *uncommonType {
 		return &(*u)(unsafe.Pointer(t)).u
 	}
 }
+*/
 
 // uncommonType is present only for defined types or types with methods
 // (if T is a defined type, the uncommonTypes for T and *T have methods).
