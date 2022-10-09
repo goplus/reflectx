@@ -18,6 +18,6 @@ func (f *structField) embedded() bool {
 	return f.name.embedded()
 }
 
-func (f *structField) setEmbedded() {
+func setEmbedded(f *structField) {
 	f.name.setEmbedded()
 }

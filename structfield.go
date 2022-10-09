@@ -18,6 +18,6 @@ func (f *structField) embedded() bool {
 	return f.offsetEmbed&1 != 0
 }
 
-func (f *structField) setEmbedded() {
+func setEmbedded(f *structField) {
 	f.offsetEmbed |= 1
 }

@@ -191,7 +191,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 	rt := totype(typ)
 	st := toStructType(rt)
 	for _, i := range anonymous {
-		st.fields[i].setEmbedded()
+		setEmbedded(&st.fields[i])
 	}
 	for i, n := range underscore {
 		st.fields[i].name = n

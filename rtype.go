@@ -484,12 +484,6 @@ func typelinks() (sections []unsafe.Pointer, offset [][]int32)
 //go:linkname rtypeOff reflect.rtypeOff
 func rtypeOff(section unsafe.Pointer, off int32) *rtype
 
-//go:linkname haveIdenticalUnderlyingType reflect.haveIdenticalUnderlyingType
-func haveIdenticalUnderlyingType(T, V *rtype, cmpTags bool) bool
-
-//go:linkname haveIdenticalType reflect.haveIdenticalType
-func haveIdenticalType(T, V reflect.Type, cmpTags bool) bool
-
 func TypeLinks() []reflect.Type {
 	var r []reflect.Type
 	sections, offset := typelinks()
@@ -551,53 +545,97 @@ func DumpType(w io.Writer, typ reflect.Type) {
 	}
 }
 
-// go/src/cmd/compile/internal/gc/alg.go#algtype1
-// IsRegularMemory reports whether t can be compared/hashed as regular memory.
-func isRegularMemory(t reflect.Type) bool {
-	switch t.Kind() {
-	case reflect.Func, reflect.Map, reflect.Slice, reflect.String, reflect.Interface:
-		return false
-	case reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
-		return false
-	case reflect.Array:
-		b := isRegularMemory(t.Elem())
-		if b {
-			return true
-		}
-		if t.Len() == 0 {
-			return true
-		}
-		return b
-	case reflect.Struct:
-		n := t.NumField()
-		switch n {
-		case 0:
-			return true
-		case 1:
-			f := t.Field(0)
-			if f.Name == "_" {
-				return false
-			}
-			return isRegularMemory(f.Type)
-		default:
-			for i := 0; i < n; i++ {
-				f := t.Field(i)
-				if f.Name == "_" || !isRegularMemory(f.Type) || ispaddedfield(t, i) {
-					return false
-				}
-			}
-		}
-	}
-	return true
+func NumMethodX(typ reflect.Type) int {
+	return totype(typ).NumMethodX()
 }
 
-// ispaddedfield reports whether the i'th field of struct type t is followed
-// by padding.
-func ispaddedfield(t reflect.Type, i int) bool {
-	end := t.Size()
-	if i+1 < t.NumField() {
-		end = t.Field(i + 1).Offset
+func MethodX(typ reflect.Type, i int) reflect.Method {
+	return totype(typ).MethodX(i)
+}
+
+func (t *rtype) NumMethodX() int {
+	return len(t.methods())
+}
+
+func (t *rtype) MethodX(i int) (m reflect.Method) {
+	if t.Kind() == reflect.Interface {
+		return toType(t).Method(i)
 	}
-	fd := t.Field(i)
-	return fd.Offset+fd.Type.Size() != end
+	methods := t.methods()
+	if i < 0 || i >= len(methods) {
+		panic("reflect: Method index out of range")
+	}
+	p := methods[i]
+	pname := t.nameOff(p.name)
+	m.Name = pname.name()
+	m.Index = i
+	fl := flag(reflect.Func)
+	if t.tflag&tflagUserMethod != 0 {
+		fl |= flagIndir
+	}
+	mtyp := t.typeOff(p.mtyp)
+	if mtyp == nil {
+		return
+	}
+	ft := (*funcType)(unsafe.Pointer(mtyp))
+	in := make([]reflect.Type, 0, 1+len(ft.in()))
+	in = append(in, toType(t))
+	for _, arg := range ft.in() {
+		in = append(in, toType(arg))
+	}
+	out := make([]reflect.Type, 0, len(ft.out()))
+	for _, ret := range ft.out() {
+		out = append(out, toType(ret))
+	}
+	mt := reflect.FuncOf(in, out, ft.IsVariadic())
+	m.Type = mt
+	tfn := t.textOff(p.tfn)
+	fn := unsafe.Pointer(&tfn)
+	m.Func = toValue(Value{totype(mt), fn, fl})
+	return m
+}
+
+func (t *rtype) MethodByNameX(name string) (m reflect.Method, ok bool) {
+	if t.Kind() == reflect.Interface {
+		return toType(t).MethodByName(name)
+	}
+	if ut := t.uncommon(); ut != nil {
+		for i, p := range ut.methods() {
+			if t.nameOff(p.name).name() == name {
+				return t.MethodX(i), true
+			}
+		}
+	}
+	return reflect.Method{}, false
+}
+
+// Field returns the i'th field of the struct v.
+// It panics if v's Kind is not Struct or i is out of range.
+func FieldX(v reflect.Value, i int) reflect.Value {
+	mustBe("reflect.Value.Field", v, reflect.Struct)
+	rv := tovalue(&v)
+	tt := (*structType)(unsafe.Pointer(rv.typ))
+	if uint(i) >= uint(len(tt.fields)) {
+		panic("reflect: Field index out of range")
+	}
+	field := &tt.fields[i]
+	typ := field.typ
+
+	// Inherit permission bits from v, but clear flagEmbedRO.
+	fl := rv.flag&(flagStickyRO|flagIndir|flagAddr) | flag(typ.Kind())
+	// Using an unexported field forces flagRO.
+	// if !field.name.isExported() {
+	// 	if field.embedded() {
+	// 		fl |= flagEmbedRO
+	// 	} else {
+	// 		fl |= flagStickyRO
+	// 	}
+	// }
+	// Either flagIndir is set and v.ptr points at struct,
+	// or flagIndir is not set and v.ptr is the actual struct data.
+	// In the former case, we want v.ptr + offset.
+	// In the latter case, we must have field.offset = 0,
+	// so v.ptr + field.offset is still the correct address.
+	ptr := add(rv.ptr, field.offset(), "same as non-reflect &v.field")
+	return toValue(Value{typ, ptr, fl})
 }
