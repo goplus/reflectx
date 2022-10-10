@@ -21,66 +21,6 @@ func toKindType(t *rtype) unsafe.Pointer {
 //go:linkname toUncommonType reflect.(*rtype).uncommon
 func toUncommonType(t *rtype) *uncommonType
 
-/*
-func toUncommonType(t *rtype) *uncommonType {
-	if t.tflag&tflagUncommon == 0 {
-		return nil
-	}
-	switch t.Kind() {
-	case reflect.Struct:
-		return &(*structTypeUncommon)(unsafe.Pointer(t)).u
-	case reflect.Ptr:
-		type u struct {
-			ptrType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	case reflect.Func:
-		type u struct {
-			funcType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	case reflect.Slice:
-		type u struct {
-			sliceType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	case reflect.Array:
-		type u struct {
-			arrayType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	case reflect.Chan:
-		type u struct {
-			chanType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	case reflect.Map:
-		type u struct {
-			mapType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	case reflect.Interface:
-		type u struct {
-			interfaceType
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	default:
-		type u struct {
-			rtype
-			u uncommonType
-		}
-		return &(*u)(unsafe.Pointer(t)).u
-	}
-}
-*/
-
 // uncommonType is present only for defined types or types with methods
 // (if T is a defined type, the uncommonTypes for T and *T have methods).
 // Using a pointer to this struct reduces the overall size required
@@ -208,18 +148,6 @@ func (t *rtype) IsVariadic() bool {
 	tt := (*funcType)(unsafe.Pointer(t))
 	return tt.outCount&(1<<15) != 0
 }
-
-// func (t *_rtype) nameOff(off nameOff) name {
-// 	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
-// }
-
-// type makeFuncImpl struct {
-// 	code   uintptr
-// 	stack  *bitVector // ptrmap for both args and results
-// 	argLen uintptr    // just args
-// 	ftyp   *funcType
-// 	fn     func([]reflect.Value) []reflect.Value
-// }
 
 type bitVector struct {
 	n    uint32 // number of bits

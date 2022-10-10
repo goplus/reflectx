@@ -25,14 +25,6 @@ func newTypeOff(rt *rtype) typeOff
 //go:linkname makeValue reflect.makeValue
 func makeValue(t *rtype, v *js.Object, fl flag) reflect.Value
 
-// func jsType(typ Type) *js.Object {
-// 	return js.InternalObject(typ).Get("jsType")
-// }
-
-// func reflectType(typ *js.Object) *rtype {
-// 	return _reflectType(typ, internalStr)
-// }
-
 func toStructType(t *rtype) *structType {
 	kind := js.InternalObject(t).Get("kindType")
 	return (*structType)(unsafe.Pointer(kind.Unsafe()))
@@ -193,25 +185,6 @@ var (
 	Struct
 	UnsafePointer
 */
-var (
-	sizes = []int{0, 1,
-		4, 1, 2, 4, 8, // int
-		4, 1, 2, 4, 8, // uint
-		4,    // uintptr
-		4, 8, // float
-		8, 16, // complex
-		4, // array
-		4, //
-		4,
-		4,
-		4,
-		4,
-		12, // slice
-		8,  // string
-		4,  // struct
-		4,  // UnsafePointer
-	}
-)
 
 func tovalue(v *reflect.Value) *Value {
 	return (*Value)(unsafe.Pointer(v))
@@ -313,23 +286,6 @@ func totype(typ reflect.Type) *rtype {
 	v := reflect.Zero(typ)
 	rt := (*Value)(unsafe.Pointer(&v)).typ
 	return rt
-}
-
-// emptyInterface is the header for an interface{} value.
-// type emptyInterface struct {
-// 	typ  *rtype
-// 	word unsafe.Pointer
-// }
-
-// func totype(typ reflect.Type) *rtype {
-// 	e := (*emptyInterface)(unsafe.Pointer(&typ))
-// 	return (*rtype)(e.word)
-// }
-
-func internalStr(strObj *js.Object) string {
-	var c struct{ str string }
-	js.InternalObject(c).Set("str", strObj) // get string without internalizing
-	return c.str
 }
 
 type funcType struct {

@@ -4,7 +4,6 @@
 package reflectx
 
 import (
-	"log"
 	_ "unsafe"
 )
 
@@ -48,7 +47,7 @@ func (n name) pkgPath() string {
 }
 
 func (n name) setPkgPath(pkgpath nameOff) bool {
-	log.Println("not impl setPkgPath")
+	println("not impl setPkgPath")
 	return true
 }
 
