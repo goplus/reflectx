@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -254,6 +255,9 @@ func (i IntArray) Scale(v int) IntArray {
 }
 
 func TestArrayMethodOf(t *testing.T) {
+	if runtime.Compiler == "gopherjs" {
+		t.Skip("skip gopherjs")
+	}
 	// IntArray
 	var i IntArray
 	i.Set(100, 200)
@@ -1152,6 +1156,9 @@ type Itoa interface {
 }
 
 func TestFunc(t *testing.T) {
+	if runtime.Compiler == "gopherjs" {
+		t.Skip("skip gopherjs")
+	}
 	fn := itoaFunc(func(i int) string {
 		return strconv.Itoa(i)
 	})
@@ -1219,6 +1226,9 @@ func (ch chanType) Recv() (n int) {
 }
 
 func TestChan(t *testing.T) {
+	if runtime.Compiler == "gopherjs" {
+		t.Skip("skip gopherjs")
+	}
 	c := make(chanType)
 	go func() {
 		c.Send(100)

@@ -21,6 +21,12 @@ import (
 	"unsafe"
 )
 
+//go:linkname haveIdenticalUnderlyingType reflect.haveIdenticalUnderlyingType
+func haveIdenticalUnderlyingType(T, V *rtype, cmpTags bool) bool
+
+//go:linkname haveIdenticalType reflect.haveIdenticalType
+func haveIdenticalType(T, V reflect.Type, cmpTags bool) bool
+
 // memmove copies size bytes to dst from src. No write barriers are used.
 //go:noescape
 //go:linkname memmove reflect.memmove
@@ -252,4 +258,55 @@ type structType struct {
 	rtype
 	pkgPath name
 	fields  []structField // sorted by offset
+}
+
+// go/src/cmd/compile/internal/gc/alg.go#algtype1
+// IsRegularMemory reports whether t can be compared/hashed as regular memory.
+func isRegularMemory(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Func, reflect.Map, reflect.Slice, reflect.String, reflect.Interface:
+		return false
+	case reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+		return false
+	case reflect.Array:
+		b := isRegularMemory(t.Elem())
+		if b {
+			return true
+		}
+		if t.Len() == 0 {
+			return true
+		}
+		return b
+	case reflect.Struct:
+		n := t.NumField()
+		switch n {
+		case 0:
+			return true
+		case 1:
+			f := t.Field(0)
+			if f.Name == "_" {
+				return false
+			}
+			return isRegularMemory(f.Type)
+		default:
+			for i := 0; i < n; i++ {
+				f := t.Field(i)
+				if f.Name == "_" || !isRegularMemory(f.Type) || ispaddedfield(t, i) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// ispaddedfield reports whether the i'th field of struct type t is followed
+// by padding.
+func ispaddedfield(t reflect.Type, i int) bool {
+	end := t.Size()
+	if i+1 < t.NumField() {
+		end = t.Field(i + 1).Offset
+	}
+	fd := t.Field(i)
+	return fd.Offset+fd.Type.Size() != end
 }

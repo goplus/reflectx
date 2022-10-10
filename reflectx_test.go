@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"unsafe"
 
@@ -331,6 +332,9 @@ func TestNamedTypeStruct(t *testing.T) {
 }
 
 func TestSetElem(t *testing.T) {
+	if runtime.Compiler == "gopherjs" {
+		t.Skip("skip gopherjs")
+	}
 	typ := reflectx.NamedTypeOf("main", "T", reflect.TypeOf(([]struct{})(nil)))
 	reflectx.SetElem(typ, typ)
 	v := reflect.MakeSlice(typ, 3, 3)
@@ -343,6 +347,9 @@ func TestSetElem(t *testing.T) {
 }
 
 func TestNamedStructComparable(t *testing.T) {
+	if runtime.Compiler == "gopherjs" {
+		t.Skip("skip gopherjs")
+	}
 	fs := []reflect.StructField{
 		reflect.StructField{Name: "_", PkgPath: "main", Type: reflect.TypeOf(0)},
 		reflect.StructField{Name: "x", PkgPath: "main", Type: reflect.TypeOf(0)},
