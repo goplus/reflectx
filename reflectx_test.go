@@ -383,3 +383,30 @@ func TestNamedStructUncomparable(t *testing.T) {
 		t.Fatal("must panic")
 	}
 }
+
+type point struct {
+	x int
+	y int
+}
+
+func (p *point) Set(x, y int) {
+	p.x, p.y = x, y
+}
+
+func (p *point) mset(x, y int) {
+	p.x, p.y = x, y
+}
+
+func (p *point) String() string {
+	return fmt.Sprintf("(%v,%v)", p.x, p.y)
+}
+
+func TestMethodX(t *testing.T) {
+	typ := reflect.TypeOf((*point)(nil))
+	if n := reflectx.NumMethodX(typ); n != 3 {
+		t.Fatalf("all method got: %v, want 3", n)
+	}
+	if m, ok := reflectx.MethodByName(typ, "mset"); !ok || m.Name != "mset" {
+		t.Fatalf("failed lookup method mset %v\n", m)
+	}
+}

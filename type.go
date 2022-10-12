@@ -37,12 +37,6 @@ func memmove(dst, src unsafe.Pointer, size uintptr)
 //go:linkname typedmemmove reflect.typedmemmove
 func typedmemmove(t *rtype, dst, src unsafe.Pointer)
 
-// resolveNameOff resolves a name offset from a base pointer.
-// The (*rtype).nameOff method is a convenience wrapper for this function.
-// Implemented in the runtime package.
-//go:linkname resolveNameOff reflect.resolveNameOff
-func resolveNameOff(ptrInModule unsafe.Pointer, off int32) unsafe.Pointer
-
 // resolveTypeOff resolves an *rtype offset from a base type.
 // The (*rtype).typeOff method is a convenience wrapper for this function.
 // Implemented in the runtime package.
@@ -72,16 +66,25 @@ func resolveReflectName(n name) nameOff
 //go:linkname toType reflect.toType
 func toType(t *rtype) reflect.Type
 
+//go:linkname rtype_nameOff reflect.(*rtype).nameOff
+func rtype_nameOff(t *rtype, off nameOff) name
+
+//go:linkname rtype_typeOff reflect.(*rtype).typeOff
+func rtype_typeOff(t *rtype, off typeOff) *rtype
+
+//go:linkname rtype_textOff reflect.(*rtype).textOff
+func rtype_textOff(t *rtype, off textOff) unsafe.Pointer
+
 func (t *rtype) nameOff(off nameOff) name {
-	return name{(*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}
+	return rtype_nameOff(t, off)
 }
 
 func (t *rtype) typeOff(off typeOff) *rtype {
-	return (*rtype)(resolveTypeOff(unsafe.Pointer(t), int32(off)))
+	return rtype_typeOff(t, off)
 }
 
 func (t *rtype) textOff(off textOff) unsafe.Pointer {
-	return resolveTextOff(unsafe.Pointer(t), int32(off))
+	return rtype_textOff(t, off)
 }
 
 // resolveReflectType adds a *rtype to the reflection lookup map in the runtime.
