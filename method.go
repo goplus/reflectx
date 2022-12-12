@@ -177,7 +177,6 @@ func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
 
 func Reset() {
 	resetMethodList()
-	ntypeMap = make(map[reflect.Type]*Named)
 	embedLookupCache = make(map[reflect.Type]reflect.Type)
 	structLookupCache = make(map[string][]reflect.Type)
 	interfceLookupCache = make(map[string]reflect.Type)
