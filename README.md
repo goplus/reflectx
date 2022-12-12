@@ -31,6 +31,9 @@ support ABI0 and ABIInternal
 * reflectx.StructOf(fs)
 * reflectx.NamedTypeOf
 
+* SetUnderlying
+* SetTypeName
+
 ### Method
 * reflectx.Method
 * reflectx.MakeMethod
