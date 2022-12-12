@@ -101,6 +101,10 @@ func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) re
 	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }
 
+func SetTypeName(typ reflect.Type, pkgpath string, name string) {
+	setTypeName(totype(typ), pkgpath, name)
+}
+
 func setTypeName(t *rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
