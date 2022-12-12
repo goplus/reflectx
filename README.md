@@ -30,8 +30,6 @@ support ABI0 and ABIInternal
 ### Named
 * reflectx.StructOf(fs)
 * reflectx.NamedTypeOf
-* reflectx.IsNamed
-* reflectx.ToNamed
 
 ### Method
 * reflectx.Method

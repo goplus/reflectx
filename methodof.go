@@ -274,11 +274,7 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())
 	prt.uncommon().pkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
-	typ := toType(rt)
-	if nt, ok := ntypeMap[styp]; ok {
-		ntypeMap[typ] = &Named{Name: nt.Name, PkgPath: nt.PkgPath, Type: typ, From: nt.From, Kind: nt.Kind}
-	}
-	return typ
+	return toType(rt)
 }
 
 const (

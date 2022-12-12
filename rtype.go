@@ -398,9 +398,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	rt, _ := newType(pkgpath, name, from, 0, 0)
 	setTypeName(rt, pkgpath, name)
-	typ := toType(rt)
-	ntypeMap[typ] = &Named{Name: name, PkgPath: pkgpath, Type: typ, From: from, Kind: TkType}
-	return typ
+	return toType(rt)
 }
 
 //go:linkname typesByString reflect.typesByString

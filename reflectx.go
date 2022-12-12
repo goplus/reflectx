@@ -67,36 +67,6 @@ func typeName(typ reflect.Type) string {
 	return typ.Name()
 }
 
-var (
-	ntypeMap = make(map[reflect.Type]*Named)
-)
-
-type TypeKind int
-
-const (
-	TkInvalid TypeKind = 1 << iota
-	TkType
-	TkMethod
-)
-
-type Named struct {
-	Name    string
-	PkgPath string
-	Type    reflect.Type
-	From    reflect.Type
-	Kind    TypeKind
-}
-
-func IsNamed(typ reflect.Type) bool {
-	_, ok := ntypeMap[typ]
-	return ok
-}
-
-func ToNamed(typ reflect.Type) (t *Named, ok bool) {
-	t, ok = ntypeMap[typ]
-	return
-}
-
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
 	return NamedTypeOf(pkgpath, name, StructOf(fields))
 }

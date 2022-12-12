@@ -79,9 +79,6 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	resetUncommonType(prt, maxpfunc, 0)
 	pjstyp := jsType(prt)
 	pjstyp.Set("methodSetCache", nil)
-	if nt, ok := ntypeMap[styp]; ok {
-		ntypeMap[typ] = &Named{Name: nt.Name, PkgPath: nt.PkgPath, Type: typ, From: nt.From, Kind: nt.Kind}
-	}
 	return typ
 }
 

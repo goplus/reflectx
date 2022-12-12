@@ -197,10 +197,7 @@ func toValue(v Value) reflect.Value {
 func NamedTypeOf(pkg string, name string, from reflect.Type) (typ reflect.Type) {
 	rt, _ := newType(pkg, name, from, 0, 0)
 	setTypeName(rt, pkg, name)
-	typ = toType(rt)
-	nt := &Named{Name: name, PkgPath: pkg, Type: typ, From: from, Kind: TkType}
-	ntypeMap[typ] = nt
-	return
+	return toType(rt)
 }
 
 var (
