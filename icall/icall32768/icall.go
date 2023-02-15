@@ -1,5 +1,6 @@
-//go:build !go1.17 || (go1.17 && !go1.18 && !goexperiment.regabireflect) || (go1.18 && !go1.19 && !goexperiment.regabireflect && !amd64) || (go1.19 && !goexperiment.regabiargs && !amd64 && !arm64 && !ppc64 && !ppc64le)
-// +build !go1.17 go1.17,!go1.18,!goexperiment.regabireflect go1.18,!go1.19,!goexperiment.regabireflect,!amd64 go1.19,!goexperiment.regabiargs,!amd64,!arm64,!ppc64,!ppc64le
+//go:build ((go1.17 && goexperiment.regabireflect) || (go1.19 && goexperiment.regabiargs) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le)) && (!js || (js && wasm))
+// +build go1.17,goexperiment.regabireflect go1.19,goexperiment.regabiargs go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le
+// +build !js js,wasm
 
 package icall
 

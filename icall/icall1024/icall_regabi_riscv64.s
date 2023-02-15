@@ -1,5 +1,5 @@
-//go:build go1.19 && goexperiment.regabiargs
-// +build go1.19,goexperiment.regabiargs
+//go:build (go1.19 && goexperiment.regabiargs) || go1.20
+// +build go1.19,goexperiment.regabiargs go1.20
 
 // Copyright 2019 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
