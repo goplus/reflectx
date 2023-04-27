@@ -115,10 +115,6 @@ func isExported(name string) bool {
 	return unicode.IsUpper(ch)
 }
 
-var (
-	structLookupCache = make(map[string][]reflect.Type)
-)
-
 func checkFields(t1, t2 reflect.Type) bool {
 	n1 := t1.NumField()
 	n2 := t2.NumField()
@@ -140,6 +136,10 @@ func checkFields(t1, t2 reflect.Type) bool {
 }
 
 func StructOf(fields []reflect.StructField) reflect.Type {
+	return Default.StructOf(fields)
+}
+
+func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 	var anonymous []int
 	underscore := make(map[int]name)
 	var underscoreCount int
@@ -171,7 +171,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 		st.fields[i].name = n
 	}
 	str := typ.String()
-	if ts, ok := structLookupCache[str]; ok {
+	if ts, ok := ctx.structLookupCache[str]; ok {
 		for _, t := range ts {
 			if haveIdenticalType(t, typ, true) {
 				return t
@@ -179,7 +179,7 @@ func StructOf(fields []reflect.StructField) reflect.Type {
 		}
 		ts = append(ts, typ)
 	} else {
-		structLookupCache[str] = []reflect.Type{typ}
+		ctx.structLookupCache[str] = []reflect.Type{typ}
 	}
 	if underscoreCount > 0 {
 		// fix equal for blank fields
