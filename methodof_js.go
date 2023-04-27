@@ -13,13 +13,8 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
-// func New(typ reflect.Type) reflect.Value {
-// 	return reflect.New(typ)
-// }
-
-// func Interface(v reflect.Value) interface{} {
-// 	return v.Interface()
-// }
+func (ctx *Context) Release() {
+}
 
 func isMethod(typ reflect.Type) bool {
 	return typMethodMap[typ]
@@ -66,8 +61,6 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 var (
 	typMethodMap = make(map[reflect.Type]bool)
 )
-
-func resetMethodList() {}
 
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType(styp.PkgPath(), styp.Name(), styp, maxmfunc, 0)

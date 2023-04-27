@@ -75,8 +75,10 @@ var (
 	mps mpList
 )
 
-func resetMethodList() {
-	mps.Clear()
+func (ctx *Context) Release() {
+	for mp, list := range ctx.methodIndexList {
+		mp.Remove(list)
+	}
 }
 
 func methodInfoText(info *MethodInfo) string {
@@ -104,9 +106,9 @@ func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer, err er
 	return nil, err
 }
 
-// func isMethod(typ reflect.Type) (ok bool) {
-// 	return totype(typ).tflag&tflagUserMethod != 0
-// }
+func isMethod(typ reflect.Type) (ok bool) {
+	return totype(typ).tflag&tflagUserMethod != 0
+}
 
 type MethodInfo struct {
 	Name     string

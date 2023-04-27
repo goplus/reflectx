@@ -21,9 +21,3 @@ func NewContext() *Context {
 	ctx.methodIndexList = make(map[MethodProvider][]int)
 	return ctx
 }
-
-func (ctx *Context) Release() {
-	for mp, list := range ctx.methodIndexList {
-		mp.Remove(list)
-	}
-}
