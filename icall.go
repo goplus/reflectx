@@ -62,7 +62,7 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 	info := mp.used[index]
 	var receiver reflect.Value
 	if !info.Pointer && info.OnePtr {
-		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)
+		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem()
 	} else {
 		receiver = reflect.NewAt(info.Type, ptr)
 		if !info.Pointer || info.Indirect {
