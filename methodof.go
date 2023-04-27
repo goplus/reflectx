@@ -63,8 +63,9 @@ func (p *mpList) Cap() int {
 	return p.maxCap
 }
 
-func DumpMethods() {
-	fmt.Printf("methods cap: %v, used: %v, available: %v\n", mps.Cap(), mps.Used(), mps.Available())
+// icall stat
+func IcallStat() (capacity int, allocate int, aviable int) {
+	return mps.Cap(), mps.Used(), mps.Available()
 }
 
 func AddMethodProvider(mp MethodProvider) {
@@ -79,6 +80,14 @@ func (ctx *Context) Release() {
 	for mp, list := range ctx.methodIndexList {
 		mp.Remove(list)
 	}
+}
+
+func (ctx *Context) IcallAlloc() int {
+	n := 0
+	for _, list := range ctx.methodIndexList {
+		n += len(list)
+	}
+	return n
 }
 
 func methodInfoText(info *MethodInfo) string {

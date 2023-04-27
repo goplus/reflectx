@@ -1206,7 +1206,6 @@ func TestFunc(t *testing.T) {
 	if r := v.Method(0).Call([]reflect.Value{reflect.ValueOf(100)}); r[0].String() != "100" {
 		t.Fail()
 	}
-	reflectx.DumpMethods()
 }
 
 type chanType chan int

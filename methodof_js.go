@@ -13,10 +13,16 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
-func DumpMethods() {
+// icall stat
+func IcallStat() (capacity int, allocate int, aviable int) {
+	return 0, 0, 0
 }
 
 func (ctx *Context) Release() {
+}
+
+func (ctx *Context) IcallAlloc() int {
+	return 0
 }
 
 func isMethod(typ reflect.Type) bool {
