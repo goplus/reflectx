@@ -51,6 +51,8 @@ support ABI0 and ABIInternal
 * reflectx.NewInterfaceType
 * reflectx.SetInterfaceType
 
+### Context
+* reflectx.NewContext()
 
 ### methods preset
 * preset
