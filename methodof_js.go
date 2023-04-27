@@ -21,6 +21,15 @@ import (
 // 	return v.Interface()
 // }
 
+func isMethod(typ reflect.Type) bool {
+	return typMethodMap[typ]
+}
+
+type MethodProvider interface {
+	Remove(index []int) // remove method info
+	Clear()             // clear all methods
+}
+
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
 	m := MethodX(typ, index)
 	if isMethod(typ) {

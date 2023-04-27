@@ -1,6 +1,8 @@
 package reflectx
 
-import "reflect"
+import (
+	"reflect"
+)
 
 var Default *Context = NewContext()
 
