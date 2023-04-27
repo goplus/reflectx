@@ -12,17 +12,32 @@ import (
 const capacity = 256
 
 type provider struct {
-	infos []*MethodInfo
+	used map[int]*MethodInfo
 }
 
-func (p *provider) Push(info *MethodInfo) (ifn unsafe.Pointer) {
-	fn := icall_array[len(p.infos)]
-	p.infos = append(p.infos, info)
-	return unsafe.Pointer(reflect.ValueOf(fn).Pointer())
+func (p *provider) Insert(info *MethodInfo) (ifn unsafe.Pointer, index int) {
+	for i := 0; i < capacity; i++ {
+		if _, ok := p.used[i]; !ok {
+			p.used[i] = info
+			fn := icall_array[i]
+			return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), i
+		}
+	}
+	return nil, -1
 }
 
-func (p *provider) Len() int {
-	return len(p.infos)
+func (p *provider) Available() int {
+	return capacity - len(p.used)
+}
+
+func (p *provider) Remove(indexs []int) {
+	for _, n := range indexs {
+		delete(p.used, n)
+	}
+}
+
+func (p *provider) Used() int {
+	return len(p.used)
 }
 
 func (p *provider) Cap() int {
@@ -30,19 +45,21 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
-	p.infos = nil
+	p.used = make(map[int]*MethodInfo)
 }
 
 var (
-	mp provider
+	mp = &provider{
+		used: make(map[int]*MethodInfo),
+	}
 )
 
 func init() {
-	AddMethodProvider(&mp)
+	AddMethodProvider(mp)
 }
 
 func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
-	info := mp.infos[index]
+	info := mp.used[index]
 	var receiver reflect.Value
 	if !info.Pointer && info.OnePtr {
 		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem() //.Elem().Field(0)

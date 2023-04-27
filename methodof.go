@@ -13,32 +13,23 @@ import (
 )
 
 type MethodProvider interface {
-	Push(info *MethodInfo) (ifn unsafe.Pointer) // push method info
-	Len() int                                   // methods len
-	Cap() int                                   // methods capacity
-	Clear()                                     // clear all methods
+	Insert(info *MethodInfo) (ifn unsafe.Pointer, index int) // insert method info
+	Remove(index []int)                                      // remove method info
+	Available() int                                          // available count
+	Used() int                                               // methods used
+	Cap() int                                                // methods capacity
+	Clear()                                                  // clear all methods
 }
 
 type mpList struct {
-	list     []MethodProvider
-	cur      MethodProvider
-	mpIndex  int
-	curCap   int
-	curIndex int
-	maxCap   int
-	allIndex int
+	list   []MethodProvider
+	cur    MethodProvider
+	maxCap int
 }
 
 func (p *mpList) Clear() {
-	p.mpIndex = 0
-	p.allIndex = 0
-	p.curIndex = 0
 	for _, v := range p.list {
 		v.Clear()
-	}
-	if len(p.list) >= 1 {
-		p.cur = p.list[0]
-		p.curCap = p.cur.Cap()
 	}
 }
 
@@ -50,27 +41,30 @@ func (p *mpList) Add(mp MethodProvider) {
 	}
 	p.list = append(p.list, mp)
 	p.maxCap += mp.Cap()
-	if len(p.list) == 1 {
-		p.cur = p.list[0]
-		p.curCap = p.cur.Cap()
-	}
 }
 
-func (p *mpList) Push(info *MethodInfo) (ifn unsafe.Pointer) {
-	p.allIndex++
-	p.curIndex++
-	if p.curIndex >= p.curCap {
-		p.mpIndex++
-		if p.mpIndex >= len(p.list) {
-			log.Printf("warning, cannot alloc method %v > %v, import _ %q\n",
-				p.allIndex+1, p.maxCap, "github.com/goplus/reflectx/icall/icall[2^n]")
-			return nil
-		}
-		p.cur = p.list[p.mpIndex]
-		p.curIndex = 0
-		p.curCap = p.cur.Cap()
+func (p *mpList) Used() int {
+	var n int
+	for _, mp := range p.list {
+		n += mp.Used()
 	}
-	return p.cur.Push(info)
+	return n
+}
+
+func (p *mpList) Available() int {
+	var n int
+	for _, mp := range p.list {
+		n += mp.Available()
+	}
+	return n
+}
+
+func (p *mpList) Cap() int {
+	return p.maxCap
+}
+
+func DumpMethods() {
+	fmt.Printf("methods cap: %v, used: %v, available: %v\n", mps.Cap(), mps.Used(), mps.Available())
 }
 
 func AddMethodProvider(mp MethodProvider) {
@@ -85,9 +79,29 @@ func resetMethodList() {
 	mps.Clear()
 }
 
+func methodInfoText(info *MethodInfo) string {
+	if info.Pointer {
+		return "(*" + info.Type.String() + ")." + info.Name
+	}
+	return info.Type.String() + "." + info.Name
+}
+
 // register method info
-func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer) {
-	return mps.Push(info)
+func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer, err error) {
+	for _, mp := range mps.list {
+		if mp.Available() == 0 {
+			continue
+		}
+		ifn, index := mp.Insert(info)
+		if index == -1 {
+			break
+		}
+		ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
+		return ifn, nil
+	}
+	err = fmt.Errorf("unable to allocate method %q, requires more reflectx/icall imports.", methodInfoText(info))
+	log.Println("reflectx warning:", err)
+	return nil, err
 }
 
 // func isMethod(typ reflect.Type) (ok bool) {
@@ -213,6 +227,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
 	}
 	var index int
+	var errs []error
 	for i, m := range methods {
 		isexport := methodIsExported(m.Name)
 		nm := newNameEx(m.Name, "", isexport, !isexport)
@@ -236,7 +251,10 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
 		}
-		pifn := ctx.registerMethod(pinfo)
+		pifn, err := ctx.registerMethod(pinfo)
+		if err != nil {
+			errs = append(errs, err)
+		}
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
@@ -254,7 +272,10 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 				Variadic: m.Type.IsVariadic(),
 				OnePtr:   onePtr,
 			}
-			ifn := ctx.registerMethod(info)
+			ifn, err := ctx.registerMethod(info)
+			if err != nil {
+				errs = append(errs, err)
+			}
 			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
