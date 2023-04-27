@@ -13,7 +13,13 @@ import (
 
 const capacity = 2048
 
+type methodUsed struct {
+	fun reflect.Value
+	ptr unsafe.Pointer
+}
+
 type provider struct {
+	used map[int]*methodUsed
 }
 
 //go:linkname callReflect reflect.callReflect
@@ -22,19 +28,26 @@ func callReflect(ctxt unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r un
 //go:linkname moveMakeFuncArgPtrs reflect.moveMakeFuncArgPtrs
 func moveMakeFuncArgPtrs(ctx unsafe.Pointer, r unsafe.Pointer)
 
-var infos []*reflectx.MethodInfo
-var funcs []reflect.Value
-var fnptr []unsafe.Pointer
-
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
-	moveMakeFuncArgPtrs(fnptr[index], r)
-	callReflect(fnptr[index], frame, retValid, r)
+	ptr := mp.used[index].ptr
+	moveMakeFuncArgPtrs(ptr, r)
+	callReflect(ptr, frame, retValid, r)
 }
 
 func spillArgs()
 func unspillArgs()
 
-func (p *provider) Push(info *reflectx.MethodInfo) (ifn unsafe.Pointer) {
+func (p *provider) Insert(info *reflectx.MethodInfo) (unsafe.Pointer, int) {
+	var index = -1
+	for i := 0; i < capacity; i++ {
+		if _, ok := p.used[i]; !ok {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return nil, -1
+	}
 	var fn reflect.Value
 	if (!info.Pointer && !info.OnePtr) || info.Indirect {
 		ftyp := info.Func.Type()
@@ -64,15 +77,26 @@ func (p *provider) Push(info *reflectx.MethodInfo) (ifn unsafe.Pointer) {
 	} else {
 		fn = info.Func
 	}
-	funcs = append(funcs, fn)
-	fnptr = append(fnptr, (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&fn)).ptr)
-	icall := icall_fn[len(infos)]
-	infos = append(infos, info)
-	return unsafe.Pointer(reflect.ValueOf(icall).Pointer())
+	p.used[index] = &methodUsed{
+		fun: fn,
+		ptr: (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&fn)).ptr,
+	}
+	icall := icall_fn[index]
+	return unsafe.Pointer(reflect.ValueOf(icall).Pointer()), index
 }
 
-func (p *provider) Len() int {
-	return len(infos)
+func (p *provider) Remove(indexs []int) {
+	for _, n := range indexs {
+		delete(p.used, n)
+	}
+}
+
+func (p *provider) Available() int {
+	return capacity - len(p.used)
+}
+
+func (p *provider) Used() int {
+	return len(p.used)
 }
 
 func (p *provider) Cap() int {
@@ -80,17 +104,17 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
-	infos = nil
-	funcs = nil
-	fnptr = nil
+	p.used = make(map[int]*methodUsed)
 }
 
 var (
-	mp provider
+	mp = &provider{
+		used: make(map[int]*methodUsed),
+	}
 )
 
 func init() {
-	reflectx.AddMethodProvider(&mp)
+	reflectx.AddMethodProvider(mp)
 }
 
 func f0()

@@ -176,18 +176,15 @@ func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
 }
 
 func Reset() {
-	resetMethodList()
-	embedLookupCache = make(map[reflect.Type]reflect.Type)
-	structLookupCache = make(map[string][]reflect.Type)
-	interfceLookupCache = make(map[string]reflect.Type)
+	Default.Release()
 }
 
-var (
-	embedLookupCache = make(map[reflect.Type]reflect.Type)
-)
+func StructToMethodSet(styp reflect.Type) reflect.Type {
+	return Default.StructToMethodSet(styp)
+}
 
 // StructToMethodSet extract method form struct embed fields
-func StructToMethodSet(styp reflect.Type) reflect.Type {
+func (ctx *Context) StructToMethodSet(styp reflect.Type) reflect.Type {
 	if styp.Kind() != reflect.Struct {
 		return styp
 	}
@@ -195,7 +192,7 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 	if len(ms) == 0 {
 		return styp
 	}
-	if typ, ok := embedLookupCache[styp]; ok {
+	if typ, ok := ctx.embedLookupCache[styp]; ok {
 		return typ
 	}
 	var methods []Method
@@ -208,11 +205,11 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 		methods = append(methods, m)
 	}
 	typ := newMethodSet(styp, mcout, pcount)
-	err := setMethodSet(typ, methods)
+	err := ctx.setMethodSet(typ, methods)
 	if err != nil {
 		log.Panicln("error loadMethods", err)
 	}
-	embedLookupCache[styp] = typ
+	ctx.embedLookupCache[styp] = typ
 	return typ
 }
 
@@ -220,8 +217,12 @@ func StructToMethodSet(styp reflect.Type) reflect.Type {
 // maxmfunc - set methodset of T max member func
 // maxpfunc - set methodset of *T + T max member func
 func NewMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	return Default.NewMethodSet(styp, maxmfunc, maxpfunc)
+}
+
+func (ctx *Context) NewMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	if maxpfunc == 0 {
-		return StructToMethodSet(styp)
+		return ctx.StructToMethodSet(styp)
 	}
 	chk := make(map[string]int)
 	if styp.Kind() == reflect.Struct {
@@ -241,6 +242,10 @@ func NewMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 }
 
 func SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) error {
+	return Default.SetMethodSet(styp, methods, extractStructEmbed)
+}
+
+func (ctx *Context) SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) error {
 	chk := make(map[string]Method)
 	for _, m := range methods {
 		if v, ok := chk[m.Name]; ok && v.PkgPath == m.PkgPath {
@@ -257,7 +262,7 @@ func SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) 
 			methods = append(methods, m)
 		}
 	}
-	return setMethodSet(styp, methods)
+	return ctx.setMethodSet(styp, methods)
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
@@ -269,10 +274,6 @@ func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, meth
 	SetInterfaceType(typ, embedded, methods)
 	return typ
 }
-
-var (
-	interfceLookupCache = make(map[string]reflect.Type)
-)
 
 func NewInterfaceType(pkgpath string, name string) reflect.Type {
 	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
@@ -338,6 +339,10 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 func interequal(p, q unsafe.Pointer) bool
 
 func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type {
+	return Default.InterfaceOf(embedded, methods)
+}
+
+func (ctx *Context) InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type {
 	for _, e := range embedded {
 		if e.Kind() != reflect.Interface {
 			panic(fmt.Errorf("interface contains embedded non-interface %v", e))
@@ -389,12 +394,12 @@ func InterfaceOf(embedded []reflect.Type, methods []reflect.Method) reflect.Type
 	} else {
 		str = "*interface {}"
 	}
-	if t, ok := interfceLookupCache[str]; ok {
+	if t, ok := ctx.interfceLookupCache[str]; ok {
 		return t
 	}
 	rt.str = resolveReflectName(newName(str, "", false))
 	typ := toType(rt)
-	interfceLookupCache[str] = typ
+	ctx.interfceLookupCache[str] = typ
 	return typ
 }
 

@@ -13,16 +13,25 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
-func New(typ reflect.Type) reflect.Value {
-	return reflect.New(typ)
+// icall stat
+func IcallStat() (capacity int, allocate int, aviable int) {
+	return 0, 0, 0
 }
 
-func Interface(v reflect.Value) interface{} {
-	return v.Interface()
+func (ctx *Context) Release() {
+}
+
+func (ctx *Context) IcallAlloc() int {
+	return 0
 }
 
 func isMethod(typ reflect.Type) bool {
 	return typMethodMap[typ]
+}
+
+type MethodProvider interface {
+	Remove(index []int) // remove method info
+	Clear()             // clear all methods
 }
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
@@ -62,12 +71,6 @@ var (
 	typMethodMap = make(map[reflect.Type]bool)
 )
 
-func resetTypeList() {
-	typMethodMap = make(map[reflect.Type]bool)
-}
-
-func resetMethodList() {}
-
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType(styp.PkgPath(), styp.Name(), styp, maxmfunc, 0)
 	setTypeName(rt, styp.PkgPath(), styp.Name())
@@ -95,7 +98,7 @@ func resizeMethod(typ reflect.Type, count int) error {
 	return nil
 }
 
-func setMethodSet(typ reflect.Type, methods []Method) error {
+func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].Type == methods[j].Type {
