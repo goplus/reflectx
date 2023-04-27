@@ -86,7 +86,7 @@ func resetMethodList() {
 }
 
 // register method info
-func registerMethod(info *MethodInfo) (ifn unsafe.Pointer) {
+func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer) {
 	return mps.Push(info)
 }
 
@@ -167,7 +167,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn
 	return
 }
 
-func setMethodSet(typ reflect.Type, methods []Method) error {
+func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
 		if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
@@ -236,7 +236,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
 		}
-		pifn := registerMethod(pinfo)
+		pifn := ctx.registerMethod(pinfo)
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
@@ -254,7 +254,7 @@ func setMethodSet(typ reflect.Type, methods []Method) error {
 				Variadic: m.Type.IsVariadic(),
 				OnePtr:   onePtr,
 			}
-			ifn := registerMethod(info)
+			ifn := ctx.registerMethod(info)
 			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn

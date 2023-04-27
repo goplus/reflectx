@@ -68,7 +68,11 @@ func typeName(typ reflect.Type) string {
 }
 
 func NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
-	return NamedTypeOf(pkgpath, name, StructOf(fields))
+	return Default.NamedStructOf(pkgpath, name, fields)
+}
+
+func (ctx *Context) NamedStructOf(pkgpath string, name string, fields []reflect.StructField) reflect.Type {
+	return NamedTypeOf(pkgpath, name, ctx.StructOf(fields))
 }
 
 func SetTypeName(typ reflect.Type, pkgpath string, name string) {
