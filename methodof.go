@@ -76,10 +76,19 @@ var (
 	mps mpList
 )
 
-func (ctx *Context) Release() {
+func resetAll() {
+	mps.Clear()
+}
+
+func (ctx *Context) Reset() {
 	for mp, list := range ctx.methodIndexList {
 		mp.Remove(list)
 	}
+	ctx.nAllocateError = 0
+	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
+	ctx.structLookupCache = make(map[string][]reflect.Type)
+	ctx.interfceLookupCache = make(map[string]reflect.Type)
+	ctx.methodIndexList = make(map[MethodProvider][]int)
 }
 
 func (ctx *Context) IcallAlloc() int {
@@ -98,7 +107,7 @@ func methodInfoText(info *MethodInfo) string {
 }
 
 // register method info
-func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer, err error) {
+func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer, allocated bool) {
 	for _, mp := range mps.list {
 		if mp.Available() == 0 {
 			continue
@@ -108,11 +117,10 @@ func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer, err er
 			break
 		}
 		ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
-		return ifn, nil
+		return ifn, true
 	}
-	err = fmt.Errorf("unable to allocate method %q, requires more reflectx/icall imports.", methodInfoText(info))
-	log.Println("reflectx warning:", err)
-	return nil, err
+	ctx.nAllocateError++
+	return nil, false
 }
 
 func isMethod(typ reflect.Type) (ok bool) {
@@ -238,7 +246,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
 	}
 	var index int
-	var errs []error
 	for i, m := range methods {
 		isexport := methodIsExported(m.Name)
 		nm := newNameEx(m.Name, "", isexport, !isexport)
@@ -262,10 +269,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
 		}
-		pifn, err := ctx.registerMethod(pinfo)
-		if err != nil {
-			errs = append(errs, err)
-		}
+		pifn, _ := ctx.registerMethod(pinfo)
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
@@ -283,10 +287,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 				Variadic: m.Type.IsVariadic(),
 				OnePtr:   onePtr,
 			}
-			ifn, err := ctx.registerMethod(info)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			ifn, _ := ctx.registerMethod(info)
 			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
@@ -296,6 +297,18 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 	}
 	rt.tflag |= tflagUserMethod
 	prt.tflag |= tflagUserMethod
+
+	if ctx.nAllocateError != 0 {
+		err := &AllocError{
+			Typ: typ,
+			Cap: mps.Cap(),
+			Req: mps.Cap() + ctx.nAllocateError,
+		}
+		if !DisableAllocateWarning {
+			log.Printf("warning, %v, import _ %q\n", err, "github.com/goplus/reflectx/icall/icall[N]")
+		}
+		return err
+	}
 	return nil
 }
 

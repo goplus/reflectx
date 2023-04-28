@@ -18,7 +18,11 @@ func IcallStat() (capacity int, allocate int, aviable int) {
 	return 0, 0, 0
 }
 
-func (ctx *Context) Release() {
+func (ctx *Context) Reset() {
+}
+
+func resetAll() {
+	typMethodMap = make(map[reflect.Type]bool)
 }
 
 func (ctx *Context) IcallAlloc() int {
