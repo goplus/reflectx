@@ -176,7 +176,11 @@ func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
 }
 
 func Reset() {
-	Default.Release()
+	Default.Reset()
+}
+
+func ResetAll() {
+	resetAll()
 }
 
 func StructToMethodSet(styp reflect.Type) reflect.Type {
