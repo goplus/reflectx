@@ -325,7 +325,7 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 			nm := newNameEx(m.Name, "", isexport, !isexport)
 			mname = resolveReflectName(nm)
 			if !isexport {
-				nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+				nm.setPkgPath(m.PkgPath)
 			}
 		} else {
 			mname = resolveReflectName(newName(m.Name, "", isexport))
@@ -381,7 +381,7 @@ func (ctx *Context) InterfaceOf(embedded []reflect.Type, methods []reflect.Metho
 		nm := newNameEx(m.Name, "", isexport, !isexport)
 		mname = resolveReflectName(nm)
 		if !isexport {
-			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+			nm.setPkgPath(m.PkgPath)
 		}
 		st.methods = append(st.methods, imethod{
 			name: mname,

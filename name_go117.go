@@ -128,9 +128,9 @@ func (n name) pkgPath() string {
 	return pkgPathName.name()
 }
 
-func (n name) setPkgPath(pkgpath nameOff) bool {
-	if n.bytes == nil || *n.data(0, "name flag field")&(1<<2) == 0 {
-		return false
+func (n name) setPkgPath(pkgpath string) {
+	if n.bytes == nil || *n.data(0, "name flag pkgPath")&(1<<2) == 0 {
+		return
 	}
 	i, l := n.readVarint(1)
 	off := 1 + i + l
@@ -138,8 +138,8 @@ func (n name) setPkgPath(pkgpath nameOff) bool {
 		i2, l2 := n.readVarint(off)
 		off += i2 + l2
 	}
-	copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:], (*[4]byte)(unsafe.Pointer(&pkgpath))[:])
-	return true
+	v := resolveReflectName(newName(pkgpath, "", false))
+	copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset pkgPath")))[:], (*[4]byte)(unsafe.Pointer(&v))[:])
 }
 
 func newNameEx(n, tag string, exported bool, pkgpath bool) name {

@@ -16,7 +16,7 @@ import "unsafe"
 //
 // The next two bytes are the data length:
 //
-//	 l := uint16(data[1])<<8 | uint16(data[2])
+//	l := uint16(data[1])<<8 | uint16(data[2])
 //
 // Bytes [3:3+l] are the string data.
 //
@@ -96,16 +96,16 @@ func (n name) pkgPath() string {
 	return pkgPathName.name()
 }
 
-func (n name) setPkgPath(pkgpath nameOff) bool {
+func (n name) setPkgPath(pkgpath string) {
 	if n.bytes == nil || *n.data(0, "name flag field")&(1<<2) == 0 {
-		return false
+		return
 	}
 	off := 3 + n.nameLen()
 	if tl := n.tagLen(); tl > 0 {
 		off += 2 + tl
 	}
-	copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:], (*[4]byte)(unsafe.Pointer(&pkgpath))[:])
-	return true
+	v := resolveReflectName(newName(pkgpath, "", false))
+	copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:], (*[4]byte)(unsafe.Pointer(&v))[:])
 }
 
 func newNameEx(n, tag string, exported bool, pkgpath bool) name {

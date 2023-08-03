@@ -19,8 +19,11 @@ func name_name(name) string
 //go:linkname name_tag reflect.name.tag
 func name_tag(name) string
 
-//go:linkname name_tag reflect.name.pkgPath
+//go:linkname name_pkgPath reflect.name.pkgPath
 func name_pkgPath(name) string
+
+//go:linkname name_setPkgPath reflect.name.setPkgPath
+func name_setPkgPath(name, string)
 
 type name struct {
 	bytes *byte
@@ -46,9 +49,8 @@ func (n name) pkgPath() string {
 	return name_pkgPath(n)
 }
 
-func (n name) setPkgPath(pkgpath nameOff) bool {
-	println("not impl setPkgPath")
-	return true
+func (n name) setPkgPath(pkgpath string) {
+	name_setPkgPath(n, pkgpath)
 }
 
 func newNameEx(n, tag string, exported bool, pkgpath bool) name {
