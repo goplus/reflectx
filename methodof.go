@@ -249,10 +249,10 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 	for i, m := range methods {
 		isexport := methodIsExported(m.Name)
 		nm := newNameEx(m.Name, "", isexport, !isexport)
-		mname := resolveReflectName(nm)
 		if !isexport {
-			nm.setPkgPath(resolveReflectName(newName(m.PkgPath, "", false)))
+			nm.setPkgPath(m.PkgPath)
 		}
+		mname := resolveReflectName(nm)
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)

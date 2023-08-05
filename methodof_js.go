@@ -171,7 +171,12 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		}
 		pjsmscache.SetIndex(i, fn)
 
-		mname := resolveReflectName(newName(m.Name, "", true))
+		isexport := methodIsExported(m.Name)
+		nm := newNameEx(m.Name, "", isexport, !isexport)
+		if !isexport {
+			nm.setPkgPath(m.PkgPath)
+		}
+		mname := resolveReflectName(nm)
 		mtyp := resolveReflectType(totype(ntyp))
 		pums[i].name = mname
 		pums[i].mtyp = mtyp
