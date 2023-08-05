@@ -243,8 +243,9 @@ func newType(pkg string, name string, styp reflect.Type, xcount int, mcount int)
 		obj = fnNewType.Invoke(styp.Size(), kind, name, true, pkg, false, nil)
 		obj.Call("init", jsType(styp).Get("methods"))
 	case reflect.Struct:
-		fields := js.Global.Get("Array").New()
-		for i := 0; i < styp.NumField(); i++ {
+		n := styp.NumField()
+		fields := js.Global.Get("Array").New(n)
+		for i := 0; i < n; i++ {
 			sf := styp.Field(i)
 			jsf := js.Global.Get("Object").New()
 			jsf.Set("prop", sf.Name)
@@ -388,6 +389,16 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		st := (*structType)(toKindType(rt))
 		ost := (*structType)(toKindType(ort))
 		st.fields = ost.fields
+		obj := jsType(rt)
+		fields := obj.Get("fields")
+		n := styp.NumField()
+		for i := 0; i < n; i++ {
+			sf := styp.Field(i)
+			jsf := fields.Index(i)
+			jsf.Set("prop", sf.Name)
+			jsf.Set("name", sf.Name)
+			jsf.Set("typ", jsType(sf.Type))
+		}
 	case reflect.Ptr:
 		st := (*ptrType)(toKindType(rt))
 		ost := (*ptrType)(toKindType(ort))
