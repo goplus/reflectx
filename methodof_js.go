@@ -19,6 +19,10 @@ func IcallStat() (capacity int, allocate int, aviable int) {
 }
 
 func (ctx *Context) Reset() {
+	ctx.nAllocateError = 0
+	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
+	ctx.structLookupCache = make(map[string][]reflect.Type)
+	ctx.interfceLookupCache = make(map[string]reflect.Type)
 }
 
 func resetAll() {
@@ -89,16 +93,16 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	return typ
 }
 
-func resizeMethod(typ reflect.Type, count int) error {
+func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 	rt := totype(typ)
 	ut := toUncommonType(rt)
 	if ut == nil {
 		return fmt.Errorf("not found uncommonType of %v", typ)
 	}
-	if uint16(count) > ut.mcount {
+	if uint16(mcount) > ut.mcount {
 		return fmt.Errorf("too many methods of %v", typ)
 	}
-	ut.xcount = uint16(count)
+	ut.xcount = uint16(xcount)
 	return nil
 }
 
@@ -110,22 +114,28 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		}
 		return n < 0
 	})
-	isPointer := func(m Method) bool {
-		return m.Pointer
-	}
+
 	var mcount, pcount int
+	var xcount, pxcount int
 	pcount = len(methods)
 	for _, m := range methods {
-		if !isPointer(m) {
+		isexport := methodIsExported(m.Name)
+		if isexport {
+			pxcount++
+		}
+		if !m.Pointer {
+			if isexport {
+				xcount++
+			}
 			mcount++
 		}
 	}
 
 	ptyp := reflect.PtrTo(typ)
-	if err := resizeMethod(typ, mcount); err != nil {
+	if err := resizeMethod(typ, mcount, xcount); err != nil {
 		return err
 	}
-	if err := resizeMethod(ptyp, pcount); err != nil {
+	if err := resizeMethod(ptyp, pcount, pxcount); err != nil {
 		return err
 	}
 	rt := totype(typ)
