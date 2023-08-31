@@ -184,6 +184,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		isexport := methodIsExported(m.Name)
 		nm := newNameEx(m.Name, "", isexport, !isexport)
 		if !isexport {
+			fn.Set("pkg", m.PkgPath)
 			nm.setPkgPath(m.PkgPath)
 		}
 		mname := resolveReflectName(nm)
