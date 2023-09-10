@@ -1,5 +1,5 @@
-//go:build (go1.17 && goexperiment.regabireflect) || go1.18 && !go1.21
-// +build go1.17,goexperiment.regabireflect go1.18,!go1.21
+//go:build go1.21
+// +build go1.21
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -92,7 +92,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 	CALL	·spillArgs(SB)		\
 	MOVQ	24(SP), DX		\
 	MOVQ	DX, 0(SP)		\
-	LEAQ	argframe+8(FP), CX		\
+	LEAQ	argframe+16(FP), CX		\
 	MOVQ	CX, 8(SP)		\
 	MOVB	$0, LOCAL_RETVALID(SP)		\
 	LEAQ	LOCAL_RETVALID(SP), AX		\
