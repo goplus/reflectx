@@ -43,6 +43,8 @@ var (
 	asm_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_arm64.s", 1))
 	asm_ppc64x_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_ppc64x.s", 1))
 	asm_riscv64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_riscv64.s", 1))
+	asm_go121_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go121_amd64.s", 1))
+	asm_go121_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_gp121_arm64.s", 1))
 	fnWrite := func(filename string, tmpl string, size int) error {
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
@@ -56,6 +58,14 @@ var (
 		return err
 	}
 	err = fnWrite(asm_arm64_file, regabi_arm64, size)
+	if err != nil {
+		return err
+	}
+	err = fnWrite(asm_go121_amd64_file, regabi_go121_amd64, size)
+	if err != nil {
+		return err
+	}
+	err = fnWrite(asm_go121_arm64_file, regabi_go121_arm64, size)
 	if err != nil {
 		return err
 	}
@@ -80,7 +90,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/goplus/reflectx"
+	"github.com/goplus/reflectx/abi"
 )
 
 const capacity = $max_size
@@ -109,7 +119,7 @@ func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointe
 func spillArgs()
 func unspillArgs()
 
-func (p *provider) Insert(info *reflectx.MethodInfo) (unsafe.Pointer, int) {
+func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 	var index = -1
 	for i := 0; i < capacity; i++ {
 		if _, ok := p.used[i]; !ok {
@@ -186,13 +196,121 @@ var (
 )
 
 func init() {
-	reflectx.AddMethodProvider(mp)
+	abi.AddMethodProvider(mp)
 }
 
 `
 
-var regabi_amd64 = `//go:build (go1.17 && goexperiment.regabireflect) || go1.18
-// +build go1.17,goexperiment.regabireflect go1.18
+var regabi_go121_amd64 = `//go:build go1.21
+// +build go1.21
+
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+#include "textflag.h"
+#include "funcdata.h"
+#include "go_asm.h"
+
+// The frames of each of the two functions below contain two locals, at offsets
+// that are known to the runtime.
+//
+// The first local is a bool called retValid with a whole pointer-word reserved
+// for it on the stack. The purpose of this word is so that the runtime knows
+// whether the stack-allocated return space contains valid values for stack
+// scanning.
+//
+// The second local is an abi.RegArgs value whose offset is also known to the
+// runtime, so that a stack map for it can be constructed, since it contains
+// pointers visible to the GC.
+#define LOCAL_RETVALID 32
+#define LOCAL_REGARGS 40
+
+// makeFuncStub is the code half of the function returned by MakeFunc.
+// See the comment on the declaration of makeFuncStub in makefunc.go
+// for more details.
+// No arg size here; runtime pulls arg map out of the func value.
+// This frame contains two locals. See the comment above LOCAL_RETVALID.
+// amd64 argframe+8(FP) offset to func from method
+#define MAKE_FUNC_FN(NAME,INDEX)		\
+TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
+	NO_LOCAL_POINTERS		\
+	LEAQ	LOCAL_REGARGS(SP), R12		\
+	CALL	runtime·spillArgs(SB)		\
+	MOVQ	24(SP), DX		\
+	MOVQ	DX, 0(SP)		\
+	LEAQ	argframe+16(FP), CX		\
+	MOVQ	CX, 8(SP)		\
+	MOVB	$0, LOCAL_RETVALID(SP)		\
+	LEAQ	LOCAL_RETVALID(SP), AX		\
+	MOVQ	AX, 16(SP)		\
+	LEAQ	LOCAL_REGARGS(SP), AX		\
+	MOVQ	AX, 24(SP)		\
+	MOVQ	$INDEX, AX		\
+	MOVQ	AX, 32(SP)		\
+	CALL	·i_x(SB)		\
+	LEAQ	LOCAL_REGARGS(SP), R12		\
+	CALL	runtime·unspillArgs(SB)		\
+	RET
+
+`
+
+var regabi_go121_arm64 = `//go:build go1.21
+// +build go1.21
+
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+#include "textflag.h"
+#include "funcdata.h"
+
+// The frames of each of the two functions below contain two locals, at offsets
+// that are known to the runtime.
+//
+// The first local is a bool called retValid with a whole pointer-word reserved
+// for it on the stack. The purpose of this word is so that the runtime knows
+// whether the stack-allocated return space contains valid values for stack
+// scanning.
+//
+// The second local is an abi.RegArgs value whose offset is also known to the
+// runtime, so that a stack map for it can be constructed, since it contains
+// pointers visible to the GC.
+#define LOCAL_RETVALID 40
+#define LOCAL_REGARGS 48
+
+// The frame size of the functions below is
+// 32 (args of callReflect) + 8 (bool + padding) + 392 (abi.RegArgs) = 432.
+
+// makeFuncStub is the code half of the function returned by MakeFunc.
+// See the comment on the declaration of makeFuncStub in makefunc.go
+// for more details.
+// No arg size here, runtime pulls arg map out of the func value.
+#define MAKE_FUNC_FN(NAME,INDEX)		\
+TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
+	NO_LOCAL_POINTERS		\
+	ADD	$LOCAL_REGARGS, RSP, R20		\
+	CALL	runtime·spillArgs(SB)		\
+	MOVD	32(RSP), R26		\
+	MOVD	R26, 16(RSP)		\
+	MOVD	$argframe+0(FP), R3		\
+	MOVD	R3, 16(RSP)		\
+	MOVB	$0, LOCAL_RETVALID(RSP)		\
+	ADD	$LOCAL_RETVALID, RSP, R3		\
+	MOVD	R3, 24(RSP)		\
+	ADD	$LOCAL_REGARGS, RSP, R3		\
+	MOVD	R3, 32(RSP)		\
+	MOVD	$INDEX, R3		\
+	MOVD	R3, 40(RSP)		\
+	CALL	·i_x(SB)		\
+	ADD	$LOCAL_REGARGS, RSP, R20		\
+	CALL	runtime·unspillArgs(SB)		\
+	RET
+
+`
+
+var regabi_amd64 = `//go:build (go1.17 && goexperiment.regabireflect) || (go1.18 && !go1.21)
+// +build go1.17,goexperiment.regabireflect go1.18,!go1.21
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -299,8 +417,8 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$312		\
 
 `
 
-var regabi_arm64 = `//go:build (go1.18 && goexperiment.regabireflect) || go1.19
-// +build go1.18,goexperiment.regabireflect go1.19
+var regabi_arm64 = `//go:build (go1.18 && goexperiment.regabireflect) || (go1.19 && !go1.21)
+// +build go1.18,goexperiment.regabireflect go1.19,!go1.21
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style

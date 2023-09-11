@@ -10,74 +10,19 @@ import (
 	"sort"
 	"strings"
 	"unsafe"
+
+	"github.com/goplus/reflectx/abi"
+	_ "github.com/goplus/reflectx/internal/icall512"
 )
-
-type MethodProvider interface {
-	Insert(info *MethodInfo) (ifn unsafe.Pointer, index int) // insert method info
-	Remove(index []int)                                      // remove method info
-	Available() int                                          // available count
-	Used() int                                               // methods used
-	Cap() int                                                // methods capacity
-	Clear()                                                  // clear all methods
-}
-
-type mpList struct {
-	list   []MethodProvider
-	cur    MethodProvider
-	maxCap int
-}
-
-func (p *mpList) Clear() {
-	for _, v := range p.list {
-		v.Clear()
-	}
-}
-
-func (p *mpList) Add(mp MethodProvider) {
-	for _, v := range p.list {
-		if v == mp {
-			return
-		}
-	}
-	p.list = append(p.list, mp)
-	p.maxCap += mp.Cap()
-}
-
-func (p *mpList) Used() int {
-	var n int
-	for _, mp := range p.list {
-		n += mp.Used()
-	}
-	return n
-}
-
-func (p *mpList) Available() int {
-	var n int
-	for _, mp := range p.list {
-		n += mp.Available()
-	}
-	return n
-}
-
-func (p *mpList) Cap() int {
-	return p.maxCap
-}
 
 // icall stat
 func IcallStat() (capacity int, allocate int, aviable int) {
+	mps := abi.Default
 	return mps.Cap(), mps.Used(), mps.Available()
 }
 
-func AddMethodProvider(mp MethodProvider) {
-	mps.Add(mp)
-}
-
-var (
-	mps mpList
-)
-
 func resetAll() {
-	mps.Clear()
+	abi.Default.Clear()
 }
 
 func (ctx *Context) Reset() {
@@ -88,7 +33,7 @@ func (ctx *Context) Reset() {
 	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[MethodProvider][]int)
+	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
 }
 
 func (ctx *Context) IcallAlloc() int {
@@ -99,7 +44,7 @@ func (ctx *Context) IcallAlloc() int {
 	return n
 }
 
-func methodInfoText(info *MethodInfo) string {
+func methodInfoText(info *abi.MethodInfo) string {
 	if info.Pointer {
 		return "(*" + info.Type.String() + ")." + info.Name
 	}
@@ -107,8 +52,8 @@ func methodInfoText(info *MethodInfo) string {
 }
 
 // register method info
-func (ctx *Context) registerMethod(info *MethodInfo) (ifn unsafe.Pointer, allocated bool) {
-	for _, mp := range mps.list {
+func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, allocated bool) {
+	for _, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
 			continue
 		}
@@ -256,7 +201,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
-		pinfo := &MethodInfo{
+		pinfo := &abi.MethodInfo{
 			Name:     m.Name,
 			Type:     typ,
 			Func:     mfn,
@@ -276,7 +221,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		pms[i].ifn = resolveReflectText(pifn)
 
 		if !m.Pointer {
-			info := &MethodInfo{
+			info := &abi.MethodInfo{
 				Name:     m.Name,
 				Type:     typ,
 				Func:     mfn,
@@ -299,10 +244,11 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 	prt.tflag |= tflagUserMethod
 
 	if ctx.nAllocateError != 0 {
+		ncap := abi.Default.Cap()
 		err := &AllocError{
 			Typ: typ,
-			Cap: mps.Cap(),
-			Req: mps.Cap() + ctx.nAllocateError,
+			Cap: ncap,
+			Req: ncap + ctx.nAllocateError,
 		}
 		if !DisableAllocateWarning {
 			log.Printf("warning, %v, import _ %q\n", err, "github.com/goplus/reflectx/icall/icall[N]")
