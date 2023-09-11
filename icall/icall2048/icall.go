@@ -47,12 +47,12 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
-	p.used = make(map[int]*reflectx.MethodInfo)
+	p.used = make(map[int]*abi.MethodInfo)
 }
 
 var (
 	mp = &provider{
-		used: make(map[int]*reflectx.MethodInfo),
+		used: make(map[int]*abi.MethodInfo),
 	}
 )
 
