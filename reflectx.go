@@ -186,34 +186,26 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 		ctx.structLookupCache[str] = []reflect.Type{typ}
 	}
 	// fix equal for blank fields and uncomparable type
-	rt.equal = func(p, q unsafe.Pointer) bool {
-		for i, ft := range st.fields {
-			if fields[i].Name == "_" {
-				continue
+	if rt.equal != nil && underscoreCount > 0 {
+		rt.equal = func(p, q unsafe.Pointer) bool {
+			for i, ft := range st.fields {
+				if fields[i].Name == "_" {
+					continue
+				}
+				pi := add(p, ft.offset(), "&x.field safe")
+				qi := add(q, ft.offset(), "&x.field safe")
+				if !ft.typ.equal(pi, qi) {
+					return false
+				}
 			}
-			if ft.typ.equal == nil {
-				panic(errorString("comparing uncomparable type " + toType(ft.typ).String()))
-			}
-			pi := add(p, ft.offset(), "&x.field safe")
-			qi := add(q, ft.offset(), "&x.field safe")
-			if !ft.typ.equal(pi, qi) {
-				return false
-			}
+			return true
 		}
-		return true
 	}
+
 	if rt.tflag == 0 && isRegularMemory(typ) {
 		rt.tflag |= tflagRegularMemory
 	}
 	return typ
-}
-
-type errorString string
-
-func (e errorString) RuntimeError() {}
-
-func (e errorString) Error() string {
-	return "runtime error: " + string(e)
 }
 
 // fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
