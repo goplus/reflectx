@@ -8,16 +8,16 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/goplus/reflectx"
+	"github.com/goplus/reflectx/abi"
 )
 
 const capacity = 2048
 
 type provider struct {
-	used map[int]*reflectx.MethodInfo
+	used map[int]*abi.MethodInfo
 }
 
-func (p *provider) Insert(info *reflectx.MethodInfo) (ifn unsafe.Pointer, index int) {
+func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) {
 	for i := 0; i < capacity; i++ {
 		if _, ok := p.used[i]; !ok {
 			p.used[i] = info
@@ -47,17 +47,17 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
-	p.used = make(map[int]*reflectx.MethodInfo)
+	p.used = make(map[int]*abi.MethodInfo)
 }
 
 var (
 	mp = &provider{
-		used: make(map[int]*reflectx.MethodInfo),
+		used: make(map[int]*abi.MethodInfo),
 	}
 )
 
 func init() {
-	reflectx.AddMethodProvider(mp)
+	abi.AddMethodProvider(mp)
 }
 
 func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {

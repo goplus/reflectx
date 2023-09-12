@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/goplus/reflectx"
+	"github.com/goplus/reflectx/abi"
 )
 
 const capacity = 8192
@@ -37,7 +37,7 @@ func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointe
 func spillArgs()
 func unspillArgs()
 
-func (p *provider) Insert(info *reflectx.MethodInfo) (unsafe.Pointer, int) {
+func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 	var index = -1
 	for i := 0; i < capacity; i++ {
 		if _, ok := p.used[i]; !ok {
@@ -114,7 +114,7 @@ var (
 )
 
 func init() {
-	reflectx.AddMethodProvider(mp)
+	abi.AddMethodProvider(mp)
 }
 
 func f0()
