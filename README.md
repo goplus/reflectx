@@ -55,10 +55,10 @@ support ABI0 and ABIInternal
 ### Context
 * reflectx.NewContext()
 
-### methods preset
-* preset
+### Method allocs
+* allocs
 ```
-import _ "github.com/goplus/reflectx/icall/icall[2^n]"
+import _ "github.com/goplus/reflectx/icall/icall[N]"
 ```
 * install icall_gen
 ```
