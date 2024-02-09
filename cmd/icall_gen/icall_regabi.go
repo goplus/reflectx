@@ -44,7 +44,7 @@ var (
 	asm_ppc64x_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_ppc64x.s", 1))
 	asm_riscv64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_riscv64.s", 1))
 	asm_go121_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go121_amd64.s", 1))
-	asm_go121_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_gp121_arm64.s", 1))
+	asm_go121_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go121_arm64.s", 1))
 	fnWrite := func(filename string, tmpl string, size int) error {
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
