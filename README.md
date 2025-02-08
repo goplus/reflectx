@@ -9,6 +9,18 @@ Golang reflect package hack tools
 [![Go1.19](https://github.com/goplus/reflectx/workflows/Go1.19/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go119.yml)
 [![Go1.20](https://github.com/goplus/reflectx/workflows/Go1.20/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go120.yml)
 [![Go1.21](https://github.com/goplus/reflectx/workflows/Go1.21/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go121.yml)
+[![Go1.22](https://github.com/goplus/reflectx/workflows/Go1.22/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go122.yml)
+[![Go1.23](https://github.com/goplus/reflectx/workflows/Go1.23/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go123.yml)
+
+### Build
+
+- Go1.14 ~ Go1.22
+
+  `go build`
+
+- Go1.23
+
+  `go build -ldflags="-checklinkname=0"`
 
 ### ABI
 
@@ -19,9 +31,7 @@ support ABI0 and ABIInternal
 
 	- Go1.17: amd64
 	- Go1.18: amd64 arm64 ppc64/ppc64le
-	- Go1.19: amd64 arm64 ppc64/ppc64le riscv64
-	- Go1.20: amd64 arm64 ppc64/ppc64le riscv64
-	- Go1.21: amd64 arm64 ppc64/ppc64le riscv64
+	- Go1.19~Go1.23: amd64 arm64 ppc64/ppc64le riscv64
 
 ### Field
 * reflectx.CanSet
