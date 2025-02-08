@@ -170,7 +170,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 			mcount++
 		}
 	}
-	ptyp := reflect.PtrTo(typ)
+	ptyp := PtrTo(typ)
 	if err := resizeMethod(typ, mcount, xcount); err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
-	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
+	prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)
 	rt.ptrToThis = resolveReflectType(prt)
 	(*ptrType)(unsafe.Pointer(prt)).elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())

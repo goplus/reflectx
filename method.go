@@ -143,7 +143,7 @@ func extractEmbedMethod(styp reflect.Type) []Method {
 			for _, m := range ms {
 				skip[m.Name] = true
 			}
-			pms := extraFieldMethod(i, reflect.PtrTo(sf.Type), skip)
+			pms := extraFieldMethod(i, PtrTo(sf.Type), skip)
 			methods = append(methods, ms...)
 			methods = append(methods, pms...)
 		}

@@ -1,4 +1,4 @@
-name: Go1.14
+name: Go1.22
 
 on:
   push:
@@ -8,15 +8,38 @@ on:
 
 jobs:
 
+  macos:
+    name: Test Go1.22 for macOS
+    runs-on: macos-latest
+    steps:
+
+    - name: Set up Go 1.22
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Get dependencies
+      run: |
+        go get -v -t -d ./...
+
+    - name: Build
+      run: go build -v .
+
+    - name: Go Test
+      run: go test -race -v .
+
   linux:
-    name: Test Go1.14 on Linux
+    name: Test Go1.22 for Linux
     runs-on: ubuntu-latest
     steps:
 
-    - name: Set up Go 1.14
-      uses: actions/setup-go@v2
+    - name: Set up Go 1.22
+      uses: actions/setup-go@v4
       with:
-        go-version: 1.14
+        go-version: '1.22'
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
@@ -35,14 +58,14 @@ jobs:
       run: GOARCH=386 go test -v .
 
   windows:
-    name: Test Go1.14 on Windows
+    name: Test Go1.22 for Windows
     runs-on: windows-latest
     steps:
 
-    - name: Set up Go 1.14
-      uses: actions/setup-go@v2
+    - name: Set up Go 1.22
+      uses: actions/setup-go@v4
       with:
-        go-version: 1.14
+        go-version: '1.22'
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
