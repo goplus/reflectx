@@ -25,6 +25,9 @@ func name_pkgPath(name) string
 //go:linkname name_setPkgPath reflect.name.setPkgPath
 func name_setPkgPath(name, string)
 
+//go:linkname name_embedded reflect.name.embedded
+func name_embedded(name) bool
+
 type name struct {
 	bytes *byte
 }
@@ -53,6 +56,14 @@ func (n name) setPkgPath(pkgpath string) {
 	name_setPkgPath(n, pkgpath)
 }
 
+func (n name) embedded() bool {
+	return name_embedded(n)
+}
+
 func newNameEx(n, tag string, exported bool, pkgpath bool) name {
 	return newName(n, tag, exported)
+}
+
+func (n name) setEmbedded() {
+	//
 }
