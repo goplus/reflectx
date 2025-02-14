@@ -1,6 +1,5 @@
-//go:build go1.19 && (!js || (js && wasm))
-// +build go1.19
-// +build !js js,wasm
+//go:build go1.19 && js && !wasm
+// +build go1.19,js,!wasm
 
 package reflectx
 
@@ -20,5 +19,5 @@ func (f *structField) embedded() bool {
 }
 
 func setEmbedded(f *structField) {
-	f.name.setEmbedded()
+	f.name = _newName(f.name.name(), f.name.tag(), f.name.isExported(), true)
 }
