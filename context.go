@@ -19,6 +19,7 @@ type Context struct {
 	structLookupCache   map[string][]reflect.Type
 	interfceLookupCache map[string]reflect.Type
 	methodIndexList     map[abi.MethodProvider][]int
+	fnHasImethod        func(typ reflect.Type, method Method) bool
 	nAllocateError      int
 }
 
@@ -29,6 +30,10 @@ func NewContext() *Context {
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
 	return ctx
+}
+
+func (p *Context) SetHasImethod(hasImethod func(typ reflect.Type, method Method) bool) {
+	p.fnHasImethod = hasImethod
 }
 
 type AllocError struct {

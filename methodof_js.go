@@ -23,6 +23,7 @@ func (ctx *Context) Reset() {
 	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
+	ctx.fnHasImethod = nil
 }
 
 func resetAll() {
