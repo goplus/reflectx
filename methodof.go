@@ -34,6 +34,7 @@ func (ctx *Context) Reset() {
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
+	ctx.fnHasImethod = nil
 }
 
 func (ctx *Context) IcallAlloc() int {
@@ -145,6 +146,17 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn
 	return
 }
 
+func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
+	if ctx.fnHasImethod != nil {
+		return ctx.fnHasImethod(typ, method)
+	}
+	return true
+}
+
+var (
+	zeroIfn = unsafe.Pointer(reflect.ValueOf(func() {}).Pointer())
+)
+
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 	sort.Slice(methods, func(i, j int) bool {
 		n := strings.Compare(methods[i].Name, methods[j].Name)
@@ -214,25 +226,31 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
 		}
-		pifn, _ := ctx.registerMethod(pinfo)
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
+		var pifn unsafe.Pointer = zeroIfn
+		hasIfn := ctx.hasImethod(typ, m)
+		if hasIfn {
+			pifn, _ = ctx.registerMethod(pinfo)
+		}
 		pms[i].ifn = resolveReflectText(pifn)
-
 		if !m.Pointer {
-			info := &abi.MethodInfo{
-				Name:     m.Name,
-				Type:     typ,
-				Func:     mfn,
-				InTyp:    inTyp,
-				OutTyp:   outTyp,
-				InSize:   isz,
-				OutSize:  osz,
-				Variadic: m.Type.IsVariadic(),
-				OnePtr:   onePtr,
+			ifn := pifn
+			if hasIfn && onePtr {
+				info := &abi.MethodInfo{
+					Name:     m.Name,
+					Type:     typ,
+					Func:     mfn,
+					InTyp:    inTyp,
+					OutTyp:   outTyp,
+					InSize:   isz,
+					OutSize:  osz,
+					Variadic: m.Type.IsVariadic(),
+					OnePtr:   onePtr,
+				}
+				ifn, _ = ctx.registerMethod(info)
 			}
-			ifn, _ := ctx.registerMethod(info)
 			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
