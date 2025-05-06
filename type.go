@@ -233,20 +233,6 @@ type interfaceType struct {
 	methods []imethod // sorted by hash
 }
 
-// mapType represents a map type.
-type mapType struct {
-	rtype
-	key    *rtype // map key type
-	elem   *rtype // map element (value) type
-	bucket *rtype // internal bucket structure
-	// function for hashing keys (ptr to key, seed) -> hash
-	hasher     func(unsafe.Pointer, uintptr) uintptr
-	keysize    uint8  // size of key slot
-	valuesize  uint8  // size of value slot
-	bucketsize uint16 // size of bucket
-	flags      uint32
-}
-
 // ptrType represents a pointer type.
 type ptrType struct {
 	rtype
