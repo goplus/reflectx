@@ -73,7 +73,7 @@ import _ "github.com/goplus/reflectx/icall/icall[N]"
 ```
 * install icall_gen
 ```
-go get github.com/goplus/reflectx/cmd/icall_gen
+go install github.com/goplus/reflectx/cmd/icall_gen@latest
 ```
 ```
 icall_gen -o icall1024.go -pkg main -size 1024
