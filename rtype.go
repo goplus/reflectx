@@ -216,14 +216,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	case reflect.Map:
 		st := (*mapType)(unsafe.Pointer(rt))
 		ost := (*mapType)(unsafe.Pointer(ort))
-		st.key = ost.key
-		st.elem = ost.elem
-		st.bucket = ost.bucket
-		st.hasher = ost.hasher
-		st.keysize = ost.keysize
-		st.valuesize = ost.valuesize
-		st.bucketsize = ost.bucketsize
-		st.flags = ost.flags
+		cloneMap(st, ost)
 	case reflect.Func:
 		st := (*funcType)(unsafe.Pointer(rt))
 		ost := (*funcType)(unsafe.Pointer(ort))
@@ -357,14 +350,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		}))
 		st := (*mapType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		ost := (*mapType)(unsafe.Pointer(ort))
-		st.key = ost.key
-		st.elem = ost.elem
-		st.bucket = ost.bucket
-		st.hasher = ost.hasher
-		st.keysize = ost.keysize
-		st.valuesize = ost.valuesize
-		st.bucketsize = ost.bucketsize
-		st.flags = ost.flags
+		cloneMap(st, ost)
 	default:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(rtype{})},
