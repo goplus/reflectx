@@ -11,6 +11,7 @@ Golang reflect package hack tools
 [![Go1.21](https://github.com/goplus/reflectx/workflows/Go1.21/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go121.yml)
 [![Go1.22](https://github.com/goplus/reflectx/workflows/Go1.22/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go122.yml)
 [![Go1.23](https://github.com/goplus/reflectx/workflows/Go1.23/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go123.yml)
+[![Go1.24](https://github.com/goplus/reflectx/workflows/Go1.24/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go124.yml)
 
 ### Build
 
@@ -18,7 +19,7 @@ Golang reflect package hack tools
 
   `go build`
 
-- Go1.23
+- Go1.23 ~ Go1.24
 
   `go build -ldflags="-checklinkname=0"`
 
@@ -31,7 +32,7 @@ support ABI0 and ABIInternal
 
 	- Go1.17: amd64
 	- Go1.18: amd64 arm64 ppc64/ppc64le
-	- Go1.19~Go1.23: amd64 arm64 ppc64/ppc64le riscv64
+	- Go1.19~Go1.24: amd64 arm64 ppc64/ppc64le riscv64
 
 ### Field
 * reflectx.CanSet
