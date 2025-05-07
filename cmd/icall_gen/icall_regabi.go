@@ -39,12 +39,23 @@ var (
 		return err
 	}
 
-	asm_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_amd64.s", 1))
-	asm_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_arm64.s", 1))
-	asm_ppc64x_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_ppc64x.s", 1))
-	asm_riscv64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_riscv64.s", 1))
-	asm_go121_amd64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go121_amd64.s", 1))
-	asm_go121_arm64_file := filepath.Join(dir, strings.Replace(f, ".go", "_regabi_go121_arm64.s", 1))
+	type info struct {
+		id   string
+		abi  string
+		file string
+	}
+	infos := []info{
+		{id: "amd64", abi: regabi_amd64},
+		{id: "arm64", abi: regabi_arm64},
+		{id: "ppc64x", abi: regabi_ppc64x},
+		{id: "riscv64", abi: regabi_riscv64},
+		{id: "go121_amd64", abi: regabi_go121_amd64},
+		{id: "go121_arm64", abi: regabi_go121_arm64},
+		{id: "loong64", abi: regabi_loong64},
+	}
+	for i := 0; i < len(infos); i++ {
+		infos[i].file = filepath.Join(dir, strings.Replace(f, ".go", "_regabi_"+infos[i].id+".s", 1))
+	}
 	fnWrite := func(filename string, tmpl string, size int) error {
 		var buf bytes.Buffer
 		buf.WriteString(tmpl)
@@ -53,35 +64,17 @@ var (
 		}
 		return ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	}
-	err = fnWrite(asm_amd64_file, regabi_amd64, size)
-	if err != nil {
-		return err
-	}
-	err = fnWrite(asm_arm64_file, regabi_arm64, size)
-	if err != nil {
-		return err
-	}
-	err = fnWrite(asm_go121_amd64_file, regabi_go121_amd64, size)
-	if err != nil {
-		return err
-	}
-	err = fnWrite(asm_go121_arm64_file, regabi_go121_arm64, size)
-	if err != nil {
-		return err
-	}
-	err = fnWrite(asm_ppc64x_file, regabi_ppc64x, size)
-	if err != nil {
-		return err
-	}
-	err = fnWrite(asm_riscv64_file, regabi_riscv64, size)
-	if err != nil {
-		return err
+	for _, info := range infos {
+		err := fnWrite(info.file, info.abi, size)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-var icall_regabi = `//go:build ((go1.17 && goexperiment.regabireflect) || (go1.19 && goexperiment.regabiargs) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le) || (go1.20 && riscv64)) && (!js || (js && wasm))
-// +build go1.17,goexperiment.regabireflect go1.19,goexperiment.regabiargs go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le go1.20,riscv64
+var icall_regabi = `//go:build ((go1.17 && goexperiment.regabireflect) || (go1.19 && goexperiment.regabiargs) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le) || (go1.20 && riscv64) || (go1.23 && loong64)) && (!js || (js && wasm))
+// +build go1.17,goexperiment.regabireflect go1.19,goexperiment.regabiargs go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le go1.20,riscv64 go1.23,loong64
 // +build !js js,wasm
 
 package $pkgname
@@ -578,6 +571,62 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432	\
 	CALL	·i_x(SB)		\
 	ADD	$LOCAL_REGARGS, SP, X25 		\
 	CALL	runtime·unspillArgs(SB)		\
+	RET
+
+`
+
+var regabi_loong64 = `//go:build (go1.22 && goexperiment.regabiargs) || go1.23
+// +build go1.22,goexperiment.regabiargs go1.23
+
+// Copyright 2022 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+#include "textflag.h"
+#include "funcdata.h"
+
+#define	REGCTXT	R29
+
+// The frames of each of the two functions below contain two locals, at offsets
+// that are known to the runtime.
+//
+// The first local is a bool called retValid with a whole pointer-word reserved
+// for it on the stack. The purpose of this word is so that the runtime knows
+// whether the stack-allocated return space contains valid values for stack
+// scanning.
+//
+// The second local is an abi.RegArgs value whose offset is also known to the
+// runtime, so that a stack map for it can be constructed, since it contains
+// pointers visible to the GC.
+#define LOCAL_RETVALID 40
+#define LOCAL_REGARGS 48
+
+// The frame size of the functions below is
+// 32 (args of callReflect) + 8 (bool + padding) + 392 (abi.RegArgs) = 432.
+
+// makeFuncStub is the code half of the function returned by MakeFunc.
+// See the comment on the declaration of makeFuncStub in makefunc.go
+// for more details.
+// No arg size here, runtime pulls arg map out of the func value.
+#define MAKE_FUNC_FN(NAME,INDEX)		\
+TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
+	NO_LOCAL_POINTERS	\
+	ADDV	$LOCAL_REGARGS, R3, R25 \
+	JAL	runtime·spillArgs(SB)	\
+	MOVV	32(R3), REGCTXT \
+	MOVV	REGCTXT, 8(R3)	\
+	MOVV	$argframe+0(FP), R20	\
+	MOVV	R20, 16(R3)	\
+	MOVV	R0, LOCAL_RETVALID(R3)	\
+	ADDV	$LOCAL_RETVALID, R3, R20	\
+	MOVV	R20, 24(R3)	\
+	ADDV	$LOCAL_REGARGS, R3, R20		\
+	MOVV	R20, 32(R3)	\
+	MOVV	$INDEX, R20		\
+	MOVV	R20, 40(R3)		\
+	CALL	·i_x(SB)		\
+	ADDV	$LOCAL_REGARGS, R3, R25		\
+	JAL	runtime·unspillArgs(SB)	\
 	RET
 
 `
