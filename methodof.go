@@ -34,6 +34,7 @@ func (ctx *Context) Reset() {
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
+	ctx.methodIfnCache = make(map[ifnKey]unsafe.Pointer)
 	ctx.fnHasImethod = nil
 }
 
@@ -54,6 +55,14 @@ func methodInfoText(info *abi.MethodInfo) string {
 
 // register method info
 func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, allocated bool) {
+	var key ifnKey
+	if info.FuncId > 0 {
+		key = ifnKey{name: info.Name, inTyp: info.InTyp, outTyp: info.OutTyp,
+			funcId: info.FuncId, pointer: info.Pointer, indirect: info.Indirect, oneptr: info.OnePtr}
+		if ifn, ok := ctx.methodIfnCache[key]; ok {
+			return ifn, true
+		}
+	}
 	for _, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
 			continue
@@ -63,6 +72,9 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 			break
 		}
 		ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
+		if info.FuncId > 0 {
+			ctx.methodIfnCache[key] = ifn
+		}
 		return ifn, true
 	}
 	ctx.nAllocateError++
@@ -225,6 +237,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 			Indirect: !m.Pointer,
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
+			FuncId:   m.FuncId,
 		}
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
@@ -248,6 +261,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 					OutSize:  osz,
 					Variadic: m.Type.IsVariadic(),
 					OnePtr:   onePtr,
+					FuncId:   m.FuncId,
 				}
 				ifn, _ = ctx.registerMethod(info)
 			}

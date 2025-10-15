@@ -3,6 +3,7 @@ package reflectx
 import (
 	"fmt"
 	"reflect"
+	"unsafe"
 
 	"github.com/goplus/reflectx/abi"
 )
@@ -19,8 +20,19 @@ type Context struct {
 	structLookupCache   map[string][]reflect.Type
 	interfceLookupCache map[string]reflect.Type
 	methodIndexList     map[abi.MethodProvider][]int
+	methodIfnCache      map[ifnKey]unsafe.Pointer
 	fnHasImethod        func(typ reflect.Type, method Method) bool
 	nAllocateError      int
+}
+
+type ifnKey struct {
+	name     string
+	funcId   int
+	inTyp    reflect.Type
+	outTyp   reflect.Type
+	pointer  bool
+	indirect bool
+	oneptr   bool
 }
 
 func NewContext() *Context {
@@ -29,6 +41,7 @@ func NewContext() *Context {
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
+	ctx.methodIfnCache = make(map[ifnKey]unsafe.Pointer)
 	return ctx
 }
 

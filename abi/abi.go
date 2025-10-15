@@ -17,6 +17,7 @@ type MethodInfo struct {
 	Indirect bool
 	Variadic bool
 	OnePtr   bool
+	FuncId   int
 }
 
 type MethodProvider interface {
