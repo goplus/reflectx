@@ -55,13 +55,10 @@ func methodInfoText(info *abi.MethodInfo) string {
 
 // register method info
 func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, allocated bool) {
-	var key ifnKey
-	if info.FuncId > 0 {
-		key = ifnKey{name: info.Name, inTyp: info.InTyp, outTyp: info.OutTyp,
-			funcId: info.FuncId, pointer: info.Pointer, indirect: info.Indirect, oneptr: info.OnePtr}
-		if ifn, ok := ctx.methodIfnCache[key]; ok {
-			return ifn, true
-		}
+	key := ifnKey{name: info.Name, inTyp: info.InTyp, outTyp: info.OutTyp,
+		funcId: info.FuncId, pointer: info.Pointer, indirect: info.Indirect, oneptr: info.OnePtr}
+	if ifn, ok := ctx.methodIfnCache[key]; ok {
+		return ifn, true
 	}
 	for _, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
@@ -72,9 +69,7 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 			break
 		}
 		ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
-		if info.FuncId > 0 {
-			ctx.methodIfnCache[key] = ifn
-		}
+		ctx.methodIfnCache[key] = ifn
 		return ifn, true
 	}
 	ctx.nAllocateError++
@@ -225,6 +220,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
 		isz := argsTypeSize(inTyp, true)
 		osz := argsTypeSize(outTyp, false)
+		funcId := uintptr(unsafe.Pointer(&methods[i].Func))
 		pinfo := &abi.MethodInfo{
 			Name:     m.Name,
 			Type:     typ,
@@ -237,7 +233,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 			Indirect: !m.Pointer,
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
-			FuncId:   m.FuncId,
+			FuncId:   funcId,
 		}
 		pms[i].name = mname
 		pms[i].mtyp = mtyp
@@ -261,7 +257,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
 					OutSize:  osz,
 					Variadic: m.Type.IsVariadic(),
 					OnePtr:   onePtr,
-					FuncId:   m.FuncId,
+					FuncId:   funcId,
 				}
 				ifn, _ = ctx.registerMethod(info)
 			}

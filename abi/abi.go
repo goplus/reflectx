@@ -6,18 +6,18 @@ import (
 )
 
 type MethodInfo struct {
-	Name     string
-	Func     reflect.Value
 	Type     reflect.Type
 	InTyp    reflect.Type
 	OutTyp   reflect.Type
+	Func     reflect.Value
+	Name     string
+	FuncId   uintptr
 	InSize   uintptr
 	OutSize  uintptr
 	Pointer  bool
 	Indirect bool
 	Variadic bool
 	OnePtr   bool
-	FuncId   int
 }
 
 type MethodProvider interface {

@@ -27,7 +27,7 @@ type Context struct {
 
 type ifnKey struct {
 	name     string
-	funcId   int
+	funcId   uintptr
 	inTyp    reflect.Type
 	outTyp   reflect.Type
 	pointer  bool
