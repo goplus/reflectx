@@ -23,6 +23,7 @@ func IcallStat() (capacity int, allocate int, aviable int) {
 
 func resetAll() {
 	abi.Default.Clear()
+	globalIfnCache = make(map[ifnKey]unsafe.Pointer)
 }
 
 func (ctx *Context) Reset() {
@@ -34,7 +35,6 @@ func (ctx *Context) Reset() {
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
-	ctx.methodIfnCache = make(map[ifnKey]unsafe.Pointer)
 	ctx.fnHasImethod = nil
 }
 
@@ -59,7 +59,7 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 	if info.FuncId > 0 {
 		key = ifnKey{name: info.Name, inTyp: info.InTyp, outTyp: info.OutTyp,
 			funcId: info.FuncId, pointer: info.Pointer, indirect: info.Indirect, oneptr: info.OnePtr}
-		if ifn, ok := ctx.methodIfnCache[key]; ok {
+		if ifn, ok := globalIfnCache[key]; ok {
 			return ifn, true
 		}
 	}
@@ -71,9 +71,10 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 		if index == -1 {
 			break
 		}
-		ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
 		if info.FuncId > 0 {
-			ctx.methodIfnCache[key] = ifn
+			globalIfnCache[key] = ifn
+		} else {
+			ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
 		}
 		return ifn, true
 	}
