@@ -20,10 +20,11 @@ type Context struct {
 	structLookupCache   map[string][]reflect.Type
 	interfceLookupCache map[string]reflect.Type
 	methodIndexList     map[abi.MethodProvider][]int
-	methodIfnCache      map[ifnKey]unsafe.Pointer
 	fnHasImethod        func(typ reflect.Type, method Method) bool
 	nAllocateError      int
 }
+
+var globalIfnCache = make(map[ifnKey]unsafe.Pointer)
 
 type ifnKey struct {
 	name     string
@@ -41,7 +42,6 @@ func NewContext() *Context {
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
-	ctx.methodIfnCache = make(map[ifnKey]unsafe.Pointer)
 	return ctx
 }
 
