@@ -6,3 +6,4 @@ package icall
 //go:generate icall_gen -o ./icall4096/icall.go -size 4096
 //go:generate icall_gen -o ./icall8192/icall.go -size 8192
 //go:generate icall_gen -o ./icall10240/icall.go -size 10240
+//go:generate icall_gen -o ./icall20480/icall.go -size 20480
