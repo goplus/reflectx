@@ -18,6 +18,11 @@ func IcallStat() (capacity int, allocate int, aviable int) {
 	return 0, 0, 0
 }
 
+// icall cached
+func IcallCached() int {
+	return 0
+}
+
 func (ctx *Context) Reset() {
 	ctx.nAllocateError = 0
 	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
