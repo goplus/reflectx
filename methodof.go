@@ -15,27 +15,66 @@ import (
 	_ "github.com/goplus/reflectx/internal/icall512"
 )
 
+var globalIfnCache = make(map[ifnKey]*ifnValue)
+
+type ifnKey struct {
+	name     string
+	funcId   int
+	inTyp    reflect.Type
+	outTyp   reflect.Type
+	pointer  bool
+	indirect bool
+	oneptr   bool
+}
+
+type ifnValue struct {
+	ifn   unsafe.Pointer
+	mp    int
+	index int
+	ctxs  map[*Context]struct{}
+}
+
 // icall stat
 func IcallStat() (capacity int, allocate int, aviable int) {
 	mps := abi.Default
 	return mps.Cap(), mps.Used(), mps.Available()
 }
 
+// icall cached
+func IcallCached() int {
+	return len(globalIfnCache)
+}
+
 func resetAll() {
 	abi.Default.Clear()
-	globalIfnCache = make(map[ifnKey]unsafe.Pointer)
+	globalIfnCache = make(map[ifnKey]*ifnValue)
 }
 
 func (ctx *Context) Reset() {
-	for mp, list := range ctx.methodIndexList {
-		mp.Remove(list)
+	for i, list := range ctx.methodIndexList {
+		abi.Default.List()[i].Remove(list)
 	}
 	ctx.nAllocateError = 0
 	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
 	ctx.structLookupCache = make(map[string][]reflect.Type)
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[abi.MethodProvider][]int)
+	ctx.methodIndexList = make(map[int][]int)
 	ctx.fnHasImethod = nil
+	releaseGlobalIfnCache(ctx)
+}
+
+func releaseGlobalIfnCache(ctx *Context) {
+	mps := make(map[int][]int)
+	for k, v := range globalIfnCache {
+		delete(v.ctxs, ctx)
+		if len(v.ctxs) == 0 {
+			delete(globalIfnCache, k)
+			mps[v.mp] = append(mps[v.mp], v.index)
+		}
+	}
+	for mp, indexs := range mps {
+		abi.Default.List()[mp].Remove(indexs)
+	}
 }
 
 func (ctx *Context) IcallAlloc() int {
@@ -53,17 +92,20 @@ func methodInfoText(info *abi.MethodInfo) string {
 	return info.Type.String() + "." + info.Name
 }
 
+var none struct{}
+
 // register method info
 func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, allocated bool) {
 	var key ifnKey
 	if info.FuncId > 0 {
 		key = ifnKey{name: info.Name, inTyp: info.InTyp, outTyp: info.OutTyp,
 			funcId: info.FuncId, pointer: info.Pointer, indirect: info.Indirect, oneptr: info.OnePtr}
-		if ifn, ok := globalIfnCache[key]; ok {
-			return ifn, true
+		if v, ok := globalIfnCache[key]; ok {
+			v.ctxs[ctx] = none
+			return v.ifn, true
 		}
 	}
-	for _, mp := range abi.Default.List() {
+	for i, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
 			continue
 		}
@@ -72,9 +114,9 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 			break
 		}
 		if info.FuncId > 0 {
-			globalIfnCache[key] = ifn
+			globalIfnCache[key] = &ifnValue{ifn: ifn, mp: i, index: index, ctxs: map[*Context]struct{}{ctx: none}}
 		} else {
-			ctx.methodIndexList[mp] = append(ctx.methodIndexList[mp], index)
+			ctx.methodIndexList[i] = append(ctx.methodIndexList[i], index)
 		}
 		return ifn, true
 	}
