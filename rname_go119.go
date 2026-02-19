@@ -8,9 +8,6 @@ import (
 	_ "unsafe"
 )
 
-//go:linkname _newName reflect.newName
-func _newName(n, tag string, exported, embedded bool) name
-
 func newName(n, tag string, exported bool) name {
-	return _newName(n, tag, exported, false)
+	return newNameEx(n, tag, exported, false)
 }

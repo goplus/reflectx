@@ -18,9 +18,6 @@ func toKindType(t *rtype) unsafe.Pointer {
 	return unsafe.Pointer(t)
 }
 
-//go:linkname toUncommonType reflect.(*rtype).uncommon
-func toUncommonType(t *rtype) *uncommonType
-
 // uncommonType is present only for defined types or types with methods
 // (if T is a defined type, the uncommonTypes for T and *T have methods).
 // Using a pointer to this struct reduces the overall size required
