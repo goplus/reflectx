@@ -1,6 +1,5 @@
-//go:build go1.19 && (!js || (js && wasm))
+//go:build go1.19
 // +build go1.19
-// +build !js js,wasm
 
 package reflectx
 
