@@ -5,12 +5,10 @@ Golang reflect package hack tools
 
 ### Go Version
 
-- Go1.18 ~ Go1.25
+- Go1.18 ~ Go1.26
 - macOS Linux Windows WebAssembly
 
 ### ABI
-
-support ABI0 and ABIInternal
 
 - ABI0 stack-based ABI
 - ABIInternal [register-based Go calling convention proposal](https://golang.org/design/40724-register-calling)
