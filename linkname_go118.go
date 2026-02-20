@@ -7,8 +7,6 @@ import (
 	_ "reflect"
 	_ "runtime"
 	"unsafe"
-
-	_ "github.com/goplus/reflectx/x/reflect"
 )
 
 //go:linkname interequal runtime.interequal
