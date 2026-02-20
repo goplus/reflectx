@@ -1,28 +1,12 @@
 # reflectx
 Golang reflect package hack tools
 
-[![Go1.14](https://github.com/goplus/reflectx/workflows/Go1.14/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go114.yml)
-[![Go1.15](https://github.com/goplus/reflectx/workflows/Go1.15/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go115.yml)
-[![Go1.16](https://github.com/goplus/reflectx/workflows/Go1.16/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go116.yml)
-[![Go1.17](https://github.com/goplus/reflectx/workflows/Go1.17/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go117.yml)
-[![Go1.18](https://github.com/goplus/reflectx/workflows/Go1.18/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go118.yml)
-[![Go1.19](https://github.com/goplus/reflectx/workflows/Go1.19/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go119.yml)
-[![Go1.20](https://github.com/goplus/reflectx/workflows/Go1.20/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go120.yml)
-[![Go1.21](https://github.com/goplus/reflectx/workflows/Go1.21/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go121.yml)
-[![Go1.22](https://github.com/goplus/reflectx/workflows/Go1.22/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go122.yml)
-[![Go1.23](https://github.com/goplus/reflectx/workflows/Go1.23/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go123.yml)
-[![Go1.24](https://github.com/goplus/reflectx/workflows/Go1.24/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go124.yml)
-[![Go1.24](https://github.com/goplus/reflectx/workflows/Go1.25/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go125.yml)
+[![Build Status](https://github.com/goplus/reflectx/workflows/Go/badge.svg)](https://github.com/goplus/reflectx/workflows/Go/badge.svg)
 
-### Build
+### Go Version
 
-- Go1.14 ~ Go1.22
-
-  `go build`
-
-- Go1.23 ~ Go1.25
-
-  `go build -ldflags="-checklinkname=0"`
+- Go1.18 ~ Go1.25
+- macOS Linux Windows WebAssembly
 
 ### ABI
 
@@ -31,15 +15,9 @@ support ABI0 and ABIInternal
 - ABI0 stack-based ABI
 - ABIInternal [register-based Go calling convention proposal](https://golang.org/design/40724-register-calling)
 
-    - Go1.17: amd64
     - Go1.18: amd64 arm64 ppc64/ppc64le
-    - Go1.19: amd64 arm64 ppc64/ppc64le riscv64
-    - Go1.20: amd64 arm64 ppc64/ppc64le riscv64
-    - Go1.21: amd64 arm64 ppc64/ppc64le riscv64
-    - Go1.22: amd64 arm64 ppc64/ppc64le riscv64 loong64
-    - Go1.23: amd64 arm64 ppc64/ppc64le riscv64 loong64
-    - Go1.24: amd64 arm64 ppc64/ppc64le riscv64 loong64
-    - Go1.25: amd64 arm64 ppc64/ppc64le riscv64 loong64
+    - Go1.19 ~ Go1.21: amd64 arm64 ppc64/ppc64le riscv64
+    - Go1.22 ~ Go1.26: amd64 arm64 ppc64/ppc64le riscv64 loong64
 
 ### Field
 * reflectx.CanSet

@@ -177,7 +177,7 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 	str := typ.String()
 	if ts, ok := ctx.structLookupCache[str]; ok {
 		for _, t := range ts {
-			if haveIdenticalType(t, typ, true) {
+			if haveIdenticalType(totype(t), totype(typ), true) {
 				return t
 			}
 		}
