@@ -22,12 +22,6 @@ type provider struct {
 	used map[int]*methodUsed
 }
 
-//go:linkname callReflect reflect.callReflect
-func callReflect(ctxt unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer)
-
-//go:linkname moveMakeFuncArgPtrs reflect.moveMakeFuncArgPtrs
-func moveMakeFuncArgPtrs(ctx unsafe.Pointer, r unsafe.Pointer)
-
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
 	ptr := mp.used[index].ptr
 	moveMakeFuncArgPtrs(ptr, r)
