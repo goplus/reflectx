@@ -156,10 +156,10 @@ func init() {
 	t := abi.TypeOf(v)
 	for _, m := range t.Uncommon().Methods() {
 		if nameOff(t, m.Name).Name() == "assignTo" {
-			tfn := resolveTextOff(unsafe.Pointer(t), int32(m.Tfn))
-			ft := abi.TypeOf(assignTo)
-			fv := Value{ft, unsafe.Pointer(&tfn), flag(Func)}
-			assignTo = (*(*reflect.Value)(unsafe.Pointer(&fv))).Interface().(assignToFunc)
+			if m.Tfn != -1 {
+				tfn := resolveTextOff(unsafe.Pointer(t), int32(m.Tfn))
+				*(*unsafe.Pointer)(unsafe.Pointer(&assignTo)) = unsafe.Pointer(&tfn)
+			}
 			break
 		}
 	}
