@@ -1,10 +1,10 @@
-//go:build !go1.23
-// +build !go1.23
+//go:build !go1.21
+// +build !go1.21
 
 package reflectx
 
 import (
-	_ "reflect"
+	"reflect"
 	_ "runtime"
 	"unsafe"
 )
@@ -14,3 +14,10 @@ func interequal(p, q unsafe.Pointer) bool
 
 //go:linkname toUncommonType reflect.(*rtype).uncommon
 func toUncommonType(t *rtype) *uncommonType
+
+//go:linkname _haveIdenticalType reflect.haveIdenticalType
+func _haveIdenticalType(T, V reflect.Type, cmpTags bool) bool
+
+func haveIdenticalType(T, V *rtype, cmpTags bool) bool {
+	return _haveIdenticalType(toType(T), toType(V), cmpTags)
+}

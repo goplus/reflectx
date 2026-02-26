@@ -61,3 +61,8 @@ go install github.com/goplus/reflectx/cmd/icall_gen@latest
 ```
 icall_gen -o icall1024.go -pkg main -size 1024
 ```
+
+#### build linkname mode
+```shell
+go build -tags linknamefix -ldflags="-checklinkname=0"
+```

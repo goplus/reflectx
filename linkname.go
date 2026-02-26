@@ -3,8 +3,6 @@ package reflectx
 import (
 	"reflect"
 	"unsafe"
-
-	_ "github.com/goplus/reflectx/x/reflect"
 )
 
 // memmove copies size bytes to dst from src. No write barriers are used.
@@ -63,6 +61,3 @@ func rtype_typeOff(t *rtype, off typeOff) *rtype {
 func rtype_textOff(t *rtype, off textOff) unsafe.Pointer {
 	return resolveTextOff(unsafe.Pointer(t), int32(off))
 }
-
-//go:linkname haveIdenticalType github.com/goplus/reflectx/x/reflect.haveIdenticalType
-func haveIdenticalType(T, V *rtype, cmpTags bool) bool
