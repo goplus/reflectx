@@ -126,6 +126,7 @@ func add(p unsafe.Pointer, x uintptr, whySafe string) unsafe.Pointer {
 
 type unsafeptr = unsafe.Pointer
 
+
 var icall_array = []interface{}{
 	func(p, a unsafeptr) { i_x(0, p, unsafeptr(&a)) },
 	func(p, a unsafeptr) { i_x(1, p, unsafeptr(&a)) },

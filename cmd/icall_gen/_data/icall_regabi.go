@@ -19,6 +19,7 @@ type methodUsed struct {
 
 type provider struct {
 	used map[int]*methodUsed
+	free []int
 }
 
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
@@ -31,16 +32,11 @@ func spillArgs()
 func unspillArgs()
 
 func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
-	var index = -1
-	for i := 0; i < capacity; i++ {
-		if _, ok := p.used[i]; !ok {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
+	if len(p.free) == 0 {
 		return nil, -1
 	}
+	index := p.free[len(p.free)-1]
+	p.free = p.free[:len(p.free)-1]
 	var fn reflect.Value
 	if (!info.Pointer && !info.OnePtr) || info.Indirect {
 		ftyp := info.Func.Type()
@@ -81,11 +77,12 @@ func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
 		delete(p.used, n)
+		p.free = append(p.free, n)
 	}
 }
 
 func (p *provider) Available() int {
-	return capacity - len(p.used)
+	return len(p.free)
 }
 
 func (p *provider) Used() int {
@@ -98,11 +95,21 @@ func (p *provider) Cap() int {
 
 func (p *provider) Clear() {
 	p.used = make(map[int]*methodUsed)
+	p.free = initFreeList()
+}
+
+func initFreeList() []int {
+	free := make([]int, capacity)
+	for i := range free {
+		free[i] = capacity - 1 - i
+	}
+	return free
 }
 
 var (
 	mp = &provider{
 		used: make(map[int]*methodUsed),
+		free: initFreeList(),
 	}
 )
 
