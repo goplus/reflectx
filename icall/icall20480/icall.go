@@ -34,6 +34,9 @@ func (p *provider) Available() int {
 
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
+		if _, ok := p.used[n]; !ok {
+			continue // already freed; skip to avoid duplicating in p.free
+		}
 		delete(p.used, n)
 		p.free = append(p.free, n)
 	}
