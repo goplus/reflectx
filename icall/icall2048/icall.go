@@ -14,26 +14,28 @@ const capacity = 2048
 
 type provider struct {
 	used map[int]*abi.MethodInfo
+	free []int
 }
 
 func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) {
-	for i := 0; i < capacity; i++ {
-		if _, ok := p.used[i]; !ok {
-			p.used[i] = info
-			fn := icall_array[i]
-			return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), i
-		}
+	if len(p.free) == 0 {
+		return nil, -1
 	}
-	return nil, -1
+	index = p.free[len(p.free)-1]
+	p.free = p.free[:len(p.free)-1]
+	p.used[index] = info
+	fn := icall_array[index]
+	return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), index
 }
 
 func (p *provider) Available() int {
-	return capacity - len(p.used)
+	return len(p.free)
 }
 
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
 		delete(p.used, n)
+		p.free = append(p.free, n)
 	}
 }
 
@@ -47,11 +49,21 @@ func (p *provider) Cap() int {
 
 func (p *provider) Clear() {
 	p.used = make(map[int]*abi.MethodInfo)
+	p.free = initFreeList()
+}
+
+func initFreeList() []int {
+	free := make([]int, capacity)
+	for i := range free {
+		free[i] = capacity - 1 - i
+	}
+	return free
 }
 
 var (
 	mp = &provider{
 		used: make(map[int]*abi.MethodInfo),
+		free: initFreeList(),
 	}
 )
 
