@@ -53,6 +53,7 @@ func resetAll() {
 	abi.Default.Clear()
 	globalIfnCache = make(map[ifnKey]*ifnValue)
 	globalPtfnCache = make(map[ptfnKey]textOff)
+	parserMethodTypeCache = make(map[reflect.Type]*parserMethodTypeResult)
 }
 
 func (ctx *Context) Reset() {
