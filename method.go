@@ -20,7 +20,6 @@ type parserMethodTypeResult struct {
 	outTyp reflect.Type
 }
 
-
 // MakeMethod make reflect.Method for MethodOf
 // - name: method name
 // - pointer: flag receiver struct or pointer
@@ -222,7 +221,7 @@ func (ctx *Context) StructToMethodSet(styp reflect.Type) reflect.Type {
 		methods = append(methods, m)
 	}
 	typ := newMethodSet(styp, mcout, pcount)
-	err := ctx.setMethodSet(typ, methods)
+	err := ctx.setMethodSet(typ, methods, true)
 	if err != nil {
 		log.Panicln("error loadMethods", err)
 	}
@@ -262,6 +261,16 @@ func SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) 
 	return Default.SetMethodSet(styp, methods, extractStructEmbed)
 }
 
+// SetRawMethods sets the method list for the given type without any processing.
+// Unlike SetMethodSet, this function:
+//   - skips embedded struct method extraction
+//   - skips sorted order verification
+//
+// The caller must ensure that methods are sorted by Name and contain the complete method set.
+func (ctx *Context) SetRawMethods(styp reflect.Type, methods []Method) error {
+	return ctx.setMethodSet(styp, methods, false)
+}
+
 func (ctx *Context) SetMethodSet(styp reflect.Type, methods []Method, extractStructEmbed bool) error {
 	chk := make(map[string]Method)
 	for _, m := range methods {
@@ -279,7 +288,7 @@ func (ctx *Context) SetMethodSet(styp reflect.Type, methods []Method, extractStr
 			methods = append(methods, m)
 		}
 	}
-	return ctx.setMethodSet(styp, methods)
+	return ctx.setMethodSet(styp, methods, true)
 }
 
 func MakeEmptyInterface(pkgpath string, name string) reflect.Type {
