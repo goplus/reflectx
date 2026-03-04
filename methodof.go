@@ -13,6 +13,7 @@ import (
 )
 
 var globalIfnCache = make(map[ifnKey]*ifnValue)
+var globalPtfnCache = make(map[ptfnKey]textOff)
 
 type ifnKey struct {
 	name     string
@@ -31,6 +32,12 @@ type ifnValue struct {
 	ctxs  map[*Context]struct{}
 }
 
+type ptfnKey struct {
+	ctyp     reflect.Type
+	index    int
+	variadic bool
+}
+
 // icall stat
 func IcallStat() (capacity int, allocate int, aviable int) {
 	mps := abi.Default
@@ -45,6 +52,7 @@ func IcallCached() int {
 func resetAll() {
 	abi.Default.Clear()
 	globalIfnCache = make(map[ifnKey]*ifnValue)
+	globalPtfnCache = make(map[ptfnKey]textOff)
 }
 
 func (ctx *Context) Reset() {
@@ -181,17 +189,25 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn
 	if !m.Pointer {
 		variadic := m.Type.IsVariadic()
 		ctyp := reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, variadic)
-		var cv reflect.Value
-		if variadic {
-			cv = reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
-				return args[0].Elem().Method(index).CallSlice(args[1:])
-			})
+
+		// Cache ptfn creation based on ctyp, index, and variadic
+		key := ptfnKey{ctyp: ctyp, index: index, variadic: variadic}
+		if cached, ok := globalPtfnCache[key]; ok {
+			ptfn = cached
 		} else {
-			cv = reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
-				return args[0].Elem().Method(index).Call(args[1:])
-			})
+			var cv reflect.Value
+			if variadic {
+				cv = reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
+					return args[0].Elem().Method(index).CallSlice(args[1:])
+				})
+			} else {
+				cv = reflect.MakeFunc(ctyp, func(args []reflect.Value) (results []reflect.Value) {
+					return args[0].Elem().Method(index).Call(args[1:])
+				})
+			}
+			ptfn = resolveReflectText(tovalue(&cv).ptr)
+			globalPtfnCache[key] = ptfn
 		}
-		ptfn = resolveReflectText(tovalue(&cv).ptr)
 	} else {
 		ptfn = tfn
 	}

@@ -9,6 +9,18 @@ import (
 	"strings"
 )
 
+// parserMethodType result cache
+var parserMethodTypeCache = make(map[reflect.Type]*parserMethodTypeResult)
+
+type parserMethodTypeResult struct {
+	in     []reflect.Type
+	out    []reflect.Type
+	ntyp   reflect.Type
+	inTyp  reflect.Type
+	outTyp reflect.Type
+}
+
+
 // MakeMethod make reflect.Method for MethodOf
 // - name: method name
 // - pointer: flag receiver struct or pointer
@@ -464,6 +476,13 @@ func replaceType(typ reflect.Type, rmap map[reflect.Type]reflect.Type) reflect.T
 }
 
 func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
+	// Use cache only when rmap is nil
+	if rmap == nil {
+		if cached, ok := parserMethodTypeCache[mtyp]; ok {
+			return cached.in, cached.out, cached.ntyp, cached.inTyp, cached.outTyp
+		}
+	}
+
 	var inFields []reflect.StructField
 	var outFields []reflect.StructField
 	numIn := mtyp.NumIn()
@@ -497,5 +516,17 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 	}
 	inTyp = reflect.StructOf(inFields)
 	outTyp = reflect.StructOf(outFields)
+
+	// Cache the result when rmap is nil
+	if rmap == nil {
+		parserMethodTypeCache[mtyp] = &parserMethodTypeResult{
+			in:     in,
+			out:    out,
+			ntyp:   ntyp,
+			inTyp:  inTyp,
+			outTyp: outTyp,
+		}
+	}
+
 	return
 }
