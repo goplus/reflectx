@@ -226,14 +226,16 @@ var (
 	zeroIfn = unsafe.Pointer(reflect.ValueOf(func() {}).Pointer())
 )
 
-func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method) error {
-	sort.Slice(methods, func(i, j int) bool {
-		n := strings.Compare(methods[i].Name, methods[j].Name)
-		if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
-			panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
-		}
-		return n < 0
-	})
+func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
+	if sortMethods {
+		sort.Slice(methods, func(i, j int) bool {
+			n := strings.Compare(methods[i].Name, methods[j].Name)
+			if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
+				panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
+			}
+			return n < 0
+		})
+	}
 	var mcount, pcount int
 	var xcount, pxcount int
 	pcount = len(methods)
