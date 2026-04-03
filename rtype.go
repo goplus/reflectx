@@ -27,36 +27,6 @@ type uncommonType struct {
 	_       uint32  // unused
 }
 
-type funcTypeFixed1 struct {
-	funcType
-	args [1]*rtype
-}
-
-type funcTypeFixed4 struct {
-	funcType
-	args [4]*rtype
-}
-type funcTypeFixed8 struct {
-	funcType
-	args [8]*rtype
-}
-type funcTypeFixed16 struct {
-	funcType
-	args [16]*rtype
-}
-type funcTypeFixed32 struct {
-	funcType
-	args [32]*rtype
-}
-type funcTypeFixed64 struct {
-	funcType
-	args [64]*rtype
-}
-type funcTypeFixed128 struct {
-	funcType
-	args [128]*rtype
-}
-
 // emptyInterface is the header for an interface{} value.
 type emptyInterface struct {
 	typ  *rtype
@@ -141,11 +111,6 @@ func (t *rtype) IsVariadic() bool {
 	}
 	tt := (*funcType)(unsafe.Pointer(t))
 	return tt.outCount&(1<<15) != 0
-}
-
-type bitVector struct {
-	n    uint32 // number of bits
-	data []byte
 }
 
 // funcType represents a function type.

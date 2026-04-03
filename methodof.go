@@ -275,12 +275,15 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 				pv.ctxs[ctx] = none{}
 				pms[i] = pv.method
 				if !m.Pointer {
-					v := globalIfnCache[ifnKey{funcId: m.FuncId, pointer: false}]
-					v.ctxs[ctx] = none{}
-					ms[index] = v.method
-					index++
+					if v, ok := globalIfnCache[ifnKey{funcId: m.FuncId, pointer: false}]; ok {
+						v.ctxs[ctx] = none{}
+						ms[index] = v.method
+						index++
+						continue
+					}
+				} else {
+					continue
 				}
-				continue
 			}
 		}
 		isexport := methodIsExported(m.Name)
