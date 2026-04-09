@@ -12,23 +12,13 @@ import (
 	_ "github.com/goplus/reflectx/internal/icall512"
 )
 
-var globalIfnCache = make(map[ifnKey]*ifnValue)
-var globalIfnSkips int
+var globalMethodCache = make(map[int]*ifnValue)
+var globalIfnCached = 0
 var globalPtfnCache = make(map[ptfnKey]textOff)
 
-type none struct{}
-
-type ifnKey struct {
-	funcId  int
-	pointer bool
-}
-
 type ifnValue struct {
-	ilist     int
-	mindex    int
-	method    method
-	ctxs      map[*Context]none
-	allocated bool
+	method  method
+	pmethod method
 }
 
 type ptfnKey struct {
@@ -43,15 +33,15 @@ func IcallStat() (capacity int, allocate int, aviable int) {
 	return mps.Cap(), mps.Used(), mps.Available()
 }
 
-// icall cached
+// icall global cached
 func IcallCached() int {
-	return len(globalIfnCache) - globalIfnSkips
+	return globalIfnCached
 }
 
 func resetAll() {
 	abi.Default.Clear()
-	globalIfnCache = make(map[ifnKey]*ifnValue)
-	globalIfnSkips = 0
+	globalMethodCache = make(map[int]*ifnValue)
+	globalIfnCached = 0
 	globalPtfnCache = make(map[ptfnKey]textOff)
 	parserMethodTypeCache = make(map[reflect.Type]*parserMethodTypeResult)
 	inTypeSizeCache = make(map[reflect.Type]uintptr)
@@ -68,25 +58,6 @@ func (ctx *Context) Reset() {
 	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[int][]int)
 	ctx.fnHasImethod = nil
-	releaseGlobalIfnCache(ctx)
-}
-
-func releaseGlobalIfnCache(ctx *Context) {
-	mps := make(map[int][]int)
-	for k, v := range globalIfnCache {
-		delete(v.ctxs, ctx)
-		if len(v.ctxs) == 0 {
-			delete(globalIfnCache, k)
-			if v.allocated {
-				mps[v.ilist] = append(mps[v.ilist], v.mindex)
-			} else {
-				globalIfnSkips--
-			}
-		}
-	}
-	for mp, indexs := range mps {
-		abi.Default.List()[mp].Remove(indexs)
-	}
 }
 
 func (ctx *Context) IcallAlloc() int {
@@ -105,21 +76,19 @@ func methodInfoText(info *abi.MethodInfo) string {
 }
 
 // register method info
-func (ctx *Context) registerMethod(info *abi.MethodInfo) (ilist int, mindex int, ifn unsafe.Pointer, allocated bool) {
+func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, allocated bool) {
 	for i, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
 			continue
 		}
-		ifn, mindex = mp.Insert(info)
+		ifn, mindex := mp.Insert(info)
 		if mindex == -1 {
 			break
 		}
 		if info.FuncId == 0 {
 			ctx.methodIndexList[i] = append(ctx.methodIndexList[i], mindex)
 		}
-		ilist = i
-		allocated = true
-		return
+		return ifn, true
 	}
 	ctx.nAllocateError++
 	return
@@ -271,13 +240,10 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	var index int
 	for i, m := range methods {
 		if m.FuncId > 0 {
-			if pv, ok := globalIfnCache[ifnKey{funcId: m.FuncId, pointer: true}]; ok {
-				pv.ctxs[ctx] = none{}
-				pms[i] = pv.method
+			if pv, ok := globalMethodCache[m.FuncId]; ok {
+				pms[i] = pv.pmethod
 				if !m.Pointer {
-					v := globalIfnCache[ifnKey{funcId: m.FuncId, pointer: false}]
-					v.ctxs[ctx] = none{}
-					ms[index] = v.method
+					ms[index] = pv.method
 					index++
 				}
 				continue
@@ -310,24 +276,21 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		pms[i].mtyp = mtyp
 		pms[i].tfn = ptfn
 		var pifn unsafe.Pointer = zeroIfn
-		var ilist, mindex int
-		var pallocated bool
 		hasIfn := ctx.hasImethod(typ, m)
 		if hasIfn {
-			ilist, mindex, pifn, pallocated = ctx.registerMethod(pinfo)
+			pifn, _ = ctx.registerMethod(pinfo)
 		}
 		pms[i].ifn = resolveReflectText(pifn)
 		if m.FuncId > 0 {
-			key := ifnKey{funcId: m.FuncId, pointer: true}
-			globalIfnCache[key] = &ifnValue{ilist: ilist, mindex: mindex, allocated: pallocated, method: pms[i], ctxs: map[*Context]none{ctx: none{}}}
-			if !pallocated {
-				globalIfnSkips++
+			if hasIfn {
+				globalIfnCached++
 			}
+			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
 		}
 		if !m.Pointer {
 			ifn := pifn
-			var allocated bool
-			if hasIfn && onePtr {
+			hasIfn = hasIfn && onePtr
+			if hasIfn {
 				info := &abi.MethodInfo{
 					Name:     m.Name,
 					Type:     typ,
@@ -340,17 +303,20 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 					OnePtr:   onePtr,
 					FuncId:   m.FuncId,
 				}
-				ilist, mindex, ifn, allocated = ctx.registerMethod(info)
+				ifn, _ = ctx.registerMethod(info)
+				if m.FuncId > 0 {
+					globalIfnCached++
+				}
 			}
 			ms[index].name = mname
 			ms[index].mtyp = mtyp
 			ms[index].tfn = tfn
 			ms[index].ifn = resolveReflectText(ifn)
 			if m.FuncId > 0 {
-				globalIfnCache[ifnKey{funcId: m.FuncId, pointer: false}] = &ifnValue{ilist: ilist, mindex: mindex, allocated: allocated, method: ms[index], ctxs: map[*Context]none{ctx: none{}}}
-				if !allocated {
-					globalIfnSkips++
+				if hasIfn {
+					globalIfnCached++
 				}
+				globalMethodCache[m.FuncId].method = ms[index]
 			}
 			index++
 		}
