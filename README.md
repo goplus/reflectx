@@ -12,8 +12,8 @@ Golang reflect package hack tools
 
 - ABI0 stack-based ABI
 - ABIInternal [register-based Go calling convention proposal](https://golang.org/design/40724-register-calling)
-
-    - amd64 arm64 ppc64/ppc64le riscv64 loong64
+    - Go1.21+: amd64 arm64 ppc64/ppc64le riscv64
+    - Go1.23+: amd64 arm64 ppc64/ppc64le riscv64 loong64
 
 ### Field
 * reflectx.CanSet
