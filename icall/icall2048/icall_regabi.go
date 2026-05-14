@@ -1,5 +1,5 @@
-//go:build (go1.17 && goexperiment.regabireflect) || (go1.19 && goexperiment.regabiargs) || (go1.18 && amd64) || (go1.19 && arm64) || (go1.19 && ppc64) || (go1.19 && ppc64le) || (go1.20 && riscv64) || (go1.23 && loong64)
-// +build go1.17,goexperiment.regabireflect go1.19,goexperiment.regabiargs go1.18,amd64 go1.19,arm64 go1.19,ppc64 go1.19,ppc64le go1.20,riscv64 go1.23,loong64
+//go:build goexperiment.regabiargs || amd64 || arm64 || ppc64 || ppc64le || riscv64 || (go1.23 && loong64)
+// +build goexperiment.regabiargs amd64 arm64 ppc64 ppc64le riscv64 go1.23,loong64
 
 package icall
 
@@ -18,7 +18,8 @@ type methodUsed struct {
 }
 
 type provider struct {
-	used map[int]*methodUsed
+	used []*methodUsed
+	n    int
 }
 
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
@@ -33,7 +34,7 @@ func unspillArgs()
 func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 	var index = -1
 	for i := 0; i < capacity; i++ {
-		if _, ok := p.used[i]; !ok {
+		if p.used[i] == nil {
 			index = i
 			break
 		}
@@ -74,22 +75,26 @@ func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 		fun: fn,
 		ptr: (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&fn)).ptr,
 	}
+	p.n++
 	icall := icall_fn[index]
 	return unsafe.Pointer(reflect.ValueOf(icall).Pointer()), index
 }
 
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
-		delete(p.used, n)
+		if n < capacity && p.used[n] != nil {
+			p.used[n] = nil
+			p.n--
+		}
 	}
 }
 
 func (p *provider) Available() int {
-	return capacity - len(p.used)
+	return capacity - p.n
 }
 
 func (p *provider) Used() int {
-	return len(p.used)
+	return p.n
 }
 
 func (p *provider) Cap() int {
@@ -97,12 +102,13 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
-	p.used = make(map[int]*methodUsed)
+	clear(p.used)
+	p.n = 0
 }
 
 var (
 	mp = &provider{
-		used: make(map[int]*methodUsed),
+		used: make([]*methodUsed, capacity),
 	}
 )
 
