@@ -26,8 +26,8 @@ func writeRegAbi(filename string, pkgName string, size int) error {
 	}
 	gofiles := []info{
 		{id: "", abi: icall_regabi},
-		{id: "_go118", abi: regabi_go118},
-		{id: "_go123", abi: regabi_go123},
+		{id: "_linkname", abi: regabi_linkname},
+		{id: "_nolinkname", abi: regabi_nolinkname},
 	}
 	for i := 0; i < len(gofiles); i++ {
 		gofiles[i].file = filepath.Join(dir, strings.Replace(f, ".go", "_regabi"+gofiles[i].id+".go", 1))
@@ -63,8 +63,6 @@ var (
 		{id: "arm64", abi: regabi_arm64},
 		{id: "ppc64x", abi: regabi_ppc64x},
 		{id: "riscv64", abi: regabi_riscv64},
-		{id: "go121_amd64", abi: regabi_go121_amd64},
-		{id: "go121_arm64", abi: regabi_go121_arm64},
 		{id: "loong64", abi: regabi_loong64},
 	}
 	for i := 0; i < len(infos); i++ {
@@ -91,12 +89,6 @@ var (
 //go:embed _data/icall_regabi.go
 var icall_regabi string
 
-//go:embed _data/icall_regabi_go121_amd64.s
-var regabi_go121_amd64 string
-
-//go:embed _data/icall_regabi_go121_arm64.s
-var regabi_go121_arm64 string
-
 //go:embed _data/icall_regabi_amd64.s
 var regabi_amd64 string
 
@@ -112,8 +104,8 @@ var regabi_riscv64 string
 //go:embed _data/icall_regabi_loong64.s
 var regabi_loong64 string
 
-//go:embed _data/icall_regabi_go118.go
-var regabi_go118 string
+//go:embed _data/icall_regabi_linkname.go
+var regabi_linkname string
 
-//go:embed _data/icall_regabi_go123.go
-var regabi_go123 string
+//go:embed _data/icall_regabi_nolinkname.go
+var regabi_nolinkname string
