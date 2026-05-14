@@ -1,5 +1,4 @@
-//go:build ((go1.18 && goexperiment.regabireflect) || go1.19) && (ppc64 || ppc64le)
-// +build go1.18,goexperiment.regabireflect go1.19
+//go:build ppc64 || ppc64le
 // +build ppc64 ppc64le
 
 // Copyright 2012 The Go Authors. All rights reserved.

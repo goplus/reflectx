@@ -1,5 +1,11 @@
-//go:build !go1.17 || (go1.17 && !go1.18 && !goexperiment.regabireflect) || (go1.18 && !go1.19 && !goexperiment.regabireflect && !amd64) || (go1.19 && !go1.20 && !goexperiment.regabiargs && !amd64 && !arm64 && !ppc64 && !ppc64le) || (go1.20 && !goexperiment.regabiargs && !amd64 && !arm64 && !ppc64 && !ppc64le && !riscv64) || (go1.22 && !goexperiment.regabiargs && !amd64 && !arm64 && !ppc64 && !ppc64le && !riscv64 && !loong64)
-// +build !go1.17 go1.17,!go1.18,!goexperiment.regabireflect go1.18,!go1.19,!goexperiment.regabireflect,!amd64 go1.19,!go1.20,!goexperiment.regabiargs,!amd64,!arm64,!ppc64,!ppc64le go1.20,!goexperiment.regabiargs,!amd64,!arm64,!ppc64,!ppc64le,!riscv64 go1.22,!goexperiment.regabiargs,!amd64,!arm64,!ppc64,!ppc64le,!riscv64,!loong64
+//go:build !goexperiment.regabiargs && !amd64 && !arm64 && !ppc64 && !ppc64le && !riscv64 && !(go1.23 && loong64)
+// +build !goexperiment.regabiargs
+// +build !amd64
+// +build !arm64
+// +build !ppc64
+// +build !ppc64le
+// +build !riscv64
+// +build !go1.23 !loong64
 
 package icall
 
@@ -13,12 +19,14 @@ import (
 const capacity = 4096
 
 type provider struct {
-	used map[int]*abi.MethodInfo
+	used []*abi.MethodInfo
+	n    int
 }
 
 func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) {
 	for i := 0; i < capacity; i++ {
-		if _, ok := p.used[i]; !ok {
+		if p.used[i] == nil {
+			p.n++
 			p.used[i] = info
 			fn := icall_array[i]
 			return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), i
@@ -28,30 +36,34 @@ func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) 
 }
 
 func (p *provider) Available() int {
-	return capacity - len(p.used)
+	return capacity - p.n
 }
 
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
-		delete(p.used, n)
+		if n < capacity && p.used[n] != nil {
+			p.used[n] = nil
+			p.n--
+		}
 	}
 }
 
 func (p *provider) Used() int {
-	return len(p.used)
+	return p.n
 }
 
 func (p *provider) Cap() int {
-	return len(icall_array)
+	return capacity
 }
 
 func (p *provider) Clear() {
-	p.used = make(map[int]*abi.MethodInfo)
+	clear(p.used)
+	p.n = 0
 }
 
 var (
 	mp = &provider{
-		used: make(map[int]*abi.MethodInfo),
+		used: make([]*abi.MethodInfo, capacity),
 	}
 )
 

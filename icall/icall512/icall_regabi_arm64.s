@@ -1,6 +1,3 @@
-//go:build (go1.18 && goexperiment.regabireflect) || (go1.19 && !go1.21)
-// +build go1.18,goexperiment.regabireflect go1.19,!go1.21
-
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -35,7 +32,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
 	ADD	$LOCAL_REGARGS, RSP, R20		\
 	CALL	runtime·spillArgs(SB)		\
 	MOVD	32(RSP), R26		\
-	MOVD	R26, 8(RSP)		\
+	MOVD	R26, 16(RSP)		\
 	MOVD	$argframe+0(FP), R3		\
 	MOVD	R3, 16(RSP)		\
 	MOVB	$0, LOCAL_RETVALID(RSP)		\

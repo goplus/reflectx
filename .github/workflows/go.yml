@@ -10,7 +10,7 @@ jobs:
   Test-MacOS:
     strategy:
       matrix:
-        go-version: [1.18.x, 1.19.x, 1.20.x, 1.21.x, 1.22.x, 1.23.x, 1.24.x, 1.25.x, 1.26.x]
+        go-version: [1.21.x, 1.22.x, 1.23.x, 1.24.x, 1.25.x, 1.26.x]
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v6
@@ -29,7 +29,7 @@ jobs:
   Test-Linux:
     strategy:
       matrix:
-        go-version: [1.18.x, 1.19.x, 1.20.x, 1.21.x, 1.22.x, 1.23.x, 1.24.x, 1.25.x, 1.26.x]
+        go-version: [1.21.x, 1.22.x, 1.23.x, 1.24.x, 1.25.x, 1.26.x]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -51,7 +51,7 @@ jobs:
   Test-Windows:
     strategy:
       matrix:
-        go-version: [1.18.x, 1.19.x, 1.20.x, 1.21.x, 1.22.x, 1.23.x, 1.24.x, 1.25.x, 1.26.x]
+        go-version: [1.21.x, 1.22.x, 1.23.x, 1.24.x, 1.25.x, 1.26.x]
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v6
