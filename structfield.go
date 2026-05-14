@@ -1,23 +1,20 @@
-//go:build !go1.19
-// +build !go1.19
-
 package reflectx
 
-// struct field
+// Struct field
 type structField struct {
-	name        name    // name is always non-empty
-	typ         *rtype  // type of field
-	offsetEmbed uintptr // byte offset of field<<1 | isEmbedded
+	name    name    // name is always non-empty
+	typ     *rtype  // type of field
+	_offset uintptr // byte offset of field
 }
 
 func (f *structField) offset() uintptr {
-	return f.offsetEmbed >> 1
+	return f._offset
 }
 
 func (f *structField) embedded() bool {
-	return f.offsetEmbed&1 != 0
+	return f.name.embedded()
 }
 
 func setEmbedded(f *structField) {
-	f.offsetEmbed |= 1
+	f.name.setEmbedded()
 }
