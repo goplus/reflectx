@@ -26,6 +26,10 @@ jobs:
     - name: Test
       run: go test -race -v ./...
 
+    - name: Test-linkname
+      if: ${{ matrix.go-version >= '1.23' }}
+      run: go test -race -v -tags linknamefix -ldflags="-checklinkname=0"
+
   Test-Linux:
     strategy:
       matrix:
@@ -44,7 +48,11 @@ jobs:
 
     - name: Test
       run: go test -race -v ./...
-    
+
+    - name: Test-linkname
+      if: ${{ matrix.go-version >= '1.23' }}
+      run: go test -race -v -tags linknamefix -ldflags="-checklinkname=0"
+
     - name: Test-386
       run: GOARCH=386 go test -v .
 
@@ -66,7 +74,7 @@ jobs:
 
     - name: Test
       run: go test -race -v ./...
-    
+
     - name: Test-386
       run: |
         set GOARCH=386 
