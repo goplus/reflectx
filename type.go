@@ -41,17 +41,13 @@ type ptrType = abi.PtrType
 type sliceType = abi.SliceType
 type structType = abi.StructType
 type funcType = abi.FuncType
-
-type structTypeUncommon struct {
-	structType
-	u uncommonType
-}
+type mapType = abi.MapType
 
 const (
-	tflagUncommon      = abi.TFlagUncommon
-	tflagExtraStar     = abi.TFlagExtraStar
-	tflagNamed         = abi.TFlagNamed
-	tflagRegularMemory = abi.TFlagRegularMemory
+	tflagUncommon            = abi.TFlagUncommon
+	tflagExtraStar           = abi.TFlagExtraStar
+	tflagNamed               = abi.TFlagNamed
+	tflagRegularMemory       = abi.TFlagRegularMemory
 	tflagUserMethod    tflag = 1 << 7
 )
 
@@ -65,21 +61,6 @@ const (
 func add(p unsafe.Pointer, x uintptr, whySafe string) unsafe.Pointer {
 	return unsafe.Pointer(uintptr(p) + x)
 }
-
-// stringHeader is a safe version of StringHeader used within this package.
-type stringHeader struct {
-	Data unsafe.Pointer
-	Len  int
-}
-
-// ChanDir represents a channel type's direction.
-type ChanDir int
-
-const (
-	RecvDir ChanDir             = 1 << iota // <-chan
-	SendDir                                 // chan<-
-	BothDir = RecvDir | SendDir             // chan
-)
 
 // go/src/cmd/compile/internal/gc/alg.go#algtype1
 // IsRegularMemory reports whether t can be compared/hashed as regular memory.

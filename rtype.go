@@ -442,3 +442,7 @@ func FieldX(v reflect.Value, i int) reflect.Value {
 	ptr := add(rv.ptr, field.Offset, "same as non-reflect &v.field")
 	return toValue(Value{typ, ptr, fl})
 }
+
+func setEmbedded(f *structField) {
+	(*f.Name.Bytes) |= 1 << 3
+}
