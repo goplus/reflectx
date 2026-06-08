@@ -208,14 +208,6 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 	return typ
 }
 
-// fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
-func fnv1(x uint32, list string) uint32 {
-	for _, b := range list {
-		x = x*16777619 ^ uint32(b)
-	}
-	return x
-}
-
 func SetValue(v reflect.Value, x reflect.Value) {
 	switch v.Kind() {
 	case reflect.Bool:

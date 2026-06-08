@@ -55,17 +55,6 @@ const (
 	tflagUserMethod    tflag = 1 << 7
 )
 
-const (
-	kindDirectIface = 1 << 5
-	kindGCProg      = 1 << 6 // Type.gc points to GC program
-	kindMask        = (1 << 5) - 1
-)
-
-// rtypeKind returns reflect.Kind for an rtype, converting from abi.Kind.
-func rtypeKind(t *rtype) reflect.Kind {
-	return reflect.Kind(t.Kind_ & kindMask)
-}
-
 // add returns p+x.
 //
 // The whySafe string is ignored, so that the function still inlines

@@ -9,14 +9,6 @@ func nameData(n name, off int, whySafe string) *byte {
 	return (*byte)(add(unsafe.Pointer(n.Bytes), uintptr(off), whySafe))
 }
 
-func nameIsExported(n name) bool {
-	return (*n.Bytes)&(1<<0) != 0
-}
-
-func nameEmbedded(n name) bool {
-	return (*n.Bytes)&(1<<3) != 0
-}
-
 func nameHasTag(n name) bool {
 	return (*n.Bytes)&(1<<1) != 0
 }
@@ -45,47 +37,6 @@ func writeVarint(buf []byte, n int) int {
 		}
 		buf[i] = b | 0x80
 	}
-}
-
-func nameStr(n name) (s string) {
-	if n.Bytes == nil {
-		return
-	}
-	i, l := readVarint(n, 1)
-	hdr := (*stringHeader)(unsafe.Pointer(&s))
-	hdr.Data = unsafe.Pointer(nameData(n, 1+i, "non-empty string"))
-	hdr.Len = l
-	return
-}
-
-func nameTag(n name) (s string) {
-	if !nameHasTag(n) {
-		return ""
-	}
-	i, l := readVarint(n, 1)
-	i2, l2 := readVarint(n, 1+i+l)
-	hdr := (*stringHeader)(unsafe.Pointer(&s))
-	hdr.Data = unsafe.Pointer(nameData(n, 1+i+l+i2, "non-empty string"))
-	hdr.Len = l2
-	return
-}
-
-func namePkgPath(n name) string {
-	if n.Bytes == nil || *nameData(n, 0, "name flag field")&(1<<2) == 0 {
-		return ""
-	}
-	i, l := readVarint(n, 1)
-	off := 1 + i + l
-	if nameHasTag(n) {
-		i2, l2 := readVarint(n, off)
-		off += i2 + l2
-	}
-	var noff int32
-	// Note that this field may not be aligned in memory,
-	// so we cannot use a direct int32 assignment here.
-	copy((*[4]byte)(unsafe.Pointer(&noff))[:], (*[4]byte)(unsafe.Pointer(nameData(n, off, "name offset field")))[:])
-	pkgPathName := name{Bytes: (*byte)(resolveTypeOff(unsafe.Pointer(n.Bytes), noff))}
-	return nameStr(pkgPathName)
 }
 
 func setPkgPath(n name, pkgpath string) {

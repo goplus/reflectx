@@ -5,8 +5,6 @@ import (
 	"io"
 	"reflect"
 	"unsafe"
-
-	"github.com/goplus/reflectx/internal/abi"
 )
 
 func toStructType(t *rtype) *structType {
@@ -15,36 +13,6 @@ func toStructType(t *rtype) *structType {
 
 func toKindType(t *rtype) unsafe.Pointer {
 	return unsafe.Pointer(t)
-}
-
-type funcTypeFixed1 struct {
-	funcType
-	args [1]*rtype
-}
-
-type funcTypeFixed4 struct {
-	funcType
-	args [4]*rtype
-}
-type funcTypeFixed8 struct {
-	funcType
-	args [8]*rtype
-}
-type funcTypeFixed16 struct {
-	funcType
-	args [16]*rtype
-}
-type funcTypeFixed32 struct {
-	funcType
-	args [32]*rtype
-}
-type funcTypeFixed64 struct {
-	funcType
-	args [64]*rtype
-}
-type funcTypeFixed128 struct {
-	funcType
-	args [128]*rtype
 }
 
 // emptyInterface is the header for an interface{} value.
@@ -108,19 +76,6 @@ func funcTypeIn(t *funcType) []*rtype {
 
 func funcTypeOut(t *funcType) []*rtype {
 	return t.OutSlice()
-}
-
-func rtypeIsVariadic(t *rtype) bool {
-	if reflect.Kind(t.Kind()) != reflect.Func {
-		panic("reflect: IsVariadic of non-func type " + toType(t).String())
-	}
-	tt := (*funcType)(unsafe.Pointer(t))
-	return tt.IsVariadic()
-}
-
-type bitVector struct {
-	n    uint32 // number of bits
-	data []byte
 }
 
 type uncommonFuncType struct {
@@ -485,6 +440,3 @@ func FieldX(v reflect.Value, i int) reflect.Value {
 	ptr := add(rv.ptr, field.Offset, "same as non-reflect &v.field")
 	return toValue(Value{typ, ptr, fl})
 }
-
-// Ensure abi import is used
-var _ = abi.TFlagUncommon
