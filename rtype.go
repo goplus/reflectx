@@ -392,13 +392,15 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 		return
 	}
 	ft := (*funcType)(unsafe.Pointer(mtyp))
-	in := make([]reflect.Type, 0, 1+len(funcTypeIn(ft)))
+	ins := funcTypeIn(ft)
+	in := make([]reflect.Type, 0, 1+len(ins))
 	in = append(in, toType(t))
-	for _, arg := range funcTypeIn(ft) {
+	for _, arg := range ins {
 		in = append(in, toType(arg))
 	}
-	out := make([]reflect.Type, 0, len(funcTypeOut(ft)))
-	for _, ret := range funcTypeOut(ft) {
+	outs := funcTypeOut(ft)
+	out := make([]reflect.Type, 0, len(outs))
+	for _, ret := range outs {
 		out = append(out, toType(ret))
 	}
 	mt := reflect.FuncOf(in, out, ft.IsVariadic())
