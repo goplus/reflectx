@@ -392,13 +392,15 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 		return
 	}
 	ft := (*funcType)(unsafe.Pointer(mtyp))
-	in := make([]reflect.Type, 0, 1+len(funcTypeIn(ft)))
+	ins := funcTypeIn(ft)
+	in := make([]reflect.Type, 0, 1+len(ins))
 	in = append(in, toType(t))
-	for _, arg := range funcTypeIn(ft) {
+	for _, arg := range ins {
 		in = append(in, toType(arg))
 	}
-	out := make([]reflect.Type, 0, len(funcTypeOut(ft)))
-	for _, ret := range funcTypeOut(ft) {
+	outs := funcTypeOut(ft)
+	out := make([]reflect.Type, 0, len(outs))
+	for _, ret := range outs {
 		out = append(out, toType(ret))
 	}
 	mt := reflect.FuncOf(in, out, ft.IsVariadic())
@@ -439,4 +441,8 @@ func FieldX(v reflect.Value, i int) reflect.Value {
 	fl := rv.flag&(flagStickyRO|flagIndir|flagAddr) | flag(reflect.Kind(typ.Kind()))
 	ptr := add(rv.ptr, field.Offset, "same as non-reflect &v.field")
 	return toValue(Value{typ, ptr, fl})
+}
+
+func setEmbedded(f *structField) {
+	(*f.Name.Bytes) |= 1 << 3
 }
