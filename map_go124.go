@@ -3,28 +3,20 @@
 
 package reflectx
 
-import "unsafe"
+import (
+	"github.com/goplus/reflectx/internal/abi"
+)
 
-type mapType struct {
-	rtype
-	key   *rtype
-	elem  *rtype
-	group *rtype // internal type representing a slot group
-	// function for hashing keys (ptr to key, seed) -> hash
-	hasher    func(unsafe.Pointer, uintptr) uintptr
-	groupSize uintptr // == Group.Size_
-	slotSize  uintptr // size of key/elem slot
-	elemOff   uintptr // offset of elem in key/elem slot
-	flags     uint32
-}
+// mapType is abi.MapType for the swiss map implementation
+type mapType = abi.MapType
 
 func cloneMap(st, ost *mapType) {
-	st.key = ost.key
-	st.elem = ost.elem
-	st.group = ost.group
-	st.hasher = ost.hasher
-	st.groupSize = ost.groupSize
-	st.slotSize = ost.slotSize
-	st.elemOff = ost.elemOff
-	st.flags = ost.flags
+	st.Key = ost.Key
+	st.Elem = ost.Elem
+	st.Group = ost.Group
+	st.Hasher = ost.Hasher
+	st.GroupSize = ost.GroupSize
+	st.SlotSize = ost.SlotSize
+	st.ElemOff = ost.ElemOff
+	st.Flags = ost.Flags
 }

@@ -2,65 +2,29 @@ package reflectx
 
 import "unsafe"
 
-// name is an encoded type name with optional extra data.
-//
-// The first byte is a bit field containing:
-//
-//	1<<0 the name is exported
-//	1<<1 tag data follows the name
-//	1<<2 pkgPath nameOff follows the name and tag
-//
-// Following that, there is a varint-encoded length of the name,
-// followed by the name itself.
-//
-// If tag data is present, it also has a varint-encoded length
-// followed by the tag itself.
-//
-// If the import path follows, then 4 bytes at the end of
-// the data form a nameOff. The import path is only set for concrete
-// methods that are defined in a different package than their type.
-//
-// If a name starts with "*", then the exported bit represents
-// whether the pointed to type is exported.
-//
-// Note: this encoding must match here and in:
-//   cmd/compile/internal/reflectdata/reflect.go
-//   runtime/type.go
-//   internal/reflectlite/type.go
-//   cmd/link/internal/ld/decodesym.go
+// name is an alias to abi.Name (defined in type.go)
+// Helper methods below mirror the original name methods.
 
-type name struct {
-	bytes *byte
+func nameData(n name, off int, whySafe string) *byte {
+	return (*byte)(add(unsafe.Pointer(n.Bytes), uintptr(off), whySafe))
 }
 
-func (n name) data(off int, whySafe string) *byte {
-	return (*byte)(add(unsafe.Pointer(n.bytes), uintptr(off), whySafe))
+func nameIsExported(n name) bool {
+	return (*n.Bytes)&(1<<0) != 0
 }
 
-func (n name) isExported() bool {
-	return (*n.bytes)&(1<<0) != 0
+func nameEmbedded(n name) bool {
+	return (*n.Bytes)&(1<<3) != 0
 }
 
-// go1.19
-func (n name) embedded() bool {
-	return (*n.bytes)&(1<<3) != 0
+func nameHasTag(n name) bool {
+	return (*n.Bytes)&(1<<1) != 0
 }
 
-// go1.19
-func (n name) setEmbedded() {
-	(*n.bytes) |= 1 << 3
-}
-
-func (n name) hasTag() bool {
-	return (*n.bytes)&(1<<1) != 0
-}
-
-// readVarint parses a varint as encoded by encoding/binary.
-// It returns the number of encoded bytes and the encoded value.
-func (n name) readVarint(off int) (int, int) {
+func readVarint(n name, off int) (int, int) {
 	v := 0
 	for i := 0; ; i++ {
-		x := *n.data(off+i, "read varint")
+		x := *nameData(n, off+i, "read varint")
 		v += int(x&0x7f) << (7 * i)
 		if x&0x80 == 0 {
 			return i + 1, v
@@ -83,59 +47,59 @@ func writeVarint(buf []byte, n int) int {
 	}
 }
 
-func (n name) name() (s string) {
-	if n.bytes == nil {
+func nameStr(n name) (s string) {
+	if n.Bytes == nil {
 		return
 	}
-	i, l := n.readVarint(1)
+	i, l := readVarint(n, 1)
 	hdr := (*stringHeader)(unsafe.Pointer(&s))
-	hdr.Data = unsafe.Pointer(n.data(1+i, "non-empty string"))
+	hdr.Data = unsafe.Pointer(nameData(n, 1+i, "non-empty string"))
 	hdr.Len = l
 	return
 }
 
-func (n name) tag() (s string) {
-	if !n.hasTag() {
+func nameTag(n name) (s string) {
+	if !nameHasTag(n) {
 		return ""
 	}
-	i, l := n.readVarint(1)
-	i2, l2 := n.readVarint(1 + i + l)
+	i, l := readVarint(n, 1)
+	i2, l2 := readVarint(n, 1+i+l)
 	hdr := (*stringHeader)(unsafe.Pointer(&s))
-	hdr.Data = unsafe.Pointer(n.data(1+i+l+i2, "non-empty string"))
+	hdr.Data = unsafe.Pointer(nameData(n, 1+i+l+i2, "non-empty string"))
 	hdr.Len = l2
 	return
 }
 
-func (n name) pkgPath() string {
-	if n.bytes == nil || *n.data(0, "name flag field")&(1<<2) == 0 {
+func namePkgPath(n name) string {
+	if n.Bytes == nil || *nameData(n, 0, "name flag field")&(1<<2) == 0 {
 		return ""
 	}
-	i, l := n.readVarint(1)
+	i, l := readVarint(n, 1)
 	off := 1 + i + l
-	if n.hasTag() {
-		i2, l2 := n.readVarint(off)
+	if nameHasTag(n) {
+		i2, l2 := readVarint(n, off)
 		off += i2 + l2
 	}
-	var nameOff int32
+	var noff int32
 	// Note that this field may not be aligned in memory,
 	// so we cannot use a direct int32 assignment here.
-	copy((*[4]byte)(unsafe.Pointer(&nameOff))[:], (*[4]byte)(unsafe.Pointer(n.data(off, "name offset field")))[:])
-	pkgPathName := name{(*byte)(resolveTypeOff(unsafe.Pointer(n.bytes), nameOff))}
-	return pkgPathName.name()
+	copy((*[4]byte)(unsafe.Pointer(&noff))[:], (*[4]byte)(unsafe.Pointer(nameData(n, off, "name offset field")))[:])
+	pkgPathName := name{Bytes: (*byte)(resolveTypeOff(unsafe.Pointer(n.Bytes), noff))}
+	return nameStr(pkgPathName)
 }
 
-func (n name) setPkgPath(pkgpath string) {
-	if n.bytes == nil || *n.data(0, "name flag pkgPath")&(1<<2) == 0 {
+func setPkgPath(n name, pkgpath string) {
+	if n.Bytes == nil || *nameData(n, 0, "name flag pkgPath")&(1<<2) == 0 {
 		return
 	}
-	i, l := n.readVarint(1)
+	i, l := readVarint(n, 1)
 	off := 1 + i + l
-	if n.hasTag() {
-		i2, l2 := n.readVarint(off)
+	if nameHasTag(n) {
+		i2, l2 := readVarint(n, off)
 		off += i2 + l2
 	}
 	v := resolveReflectName(newName(pkgpath, "", false))
-	copy((*[4]byte)(unsafe.Pointer(n.data(off, "name offset pkgPath")))[:], (*[4]byte)(unsafe.Pointer(&v))[:])
+	copy((*[4]byte)(unsafe.Pointer(nameData(n, off, "name offset pkgPath")))[:], (*[4]byte)(unsafe.Pointer(&v))[:])
 }
 
 func newNameEx(n, tag string, exported bool, pkgpath bool) name {
@@ -174,7 +138,7 @@ func newNameEx(n, tag string, exported bool, pkgpath bool) name {
 		copy(tb[tagLenLen:], tag)
 	}
 
-	return name{bytes: &b[0]}
+	return name{Bytes: &b[0]}
 }
 
 func newName(n, tag string, exported bool) name {

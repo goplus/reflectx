@@ -19,98 +19,41 @@ package reflectx
 import (
 	"reflect"
 	"unsafe"
+
+	"github.com/goplus/reflectx/internal/abi"
 )
 
-func (t *rtype) nameOff(off nameOff) name {
-	return rtype_nameOff(t, off)
-}
-
-func (t *rtype) typeOff(off typeOff) *rtype {
-	return rtype_typeOff(t, off)
-}
-
-func (t *rtype) textOff(off textOff) unsafe.Pointer {
-	return rtype_textOff(t, off)
-}
-
-// resolveReflectType adds a *rtype to the reflection lookup map in the runtime.
-// It returns a new typeOff that can be used to refer to the pointer.
-func resolveReflectType(t *rtype) typeOff {
-	return typeOff(addReflectOff(unsafe.Pointer(t)))
-}
-
-// resolveReflectText adds a function pointer to the reflection lookup map in
-// the runtime. It returns a new textOff that can be used to refer to the
-// pointer.
-func resolveReflectText(ptr unsafe.Pointer) textOff {
-	return textOff(addReflectOff(ptr))
-}
-
-type nameOff int32
-type typeOff int32
-type textOff int32
-
-// Method on non-interface type
-type method struct {
-	name nameOff // name of method
-	mtyp typeOff // method type (without receiver)
-	ifn  textOff // fn used in interface call (one-word receiver)
-	tfn  textOff // fn used for normal method call
-}
+// Type aliases to internal/abi types
+type rtype = abi.Type
+type nameOff = abi.NameOff
+type typeOff = abi.TypeOff
+type textOff = abi.TextOff
+type tflag = abi.TFlag
+type method = abi.Method
+type name = abi.Name
+type imethod = abi.Imethod
+type uncommonType = abi.UncommonType
+type structField = abi.StructField
+type arrayType = abi.ArrayType
+type chanType = abi.ChanType
+type interfaceType = abi.InterfaceType
+type ptrType = abi.PtrType
+type sliceType = abi.SliceType
+type structType = abi.StructType
+type funcType = abi.FuncType
 
 type structTypeUncommon struct {
 	structType
 	u uncommonType
 }
 
-type tflag uint8
-
 const (
-	// tflagUncommon means that there is a pointer, *uncommonType,
-	// just beyond the outer type structure.
-	//
-	// For example, if t.Kind() == Struct and t.tflag&tflagUncommon != 0,
-	// then t has uncommonType data and it can be accessed as:
-	//
-	//	type tUncommon struct {
-	//		structType
-	//		u uncommonType
-	//	}
-	//	u := &(*tUncommon)(unsafe.Pointer(t)).u
-	tflagUncommon tflag = 1 << 0
-
-	// tflagExtraStar means the name in the str field has an
-	// extraneous '*' prefix. This is because for most types T in
-	// a program, the type *T also exists and reusing the str data
-	// saves binary size.
-	tflagExtraStar tflag = 1 << 1
-
-	// tflagNamed means the type has a name.
-	tflagNamed tflag = 1 << 2
-
-	// tflagRegularMemory means that equal and hash functions can treat
-	// this type as a single region of t.size bytes.
-	tflagRegularMemory tflag = 1 << 3
-
-	// tflagUserMethod means the type has reflctx user methods
-	tflagUserMethod tflag = 1 << 7
+	tflagUncommon      = abi.TFlagUncommon
+	tflagExtraStar     = abi.TFlagExtraStar
+	tflagNamed         = abi.TFlagNamed
+	tflagRegularMemory = abi.TFlagRegularMemory
+	tflagUserMethod    tflag = 1 << 7
 )
-
-type rtype struct {
-	size       uintptr
-	ptrdata    uintptr // number of bytes in the type that can contain pointers
-	hash       uint32  // hash of type; avoids computation in hash tables
-	tflag      tflag   // extra type information flags
-	align      uint8   // alignment of variable with this type
-	fieldAlign uint8   // alignment of struct field with this type
-	kind       uint8   // enumeration for C
-	// function for comparing objects of this type
-	// (ptr to object A, ptr to object B) -> ==?
-	equal     func(unsafe.Pointer, unsafe.Pointer) bool
-	gcdata    *byte   // garbage collection data
-	str       nameOff // string form
-	ptrToThis typeOff // type for pointer to this type, may be zero
-}
 
 const (
 	kindDirectIface = 1 << 5
@@ -118,8 +61,9 @@ const (
 	kindMask        = (1 << 5) - 1
 )
 
-func (t *rtype) Kind() reflect.Kind {
-	return reflect.Kind(t.kind & kindMask)
+// rtypeKind returns reflect.Kind for an rtype, converting from abi.Kind.
+func rtypeKind(t *rtype) reflect.Kind {
+	return reflect.Kind(t.Kind_ & kindMask)
 }
 
 // add returns p+x.
@@ -147,53 +91,6 @@ const (
 	SendDir                                 // chan<-
 	BothDir = RecvDir | SendDir             // chan
 )
-
-// arrayType represents a fixed array type.
-type arrayType struct {
-	rtype
-	elem  *rtype // array element type
-	slice *rtype // slice type
-	len   uintptr
-}
-
-// chanType represents a channel type.
-type chanType struct {
-	rtype
-	elem *rtype  // channel element type
-	dir  uintptr // channel direction (ChanDir)
-}
-
-// imethod represents a method on an interface type
-type imethod struct {
-	name nameOff // name of method
-	typ  typeOff // .(*FuncType) underneath
-}
-
-// interfaceType represents an interface type.
-type interfaceType struct {
-	rtype
-	pkgPath name      // import path
-	methods []imethod // sorted by hash
-}
-
-// ptrType represents a pointer type.
-type ptrType struct {
-	rtype
-	elem *rtype // pointer element (pointed at) type
-}
-
-// sliceType represents a slice type.
-type sliceType struct {
-	rtype
-	elem *rtype // slice element type
-}
-
-// structType represents a struct type.
-type structType struct {
-	rtype
-	pkgPath name
-	fields  []structField // sorted by offset
-}
 
 // go/src/cmd/compile/internal/gc/alg.go#algtype1
 // IsRegularMemory reports whether t can be compared/hashed as regular memory.
