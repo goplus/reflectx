@@ -88,30 +88,30 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
 	}
-	t.tflag |= tflagNamed | tflagExtraStar
-	t.str = resolveReflectName(newName("*"+name, "", exported))
-	if t.tflag&tflagUncommon == tflagUncommon {
-		toUncommonType(t).pkgPath = resolveReflectName(newName(pkgpath, "", false))
+	t.TFlag |= tflagNamed | tflagExtraStar
+	t.Str = resolveReflectName(newName("*"+name, "", exported))
+	if t.TFlag&tflagUncommon == tflagUncommon {
+		toUncommonType(t).PkgPath = resolveReflectName(newName(pkgpath, "", false))
 	}
-	switch t.Kind() {
+	switch reflect.Kind(t.Kind()) {
 	case reflect.Struct:
 		st := (*structType)(toKindType(t))
-		st.pkgPath = newName(pkgpath, "", false)
+		st.PkgPath = newName(pkgpath, "", false)
 	case reflect.Interface:
 		st := (*interfaceType)(toKindType(t))
-		st.pkgPath = newName(pkgpath, "", false)
+		st.PkgPath = newName(pkgpath, "", false)
 	}
 }
 
 func copyType(dst *rtype, src *rtype) {
-	dst.size = src.size
-	dst.kind = src.kind
-	dst.equal = src.equal
-	dst.align = src.align
-	dst.fieldAlign = src.fieldAlign
-	dst.tflag = src.tflag
-	dst.gcdata = src.gcdata
-	dst.ptrdata = src.ptrdata
+	dst.Size_ = src.Size_
+	dst.Kind_ = src.Kind_
+	dst.Equal = src.Equal
+	dst.Align_ = src.Align_
+	dst.FieldAlign_ = src.FieldAlign_
+	dst.TFlag = src.TFlag
+	dst.GCData = src.GCData
+	dst.PtrBytes = src.PtrBytes
 }
 
 func isExported(name string) bool {
@@ -169,10 +169,10 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 	rt := totype(typ)
 	st := toStructType(rt)
 	for _, i := range anonymous {
-		setEmbedded(&st.fields[i])
+		setEmbedded(&st.Fields[i])
 	}
 	for i, n := range underscore {
-		st.fields[i].name = n
+		st.Fields[i].Name = n
 	}
 	str := typ.String()
 	if ts, ok := ctx.structLookupCache[str]; ok {
@@ -186,15 +186,15 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 		ctx.structLookupCache[str] = []reflect.Type{typ}
 	}
 	// fix equal for blank fields and uncomparable type
-	if rt.equal != nil && underscoreCount > 0 {
-		rt.equal = func(p, q unsafe.Pointer) bool {
-			for i, ft := range st.fields {
+	if rt.Equal != nil && underscoreCount > 0 {
+		rt.Equal = func(p, q unsafe.Pointer) bool {
+			for i, ft := range st.Fields {
 				if fields[i].Name == "_" {
 					continue
 				}
-				pi := add(p, ft.offset(), "&x.field safe")
-				qi := add(q, ft.offset(), "&x.field safe")
-				if !ft.typ.equal(pi, qi) {
+				pi := add(p, ft.Offset, "&x.field safe")
+				qi := add(q, ft.Offset, "&x.field safe")
+				if !ft.Typ.Equal(pi, qi) {
 					return false
 				}
 			}
@@ -202,18 +202,10 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 		}
 	}
 
-	if rt.tflag == 0 && isRegularMemory(typ) {
-		rt.tflag |= tflagRegularMemory
+	if rt.TFlag == 0 && isRegularMemory(typ) {
+		rt.TFlag |= tflagRegularMemory
 	}
 	return typ
-}
-
-// fnv1 incorporates the list of bytes into the hash x using the FNV-1 hash function.
-func fnv1(x uint32, list string) uint32 {
-	for _, b := range list {
-		x = x*16777619 ^ uint32(b)
-	}
-	return x
 }
 
 func SetValue(v reflect.Value, x reflect.Value) {
@@ -251,19 +243,19 @@ func SetElem(typ reflect.Type, elem reflect.Type) {
 	switch typ.Kind() {
 	case reflect.Ptr:
 		st := (*ptrType)(toKindType(rt))
-		st.elem = totype(elem)
+		st.Elem = totype(elem)
 	case reflect.Slice:
 		st := (*sliceType)(toKindType(rt))
-		st.elem = totype(elem)
+		st.Elem = totype(elem)
 	case reflect.Array:
 		st := (*arrayType)(toKindType(rt))
-		st.elem = totype(elem)
+		st.Elem = totype(elem)
 	case reflect.Map:
 		st := (*mapType)(toKindType(rt))
-		st.elem = totype(elem)
+		st.Elem = totype(elem)
 	case reflect.Chan:
 		st := (*chanType)(toKindType(rt))
-		st.elem = totype(elem)
+		st.Elem = totype(elem)
 	default:
 		panic("reflect: Elem of invalid type " + typ.String())
 	}
@@ -298,15 +290,15 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 			return
 		}
 		st := (*structType)(toKindType(rt))
-		for i := 0; i < len(st.fields); i++ {
-			et := toType(st.fields[i].typ)
+		for i := 0; i < len(st.Fields); i++ {
+			et := toType(st.Fields[i].Typ)
 			if t, ok := m[typeId(et)]; ok {
-				st.fields[i].typ = totype(t)
+				st.Fields[i].Typ = totype(t)
 				changed = true
 			} else {
 				if rtyp, ok := ctx.replace(pkg, et, m); ok {
 					changed = true
-					st.fields[i].typ = totype(rtyp)
+					st.Fields[i].Typ = totype(rtyp)
 				}
 			}
 		}
@@ -315,9 +307,9 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 		}
 	case reflect.Ptr:
 		st := (*ptrType)(toKindType(rt))
-		et := toType(st.elem)
+		et := toType(st.Elem)
 		if t, ok := m[typeId(et)]; ok {
-			st.elem = totype(t)
+			st.Elem = totype(t)
 			return reflect.PtrTo(t), true
 		} else {
 			if rtyp, ok := ctx.replace(pkg, et, m); ok {
@@ -326,9 +318,9 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 		}
 	case reflect.Slice:
 		st := (*sliceType)(toKindType(rt))
-		et := toType(st.elem)
+		et := toType(st.Elem)
 		if t, ok := m[typeId(et)]; ok {
-			st.elem = totype(t)
+			st.Elem = totype(t)
 			return reflect.SliceOf(t), true
 		} else {
 			if rtyp, ok := ctx.replace(pkg, et, m); ok {
@@ -337,19 +329,19 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 		}
 	case reflect.Array:
 		st := (*arrayType)(toKindType(rt))
-		et := toType(st.elem)
+		et := toType(st.Elem)
 		if t, ok := m[typeId(et)]; ok {
-			st.elem = totype(t)
-			return reflect.ArrayOf(int(st.len), t), true
+			st.Elem = totype(t)
+			return reflect.ArrayOf(int(st.Len), t), true
 		} else {
 			if rtyp, ok := ctx.replace(pkg, et, m); ok {
-				return reflect.ArrayOf(int(st.len), rtyp), true
+				return reflect.ArrayOf(int(st.Len), rtyp), true
 			}
 		}
 	case reflect.Map:
 		st := (*mapType)(toKindType(rt))
-		kt := toType(st.key)
-		et := toType(st.elem)
+		kt := toType(st.Key)
+		et := toType(st.Elem)
 		if t, ok := m[typeId(kt)]; ok {
 			kt = t
 			changed = true
@@ -373,9 +365,9 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 		}
 	case reflect.Chan:
 		st := (*chanType)(toKindType(rt))
-		et := toType(st.elem)
+		et := toType(st.Elem)
 		if t, ok := m[typeId(et)]; ok {
-			st.elem = totype(t)
+			st.Elem = totype(t)
 			return reflect.ChanOf(typ.ChanDir(), t), true
 		} else {
 			if rtyp, ok := ctx.replace(pkg, et, m); ok {
@@ -384,8 +376,8 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 		}
 	case reflect.Func:
 		st := (*funcType)(toKindType(rt))
-		in := st.in()
-		out := st.out()
+		in := funcTypeIn(st)
+		out := funcTypeOut(st)
 		for i := 0; i < len(in); i++ {
 			et := toType(in[i])
 			if t, ok := m[typeId(et)]; ok {
@@ -429,13 +421,13 @@ func (ctx *replaceTypeContext) replace(pkg string, typ reflect.Type, m map[strin
 			return
 		}
 		st := (*interfaceType)(toKindType(rt))
-		for i := 0; i < len(st.methods); i++ {
+		for i := 0; i < len(st.Methods); i++ {
 			tt := typ.Method(i).Type
 			if t, ok := m[typeId(tt)]; ok {
-				st.methods[i].typ = resolveReflectType(totype(t))
+				st.Methods[i].Typ = resolveReflectType(totype(t))
 				changed = true
 			} else if rtyp, ok := ctx.replace(pkg, tt, m); ok {
-				st.methods[i].typ = resolveReflectType(totype(rtyp))
+				st.Methods[i].Typ = resolveReflectType(totype(rtyp))
 				changed = true
 			}
 		}

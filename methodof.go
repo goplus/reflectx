@@ -95,7 +95,7 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 }
 
 func isMethod(typ reflect.Type) (ok bool) {
-	return totype(typ).tflag&tflagUserMethod != 0
+	return totype(typ).TFlag&tflagUserMethod != 0
 }
 
 type MethodInfo struct {
@@ -113,11 +113,11 @@ type MethodInfo struct {
 }
 
 func MethodByIndex(typ reflect.Type, index int) reflect.Method {
-	return totype(typ).MethodX(index)
+	return rtypeMethodX(totype(typ), index)
 }
 
 func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
-	m, ok = totype(typ).MethodByNameX(name)
+	m, ok = rtypeMethodByNameX(totype(typ), name)
 	return
 }
 
@@ -127,10 +127,10 @@ func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 	if ut == nil {
 		return fmt.Errorf("not found uncommonType of %v", typ)
 	}
-	if uint16(mcount) > ut.mcount {
+	if uint16(mcount) > ut.Mcount {
 		return fmt.Errorf("too many methods of %v", typ)
 	}
-	ut.xcount = uint16(xcount)
+	ut.Xcount = uint16(xcount)
 	return nil
 }
 
@@ -227,8 +227,8 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	rt := totype(typ)
 	prt := totype(ptyp)
 
-	ms := rt.methods()
-	pms := prt.methods()
+	ms := rtypeMethods(rt)
+	pms := rtypeMethods(prt)
 
 	var onePtr bool
 	switch typ.Kind() {
@@ -252,7 +252,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		isexport := methodIsExported(m.Name)
 		nm := newNameEx(m.Name, "", isexport, !isexport)
 		if !isexport {
-			nm.setPkgPath(m.PkgPath)
+			setPkgPath(nm, m.PkgPath)
 		}
 		mname := resolveReflectName(nm)
 		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
@@ -272,15 +272,15 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			OnePtr:   onePtr,
 			FuncId:   m.FuncId,
 		}
-		pms[i].name = mname
-		pms[i].mtyp = mtyp
-		pms[i].tfn = ptfn
+		pms[i].Name = mname
+		pms[i].Mtyp = mtyp
+		pms[i].Tfn = ptfn
 		var pifn unsafe.Pointer = zeroIfn
 		hasIfn := ctx.hasImethod(typ, m)
 		if hasIfn {
 			pifn, _ = ctx.registerMethod(pinfo)
 		}
-		pms[i].ifn = resolveReflectText(pifn)
+		pms[i].Ifn = resolveReflectText(pifn)
 		if m.FuncId > 0 {
 			if hasIfn {
 				globalIfnCached++
@@ -308,10 +308,10 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 					globalIfnCached++
 				}
 			}
-			ms[index].name = mname
-			ms[index].mtyp = mtyp
-			ms[index].tfn = tfn
-			ms[index].ifn = resolveReflectText(ifn)
+			ms[index].Name = mname
+			ms[index].Mtyp = mtyp
+			ms[index].Tfn = tfn
+			ms[index].Ifn = resolveReflectText(ifn)
 			if m.FuncId > 0 {
 				if hasIfn {
 					globalIfnCached++
@@ -321,8 +321,8 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			index++
 		}
 	}
-	rt.tflag |= tflagUserMethod
-	prt.tflag |= tflagUserMethod
+	rt.TFlag |= tflagUserMethod
+	prt.TFlag |= tflagUserMethod
 
 	if ctx.nAllocateError != 0 {
 		ncap := abi.Default.Cap()
@@ -342,10 +342,10 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
 	prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)
-	rt.ptrToThis = resolveReflectType(prt)
-	(*ptrType)(unsafe.Pointer(prt)).elem = rt
+	rt.PtrToThis = resolveReflectType(prt)
+	(*ptrType)(unsafe.Pointer(prt)).Elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())
-	prt.uncommon().pkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
+	prt.Uncommon().PkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
 	return toType(rt)
 }
 
@@ -386,9 +386,9 @@ func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
 	for i := 0; i < numIn; i++ {
 		t := typ.Field(i).Type
 		targ := totype(t)
-		a := uintptr(targ.align)
+		a := uintptr(targ.Align_)
 		off = (off + a - 1) &^ (a - 1)
-		n := targ.size
+		n := targ.Size_
 		if n == 0 {
 			continue
 		}

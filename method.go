@@ -180,9 +180,9 @@ func UpdateField(typ reflect.Type, rmap map[reflect.Type]reflect.Type) bool {
 	}
 	rt := totype(typ)
 	st := toStructType(rt)
-	for i := 0; i < len(st.fields); i++ {
-		t := replaceType(toType(st.fields[i].typ), rmap)
-		st.fields[i].typ = totype(t)
+	for i := 0; i < len(st.Fields); i++ {
+		t := replaceType(toType(st.Fields[i].Typ), rmap)
+		st.Fields[i].Typ = totype(t)
 	}
 	return true
 }
@@ -329,7 +329,7 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 	})
 	rt := totype(typ)
 	st := (*interfaceType)(toKindType(rt))
-	st.methods = nil
+	st.Methods = nil
 	var info []string
 	var lastname string
 	var unnamed bool
@@ -347,14 +347,14 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 			nm := newNameEx(m.Name, "", isexport, !isexport)
 			mname = resolveReflectName(nm)
 			if !isexport {
-				nm.setPkgPath(m.PkgPath)
+				setPkgPath(nm, m.PkgPath)
 			}
 		} else {
 			mname = resolveReflectName(newName(m.Name, "", isexport))
 		}
-		st.methods = append(st.methods, imethod{
-			name: mname,
-			typ:  resolveReflectType(totype(m.Type)),
+		st.Methods = append(st.Methods, imethod{
+			Name: mname,
+			Typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
 	}
@@ -387,7 +387,7 @@ func (ctx *Context) InterfaceOf(embedded []reflect.Type, methods []reflect.Metho
 	})
 	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
 	st := (*interfaceType)(toKindType(rt))
-	st.methods = nil
+	st.Methods = nil
 	var info []string
 	var lastname string
 	for _, m := range methods {
@@ -400,16 +400,16 @@ func (ctx *Context) InterfaceOf(embedded []reflect.Type, methods []reflect.Metho
 		nm := newNameEx(m.Name, "", isexport, !isexport)
 		mname = resolveReflectName(nm)
 		if !isexport {
-			nm.setPkgPath(m.PkgPath)
+			setPkgPath(nm, m.PkgPath)
 		}
-		st.methods = append(st.methods, imethod{
-			name: mname,
-			typ:  resolveReflectType(totype(m.Type)),
+		st.Methods = append(st.Methods, imethod{
+			Name: mname,
+			Typ:  resolveReflectType(totype(m.Type)),
 		})
 		info = append(info, methodStr(m.Name, m.Type))
 	}
-	if len(st.methods) > 0 {
-		rt.equal = interequal
+	if len(st.Methods) > 0 {
+		rt.Equal = interequal
 	}
 	var str string
 	if len(info) > 0 {
@@ -420,7 +420,7 @@ func (ctx *Context) InterfaceOf(embedded []reflect.Type, methods []reflect.Metho
 	if t, ok := ctx.interfceLookupCache[str]; ok {
 		return t
 	}
-	rt.str = resolveReflectName(newName(str, "", false))
+	rt.Str = resolveReflectName(newName(str, "", false))
 	typ := toType(rt)
 	ctx.interfceLookupCache[str] = typ
 	return typ
