@@ -91,7 +91,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	t.TFlag |= tflagNamed | tflagExtraStar
 	t.Str = resolveReflectName(newName("*"+name, "", exported))
 	if t.TFlag&tflagUncommon == tflagUncommon {
-		toUncommonType(t).PkgPath = resolveReflectName(newName(pkgpath, "", false))
+		t.Uncommon().PkgPath = resolveReflectName(newName(pkgpath, "", false))
 	}
 	switch reflect.Kind(t.Kind()) {
 	case reflect.Struct:

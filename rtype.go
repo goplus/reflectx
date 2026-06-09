@@ -42,12 +42,8 @@ func toValue(v Value) reflect.Value {
 	return *(*reflect.Value)(unsafe.Pointer(&v))
 }
 
-func rtypeUncommon(t *rtype) *uncommonType {
-	return toUncommonType(t)
-}
-
 func rtypeMethods(t *rtype) []method {
-	ut := rtypeUncommon(t)
+	ut := t.Uncommon()
 	if ut == nil {
 		return nil
 	}
@@ -399,7 +395,7 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
 		return toType(t).MethodByName(name)
 	}
-	if ut := rtypeUncommon(t); ut != nil {
+	if ut := t.Uncommon(); ut != nil {
 		for i, p := range ut.Methods() {
 			if rtype_nameOff(t, p.Name).Name() == name {
 				return rtypeMethodX(t, i), true

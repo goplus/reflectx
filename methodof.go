@@ -123,7 +123,7 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 
 func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 	rt := totype(typ)
-	ut := toUncommonType(rt)
+	ut := rt.Uncommon()
 	if ut == nil {
 		return fmt.Errorf("not found uncommonType of %v", typ)
 	}
