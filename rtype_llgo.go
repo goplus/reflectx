@@ -10,7 +10,9 @@ import (
 )
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
-	panic("TODO: NamedTypeOf")
+	rt, _ := newType(pkgpath, name, from, 0, 0)
+	setTypeName(rt, pkgpath, name)
+	return toType(rt)
 }
 
 func setTypeName(t *rtype, pkgpath string, name string) {
@@ -154,4 +156,131 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	m.Func = toValue(Value{closureOf(mtfn), unsafe.Pointer(fv), fl | flagIndir})
 	m.Index = i
 	return m
+}
+
+func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
+	var rt *rtype
+	var fnoff uint32
+	var tt reflect.Value
+	ort := totype(styp)
+	skind := styp.Kind()
+	switch skind {
+	case reflect.Struct:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(structType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*structType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*structType)(unsafe.Pointer(ort))
+		st.Fields = ost.Fields
+	case reflect.Ptr:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(ptrType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*ptrType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		st.Elem = totype(styp.Elem())
+	case reflect.Interface:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(interfaceType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+		}))
+		st := (*interfaceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*interfaceType)(unsafe.Pointer(ort))
+		for _, m := range ost.Methods {
+			st.Methods = append(st.Methods, imethod{
+				Name_: m.Name_,
+				Typ_:  m.Typ_,
+			})
+		}
+	case reflect.Slice:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(sliceType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*sliceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		st.Elem = totype(styp.Elem())
+	case reflect.Array:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(arrayType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*arrayType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*arrayType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+		st.Slice = ost.Slice
+		st.Len = ost.Len
+	case reflect.Chan:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(chanType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*chanType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*chanType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+		st.Dir = ost.Dir
+	case reflect.Func:
+		numIn := styp.NumIn()
+		numOut := styp.NumOut()
+		narg := numIn + numOut
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(funcType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "N", Type: reflect.ArrayOf(narg, reflect.TypeOf((*rtype)(nil)))},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*funcType)(unsafe.Pointer(ort))
+		st.In = ost.In
+		st.Out = ost.Out
+	case reflect.Map:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(mapType{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+		st := (*mapType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+		ost := (*mapType)(unsafe.Pointer(ort))
+		cloneMap(st, ost)
+	default:
+		tt = reflect.New(reflect.StructOf([]reflect.StructField{
+			{Name: "S", Type: reflect.TypeOf(rtype{})},
+			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
+			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
+		}))
+	}
+	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+	rt.Size_ = ort.Size_
+	rt.TFlag = ort.TFlag | tflagUncommon
+	rt.Kind_ = ort.Kind_
+	rt.Align_ = ort.Align_
+	rt.FieldAlign_ = ort.FieldAlign_
+	rt.GCData = ort.GCData
+	rt.PtrBytes = ort.PtrBytes
+	rt.Equal = ort.Equal
+	rt.Str_ = ort.Str_
+	ut := (*uncommonType)(unsafe.Pointer(tt.Elem().Field(1).UnsafeAddr()))
+	ut.Mcount = uint16(mcount)
+	ut.Xcount = uint16(xcount)
+	ut.Moff = uint32(unsafe.Sizeof(uncommonType{}))
+	if skind == reflect.Interface {
+		return rt, nil
+	} else if skind == reflect.Func {
+		ut.Moff += fnoff
+		//return rt, tt.Elem().Field(3).Slice(0, mcount).Interface().([]method)
+		data := toWord(tt.Elem().Field(3).Slice(0, mcount).Interface())
+		return rt, *(*[]method)(data)
+	}
+	//return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
+	data := toWord(tt.Elem().Field(2).Slice(0, mcount).Interface())
+	return rt, *(*[]method)(data)
+}
+
+func toWord(i interface{}) unsafe.Pointer {
+	return (*emptyInterface)(unsafe.Pointer(&i)).word
 }
