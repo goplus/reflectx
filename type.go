@@ -25,9 +25,6 @@ import (
 
 // Type aliases to internal/abi types
 type rtype = abi.Type
-type nameOff = abi.NameOff
-type typeOff = abi.TypeOff
-type textOff = abi.TextOff
 type tflag = abi.TFlag
 type method = abi.Method
 type name = abi.Name

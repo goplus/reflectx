@@ -3,7 +3,13 @@ package reflectx
 import (
 	"reflect"
 	"unsafe"
+
+	"github.com/goplus/reflectx/internal/abi"
 )
+
+type nameOff = abi.NameOff
+type typeOff = abi.TypeOff
+type textOff = abi.TextOff
 
 // memmove copies size bytes to dst from src. No write barriers are used.
 //
