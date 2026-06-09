@@ -11,14 +11,6 @@ import (
 	"unsafe"
 )
 
-func rtypeMethods(t *rtype) []method {
-	ut := t.Uncommon()
-	if ut == nil {
-		return nil
-	}
-	return ut.Methods()
-}
-
 func funcTypeIn(t *funcType) []*rtype {
 	return t.InSlice()
 }
@@ -310,10 +302,6 @@ func DumpType(w io.Writer, typ reflect.Type) {
 			toType(rtype_typeOff(rt, m.Mtyp)),
 			m)
 	}
-}
-
-func NumMethodX(typ reflect.Type) int {
-	return len(rtypeMethods(totype(typ)))
 }
 
 func MethodX(typ reflect.Type, i int) reflect.Method {

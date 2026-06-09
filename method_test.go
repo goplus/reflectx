@@ -1,3 +1,5 @@
+//go:build !llgo
+
 package reflectx_test
 
 import (
@@ -15,7 +17,6 @@ import (
 var (
 	tyByte           = reflect.TypeOf(byte('a'))
 	tyBool           = reflect.TypeOf(true)
-	tyInt            = reflect.TypeOf(0)
 	tyString         = reflect.TypeOf("")
 	tyError          = reflect.TypeOf((*error)(nil)).Elem()
 	tyEmptyStruct    = reflect.TypeOf((*struct{})(nil)).Elem()

@@ -11,6 +11,10 @@ import (
 	"github.com/goplus/reflectx"
 )
 
+var (
+	tyInt = reflect.TypeOf(0)
+)
+
 type nPoint struct {
 	x int
 	y int

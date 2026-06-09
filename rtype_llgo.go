@@ -105,3 +105,53 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 func setEmbedded(f *structField) {
 	f.Embedded_ = true
 }
+
+func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
+	if reflect.Kind(t.Kind()) == reflect.Interface {
+		return toType(t).MethodByName(name)
+	}
+	if ut := t.Uncommon(); ut != nil {
+		for i, p := range ut.Methods() {
+			if p.Name_ == name {
+				return rtypeMethodX(t, i), true
+			}
+		}
+	}
+	return reflect.Method{}, false
+}
+
+//go:linkname closureOf reflect.closureOf
+func closureOf(ftyp *funcType) *rtype
+
+func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
+	if reflect.Kind(t.Kind()) == reflect.Interface {
+		return toType(t).Method(i)
+	}
+	methods := rtypeMethods(t)
+	if i < 0 || i >= len(methods) {
+		panic("reflect: Method index out of range")
+	}
+	p := methods[i]
+	m.Name = p.Name()
+	fl := flag(reflect.Func)
+	ft := p.Mtyp_
+	in := make([]reflect.Type, 0, 1+len(ft.In))
+	in = append(in, toType(t))
+	for _, arg := range ft.In {
+		in = append(in, toType(arg))
+	}
+	out := make([]reflect.Type, 0, len(ft.Out))
+	for _, ret := range ft.Out {
+		out = append(out, toType(ret))
+	}
+	mt := reflect.FuncOf(in, out, ft.Variadic())
+	m.Type = mt
+	mtfn := (*funcType)(unsafe.Pointer(totype(mt)))
+	fv := &struct {
+		fn  unsafe.Pointer
+		env unsafe.Pointer
+	}{p.Tfn_, nil}
+	m.Func = toValue(Value{closureOf(mtfn), unsafe.Pointer(fv), fl | flagIndir})
+	m.Index = i
+	return m
+}

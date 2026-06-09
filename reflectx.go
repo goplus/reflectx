@@ -158,3 +158,24 @@ func SetElem(typ reflect.Type, elem reflect.Type) {
 		panic("reflect: Elem of invalid type " + typ.String())
 	}
 }
+
+func rtypeMethods(t *rtype) []method {
+	ut := t.Uncommon()
+	if ut == nil {
+		return nil
+	}
+	return ut.Methods()
+}
+
+func NumMethodX(typ reflect.Type) int {
+	return len(rtypeMethods(totype(typ)))
+}
+
+func MethodByIndex(typ reflect.Type, index int) reflect.Method {
+	return rtypeMethodX(totype(typ), index)
+}
+
+func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
+	m, ok = rtypeMethodByNameX(totype(typ), name)
+	return
+}
