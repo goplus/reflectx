@@ -103,17 +103,6 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	}
 }
 
-func copyType(dst *rtype, src *rtype) {
-	dst.Size_ = src.Size_
-	dst.Kind_ = src.Kind_
-	dst.Equal = src.Equal
-	dst.Align_ = src.Align_
-	dst.FieldAlign_ = src.FieldAlign_
-	dst.TFlag = src.TFlag
-	dst.GCData = src.GCData
-	dst.PtrBytes = src.PtrBytes
-}
-
 func isExported(name string) bool {
 	ch, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(ch)
