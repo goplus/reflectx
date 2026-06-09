@@ -1,7 +1,8 @@
+//go:build !llgo
+
 package reflectx
 
 import (
-	"reflect"
 	"unsafe"
 
 	"github.com/goplus/reflectx/internal/abi"
@@ -65,9 +66,6 @@ func resolveReflectName(n name) nameOff {
 
 //go:linkname resolveNameOff reflect.resolveNameOff
 func resolveNameOff(ptrInModule unsafe.Pointer, off int32) unsafe.Pointer
-
-//go:linkname toType reflect.toType
-func toType(t *rtype) reflect.Type
 
 func rtype_nameOff(t *rtype, off nameOff) name {
 	return name{Bytes: (*byte)(resolveNameOff(unsafe.Pointer(t), int32(off)))}

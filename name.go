@@ -1,6 +1,14 @@
+//go:build !llgo
+
 package reflectx
 
-import "unsafe"
+import (
+	"unsafe"
+
+	"github.com/goplus/reflectx/internal/abi"
+)
+
+type name = abi.Name
 
 // name is an alias to abi.Name (defined in type.go)
 // Helper methods below mirror the original name methods.
