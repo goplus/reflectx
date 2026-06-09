@@ -27,14 +27,6 @@ func totype(typ reflect.Type) *rtype {
 }
 
 //go:nocheckptr
-func rtypeUncommonMethods(t *uncommonType) []method {
-	if t == nil || t.Mcount == 0 {
-		return nil
-	}
-	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.Moff), "t.mcount > 0"))[:t.Mcount:t.Mcount]
-}
-
-//go:nocheckptr
 func rtypeUncommonExportedMethods(t *uncommonType) []method {
 	if t == nil || t.Xcount == 0 {
 		return nil
@@ -54,20 +46,12 @@ func rtypeUncommon(t *rtype) *uncommonType {
 	return toUncommonType(t)
 }
 
-func rtypeExportedMethods(t *rtype) []method {
-	ut := rtypeUncommon(t)
-	if ut == nil {
-		return nil
-	}
-	return rtypeUncommonExportedMethods(ut)
-}
-
 func rtypeMethods(t *rtype) []method {
 	ut := rtypeUncommon(t)
 	if ut == nil {
 		return nil
 	}
-	return rtypeUncommonMethods(ut)
+	return ut.Methods()
 }
 
 func funcTypeIn(t *funcType) []*rtype {
@@ -416,7 +400,7 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 		return toType(t).MethodByName(name)
 	}
 	if ut := rtypeUncommon(t); ut != nil {
-		for i, p := range rtypeUncommonMethods(ut) {
+		for i, p := range ut.Methods() {
 			if rtype_nameOff(t, p.Name).Name() == name {
 				return rtypeMethodX(t, i), true
 			}
