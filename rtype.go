@@ -26,14 +26,6 @@ func totype(typ reflect.Type) *rtype {
 	return (*rtype)(e.word)
 }
 
-//go:nocheckptr
-func rtypeUncommonExportedMethods(t *uncommonType) []method {
-	if t == nil || t.Xcount == 0 {
-		return nil
-	}
-	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.Moff), "t.xcount > 0"))[:t.Xcount:t.Xcount]
-}
-
 func tovalue(v *reflect.Value) *Value {
 	return (*Value)(unsafe.Pointer(v))
 }
