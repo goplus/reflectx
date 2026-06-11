@@ -123,7 +123,7 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 	}
 	if ut := t.Uncommon(); ut != nil {
 		for i, p := range ut.Methods() {
-			if p.Name_ == name {
+			if p.Name() == name {
 				return rtypeMethodX(t, i), true
 			}
 		}
