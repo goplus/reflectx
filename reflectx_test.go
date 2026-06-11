@@ -249,7 +249,7 @@ func TestNamedType(t *testing.T) {
 		typ := value.Type()
 		nt := reflectx.NamedTypeOf("github.com/goplus/reflectx", fmt.Sprintf("MyType%v", i), typ)
 		if nt.Kind() != typ.Kind() {
-			t.Errorf("kind: have %v, want %v", nt.Kind(), typ.Kind())
+			t.Errorf("kind: %v have %v, want %v", typ, nt.Kind(), typ.Kind())
 		}
 		if nt == typ {
 			t.Errorf("same type, %v", typ)
@@ -270,7 +270,7 @@ func TestNamedType(t *testing.T) {
 			t.Errorf("name: have %v, want %v", nt2.Name(), name)
 		}
 		if nt2.PkgPath() != pkgpath {
-			t.Errorf("pkgpath: have %v, want %v", nt2.PkgPath(), pkgpath)
+			t.Errorf("pkgpath: %v have %v, want %v", typ, nt2.PkgPath(), pkgpath)
 		}
 	}
 }

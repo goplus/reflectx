@@ -10,8 +10,15 @@ import (
 )
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
+	if from.Kind() == reflect.Func {
+		from = toType(closureOf(totype(from).FuncType()))
+	}
 	rt, _ := newType(pkgpath, name, from, 0, 0)
 	setTypeName(rt, pkgpath, name)
+	if rt.IsClosure() {
+		ft := toFuncType(rt.StructType())
+		rt = &ft.Type
+	}
 	return toType(rt)
 }
 
@@ -24,15 +31,17 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
 	}
-	t.TFlag |= tflagNamed | tflagExtraStar
-	t.Str_ = "*" + name
+	t.TFlag |= tflagNamed
+	t.Str_ = name
 	if t.TFlag&tflagUncommon == tflagUncommon {
 		t.Uncommon().PkgPath_ = pkgpath
 	}
 	switch reflect.Kind(t.Kind()) {
 	case reflect.Struct:
 		st := (*structType)(toKindType(t))
-		st.PkgPath_ = pkgpath
+		if !st.IsClosure() {
+			st.PkgPath_ = pkgpath
+		}
 	case reflect.Interface:
 		st := (*interfaceType)(toKindType(t))
 		st.PkgPath_ = pkgpath
@@ -124,6 +133,9 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 
 //go:linkname closureOf reflect.closureOf
 func closureOf(ftyp *funcType) *rtype
+
+//go:linkname toFuncType reflect.toFuncType
+func toFuncType(ftyp *structType) *funcType
 
 func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
