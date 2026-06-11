@@ -1,28 +1,17 @@
+//go:build !llgo
+
 package reflectx
 
-import "unsafe"
+import (
+	"unsafe"
+
+	"github.com/goplus/reflectx/internal/abi"
+)
+
+type name = abi.Name
 
 // name is an alias to abi.Name (defined in type.go)
 // Helper methods below mirror the original name methods.
-
-func nameData(n name, off int, whySafe string) *byte {
-	return (*byte)(add(unsafe.Pointer(n.Bytes), uintptr(off), whySafe))
-}
-
-func nameHasTag(n name) bool {
-	return (*n.Bytes)&(1<<1) != 0
-}
-
-func readVarint(n name, off int) (int, int) {
-	v := 0
-	for i := 0; ; i++ {
-		x := *nameData(n, off+i, "read varint")
-		v += int(x&0x7f) << (7 * i)
-		if x&0x80 == 0 {
-			return i + 1, v
-		}
-	}
-}
 
 // writeVarint writes n to buf in varint form. Returns the
 // number of bytes written. n must be nonnegative.
@@ -40,17 +29,17 @@ func writeVarint(buf []byte, n int) int {
 }
 
 func setPkgPath(n name, pkgpath string) {
-	if n.Bytes == nil || *nameData(n, 0, "name flag pkgPath")&(1<<2) == 0 {
+	if n.Bytes == nil || *n.DataChecked(0, "name flag pkgPath")&(1<<2) == 0 {
 		return
 	}
-	i, l := readVarint(n, 1)
+	i, l := n.ReadVarint(1)
 	off := 1 + i + l
-	if nameHasTag(n) {
-		i2, l2 := readVarint(n, off)
+	if n.HasTag() {
+		i2, l2 := n.ReadVarint(off)
 		off += i2 + l2
 	}
 	v := resolveReflectName(newName(pkgpath, "", false))
-	copy((*[4]byte)(unsafe.Pointer(nameData(n, off, "name offset pkgPath")))[:], (*[4]byte)(unsafe.Pointer(&v))[:])
+	copy((*[4]byte)(unsafe.Pointer(n.DataChecked(off, "name offset pkgPath")))[:], (*[4]byte)(unsafe.Pointer(&v))[:])
 }
 
 func newNameEx(n, tag string, exported bool, pkgpath bool) name {

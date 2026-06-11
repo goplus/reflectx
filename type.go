@@ -25,12 +25,8 @@ import (
 
 // Type aliases to internal/abi types
 type rtype = abi.Type
-type nameOff = abi.NameOff
-type typeOff = abi.TypeOff
-type textOff = abi.TextOff
 type tflag = abi.TFlag
 type method = abi.Method
-type name = abi.Name
 type imethod = abi.Imethod
 type uncommonType = abi.UncommonType
 type structField = abi.StructField
@@ -112,3 +108,48 @@ func ispaddedfield(t reflect.Type, i int) bool {
 	fd := t.Field(i)
 	return fd.Offset+fd.Type.Size() != end
 }
+
+// Method struct for MethodOf
+// - name: method name
+// - pointer: flag receiver struct or pointer
+// - typ: method func type without receiver
+// - func: func with receiver as first argument
+// - funcId: func internal id
+type Method struct {
+	Name    string
+	PkgPath string
+	Pointer bool
+	Type    reflect.Type
+	Func    func([]reflect.Value) []reflect.Value
+	FuncId  int
+}
+
+func toStructType(t *rtype) *structType {
+	return (*structType)(unsafe.Pointer(t))
+}
+
+func toKindType(t *rtype) unsafe.Pointer {
+	return unsafe.Pointer(t)
+}
+
+// emptyInterface is the header for an interface{} value.
+type emptyInterface struct {
+	typ  *rtype
+	word unsafe.Pointer
+}
+
+func totype(typ reflect.Type) *rtype {
+	e := (*emptyInterface)(unsafe.Pointer(&typ))
+	return (*rtype)(e.word)
+}
+
+func tovalue(v *reflect.Value) *Value {
+	return (*Value)(unsafe.Pointer(v))
+}
+
+func toValue(v Value) reflect.Value {
+	return *(*reflect.Value)(unsafe.Pointer(&v))
+}
+
+//go:linkname toType reflect.toType
+func toType(t *rtype) reflect.Type

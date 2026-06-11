@@ -1,3 +1,5 @@
+//go:build !llgo
+
 package reflectx
 
 import (
@@ -33,21 +35,6 @@ func MakeMethod(name string, pkgpath string, pointer bool, typ reflect.Type, fn 
 		Type:    typ,
 		Func:    fn,
 	}
-}
-
-// Method struct for MethodOf
-// - name: method name
-// - pointer: flag receiver struct or pointer
-// - typ: method func type without receiver
-// - func: func with receiver as first argument
-// - funcId: func internal id
-type Method struct {
-	Name    string
-	PkgPath string
-	Pointer bool
-	Type    reflect.Type
-	Func    func([]reflect.Value) []reflect.Value
-	FuncId  int
 }
 
 func extraFieldMethod(ifield int, typ reflect.Type, skip map[string]bool) (methods []Method) {

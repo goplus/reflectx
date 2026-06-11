@@ -1,74 +1,15 @@
+//go:build !llgo
+
 package reflectx
 
 import (
 	"fmt"
 	"io"
+	"path"
 	"reflect"
+	"strconv"
 	"unsafe"
 )
-
-func toStructType(t *rtype) *structType {
-	return (*structType)(unsafe.Pointer(t))
-}
-
-func toKindType(t *rtype) unsafe.Pointer {
-	return unsafe.Pointer(t)
-}
-
-// emptyInterface is the header for an interface{} value.
-type emptyInterface struct {
-	typ  *rtype
-	word unsafe.Pointer
-}
-
-func totype(typ reflect.Type) *rtype {
-	e := (*emptyInterface)(unsafe.Pointer(&typ))
-	return (*rtype)(e.word)
-}
-
-//go:nocheckptr
-func rtypeUncommonMethods(t *uncommonType) []method {
-	if t == nil || t.Mcount == 0 {
-		return nil
-	}
-	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.Moff), "t.mcount > 0"))[:t.Mcount:t.Mcount]
-}
-
-//go:nocheckptr
-func rtypeUncommonExportedMethods(t *uncommonType) []method {
-	if t == nil || t.Xcount == 0 {
-		return nil
-	}
-	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.Moff), "t.xcount > 0"))[:t.Xcount:t.Xcount]
-}
-
-func tovalue(v *reflect.Value) *Value {
-	return (*Value)(unsafe.Pointer(v))
-}
-
-func toValue(v Value) reflect.Value {
-	return *(*reflect.Value)(unsafe.Pointer(&v))
-}
-
-func rtypeUncommon(t *rtype) *uncommonType {
-	return toUncommonType(t)
-}
-
-func rtypeExportedMethods(t *rtype) []method {
-	ut := rtypeUncommon(t)
-	if ut == nil {
-		return nil
-	}
-	return rtypeUncommonExportedMethods(ut)
-}
-
-func rtypeMethods(t *rtype) []method {
-	ut := rtypeUncommon(t)
-	if ut == nil {
-		return nil
-	}
-	return rtypeUncommonMethods(ut)
-}
 
 func funcTypeIn(t *funcType) []*rtype {
 	return t.InSlice()
@@ -363,10 +304,6 @@ func DumpType(w io.Writer, typ reflect.Type) {
 	}
 }
 
-func NumMethodX(typ reflect.Type) int {
-	return len(rtypeMethods(totype(typ)))
-}
-
 func MethodX(typ reflect.Type, i int) reflect.Method {
 	return rtypeMethodX(totype(typ), i)
 }
@@ -415,8 +352,8 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
 		return toType(t).MethodByName(name)
 	}
-	if ut := rtypeUncommon(t); ut != nil {
-		for i, p := range rtypeUncommonMethods(ut) {
+	if ut := t.Uncommon(); ut != nil {
+		for i, p := range ut.Methods() {
 			if rtype_nameOff(t, p.Name).Name() == name {
 				return rtypeMethodX(t, i), true
 			}
@@ -425,22 +362,93 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 	return reflect.Method{}, false
 }
 
-// Field returns the i'th field of the struct v.
-// It panics if v's Kind is not Struct or i is out of range.
-func FieldX(v reflect.Value, i int) reflect.Value {
-	mustBe("reflect.Value.Field", v, reflect.Struct)
-	rv := tovalue(&v)
-	tt := (*structType)(unsafe.Pointer(rv.typ))
-	if uint(i) >= uint(len(tt.Fields)) {
-		panic("reflect: Field index out of range")
+func setTypeName(t *rtype, pkgpath string, name string) {
+	if pkgpath == "" && name == "" {
+		return
 	}
-	field := &tt.Fields[i]
-	typ := field.Typ
+	exported := isExported(name)
+	if pkgpath != "" {
+		_, f := path.Split(pkgpath)
+		name = f + "." + name
+	}
+	t.TFlag |= tflagNamed | tflagExtraStar
+	t.Str = resolveReflectName(newName("*"+name, "", exported))
+	if t.TFlag&tflagUncommon == tflagUncommon {
+		t.Uncommon().PkgPath = resolveReflectName(newName(pkgpath, "", false))
+	}
+	switch reflect.Kind(t.Kind()) {
+	case reflect.Struct:
+		st := (*structType)(toKindType(t))
+		st.PkgPath = newName(pkgpath, "", false)
+	case reflect.Interface:
+		st := (*interfaceType)(toKindType(t))
+		st.PkgPath = newName(pkgpath, "", false)
+	}
+}
 
-	// Inherit permission bits from v, but clear flagEmbedRO.
-	fl := rv.flag&(flagStickyRO|flagIndir|flagAddr) | flag(reflect.Kind(typ.Kind()))
-	ptr := add(rv.ptr, field.Offset, "same as non-reflect &v.field")
-	return toValue(Value{typ, ptr, fl})
+func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
+	var anonymous []int
+	underscore := make(map[int]name)
+	var underscoreCount int
+	fs := make([]reflect.StructField, len(fields))
+	for i := 0; i < len(fields); i++ {
+		f := fields[i]
+		if f.Anonymous {
+			anonymous = append(anonymous, i)
+			f.Anonymous = false
+			if f.Name == "" {
+				f.Name = typeName(f.Type)
+			}
+		} else if f.Name == "_" {
+			if underscoreCount > 0 {
+				underscore[i] = newName("_", string(f.Tag), false)
+				f.Name = "_gop_underscore_" + strconv.Itoa(i)
+			}
+			underscoreCount++
+		}
+		fs[i] = f
+	}
+	typ := reflect.StructOf(fs)
+	rt := totype(typ)
+	st := toStructType(rt)
+	for _, i := range anonymous {
+		setEmbedded(&st.Fields[i])
+	}
+	for i, n := range underscore {
+		st.Fields[i].Name = n
+	}
+	str := typ.String()
+	if ts, ok := ctx.structLookupCache[str]; ok {
+		for _, t := range ts {
+			if haveIdenticalType(totype(t), totype(typ), true) {
+				return t
+			}
+		}
+		ts = append(ts, typ)
+	} else {
+		ctx.structLookupCache[str] = []reflect.Type{typ}
+	}
+	// fix equal for blank fields and uncomparable type
+	if rt.Equal != nil && underscoreCount > 0 {
+		rt.Equal = func(p, q unsafe.Pointer) bool {
+			for i, ft := range st.Fields {
+				if fields[i].Name == "_" {
+					continue
+				}
+				pi := add(p, ft.Offset, "&x.field safe")
+				qi := add(q, ft.Offset, "&x.field safe")
+				if !ft.Typ.Equal(pi, qi) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	if rt.TFlag == 0 && isRegularMemory(typ) {
+		rt.TFlag |= tflagRegularMemory
+	}
+	return typ
 }
 
 func setEmbedded(f *structField) {

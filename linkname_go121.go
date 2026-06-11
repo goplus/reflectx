@@ -1,5 +1,5 @@
-//go:build !go1.23 || linknamefix
-// +build !go1.23 linknamefix
+//go:build !go1.23 || linknamefix || llgo
+// +build !go1.23 linknamefix llgo
 
 package reflectx
 
@@ -11,9 +11,6 @@ import (
 
 //go:linkname interequal runtime.interequal
 func interequal(p, q unsafe.Pointer) bool
-
-//go:linkname toUncommonType reflect.(*rtype).uncommon
-func toUncommonType(t *rtype) *uncommonType
 
 //go:linkname haveIdenticalType reflect.haveIdenticalType
 func haveIdenticalType(T, V *rtype, cmpTags bool) bool

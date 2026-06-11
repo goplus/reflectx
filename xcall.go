@@ -2,6 +2,7 @@ package reflectx
 
 import (
 	"reflect"
+	"unsafe"
 )
 
 func FieldByIndexX(v reflect.Value, index []int) reflect.Value {
@@ -46,4 +47,22 @@ func FieldByNameFuncX(v reflect.Value, match func(string) bool) reflect.Value {
 		return FieldByIndexX(v, f.Index)
 	}
 	return reflect.Value{}
+}
+
+// Field returns the i'th field of the struct v.
+// It panics if v's Kind is not Struct or i is out of range.
+func FieldX(v reflect.Value, i int) reflect.Value {
+	mustBe("reflect.Value.Field", v, reflect.Struct)
+	rv := tovalue(&v)
+	tt := (*structType)(unsafe.Pointer(rv.typ))
+	if uint(i) >= uint(len(tt.Fields)) {
+		panic("reflect: Field index out of range")
+	}
+	field := &tt.Fields[i]
+	typ := field.Typ
+
+	// Inherit permission bits from v, but clear flagEmbedRO.
+	fl := rv.flag&(flagStickyRO|flagIndir|flagAddr) | flag(reflect.Kind(typ.Kind()))
+	ptr := add(rv.ptr, field.Offset, "same as non-reflect &v.field")
+	return toValue(Value{typ, ptr, fl})
 }

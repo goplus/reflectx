@@ -1,3 +1,5 @@
+//go:build !llgo
+
 package reflectx
 
 import (
@@ -112,18 +114,9 @@ type MethodInfo struct {
 	OnePtr   bool
 }
 
-func MethodByIndex(typ reflect.Type, index int) reflect.Method {
-	return rtypeMethodX(totype(typ), index)
-}
-
-func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
-	m, ok = rtypeMethodByNameX(totype(typ), name)
-	return
-}
-
 func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 	rt := totype(typ)
-	ut := toUncommonType(rt)
+	ut := rt.Uncommon()
 	if ut == nil {
 		return fmt.Errorf("not found uncommonType of %v", typ)
 	}

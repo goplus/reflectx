@@ -134,10 +134,6 @@ func funcName(f func([]Value) []Value) string {
 	return "closure"
 }
 
-func toUncommonType(t *abi.Type) *abi.UncommonType {
-	return t.Uncommon()
-}
-
 type assignToFunc = func(v Value, context string, dst *abi.Type, target unsafe.Pointer) Value
 
 var assignTo assignToFunc
