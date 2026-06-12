@@ -1,5 +1,3 @@
-//go:build !llgo
-
 package reflectx
 
 import (
@@ -316,35 +314,7 @@ func SetInterfaceType(typ reflect.Type, embedded []reflect.Type, methods []refle
 	})
 	rt := totype(typ)
 	st := (*interfaceType)(toKindType(rt))
-	st.Methods = nil
-	var info []string
-	var lastname string
-	var unnamed bool
-	if typ.Name() == "" {
-		unnamed = true
-	}
-	for _, m := range methods {
-		if m.Name == lastname {
-			continue
-		}
-		lastname = m.Name
-		isexport := methodIsExported(m.Name)
-		var mname nameOff
-		if unnamed {
-			nm := newNameEx(m.Name, "", isexport, !isexport)
-			mname = resolveReflectName(nm)
-			if !isexport {
-				setPkgPath(nm, m.PkgPath)
-			}
-		} else {
-			mname = resolveReflectName(newName(m.Name, "", isexport))
-		}
-		st.Methods = append(st.Methods, imethod{
-			Name: mname,
-			Typ:  resolveReflectType(totype(m.Type)),
-		})
-		info = append(info, methodStr(m.Name, m.Type))
-	}
+	setInterfaceMethods(st, typ.Name() == "", methods)
 	return nil
 }
 
@@ -372,45 +342,7 @@ func (ctx *Context) InterfaceOf(embedded []reflect.Type, methods []reflect.Metho
 		}
 		return n < 0
 	})
-	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
-	st := (*interfaceType)(toKindType(rt))
-	st.Methods = nil
-	var info []string
-	var lastname string
-	for _, m := range methods {
-		if m.Name == lastname {
-			continue
-		}
-		lastname = m.Name
-		isexport := methodIsExported(m.Name)
-		var mname nameOff
-		nm := newNameEx(m.Name, "", isexport, !isexport)
-		mname = resolveReflectName(nm)
-		if !isexport {
-			setPkgPath(nm, m.PkgPath)
-		}
-		st.Methods = append(st.Methods, imethod{
-			Name: mname,
-			Typ:  resolveReflectType(totype(m.Type)),
-		})
-		info = append(info, methodStr(m.Name, m.Type))
-	}
-	if len(st.Methods) > 0 {
-		rt.Equal = interequal
-	}
-	var str string
-	if len(info) > 0 {
-		str = fmt.Sprintf("*interface { %v }", strings.Join(info, "; "))
-	} else {
-		str = "*interface {}"
-	}
-	if t, ok := ctx.interfceLookupCache[str]; ok {
-		return t
-	}
-	rt.Str = resolveReflectName(newName(str, "", false))
-	typ := toType(rt)
-	ctx.interfceLookupCache[str] = typ
-	return typ
+	return ctx.newInterface(methods)
 }
 
 func methodIsExported(name string) bool {

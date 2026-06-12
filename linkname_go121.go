@@ -1,5 +1,6 @@
-//go:build !go1.23 || linknamefix || llgo
-// +build !go1.23 linknamefix llgo
+//go:build (!go1.23 || linknamefix) && !llgo
+// +build !go1.23 linknamefix
+// +build !llgo
 
 package reflectx
 
