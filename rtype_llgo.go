@@ -3,9 +3,12 @@
 package reflectx
 
 import (
+	"fmt"
 	"path"
 	"reflect"
+	"sort"
 	"strconv"
+	"strings"
 	"unsafe"
 )
 
@@ -130,6 +133,12 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 	}
 	return reflect.Method{}, false
 }
+
+//go:linkname interequal github.com/goplus/llgo/runtime/internal/runtime.interequal
+func interequal(p, q unsafe.Pointer) bool
+
+//go:linkname haveIdenticalType reflect.haveIdenticalType
+func haveIdenticalType(T, V *rtype, cmpTags bool) bool
 
 //go:linkname closureOf reflect.closureOf
 func closureOf(ftyp *funcType) *rtype
@@ -295,4 +304,97 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 
 func toWord(i interface{}) unsafe.Pointer {
 	return (*emptyInterface)(unsafe.Pointer(&i)).word
+}
+
+func (ctx *Context) Reset() {
+}
+
+func resetAll() {
+}
+
+func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
+	// rt, _ := newType("", "", styp, maxmfunc, 0)
+	// prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)
+	// rt.PtrToThis = resolveReflectType(prt)
+	// (*ptrType)(unsafe.Pointer(prt)).Elem = rt
+	// setTypeName(rt, styp.PkgPath(), styp.Name())
+	// prt.Uncommon().PkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
+	// return toType(rt)
+	panic("TODO newMethodSet")
+	return nil
+}
+
+func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
+	if sortMethods {
+		sort.Slice(methods, func(i, j int) bool {
+			n := strings.Compare(methods[i].Name, methods[j].Name)
+			if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
+				panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
+			}
+			return n < 0
+		})
+	}
+	return nil
+}
+
+func setInterfaceMethods(st *interfaceType, unnamed bool, methods []reflect.Method) {
+	st.Methods = nil
+	var lastname string
+	var mname string
+	for _, m := range methods {
+		if m.Name == lastname {
+			continue
+		}
+		lastname = m.Name
+		if !methodIsExported(m.Name) {
+			mname = m.PkgPath + "." + m.Name
+		} else {
+			mname = m.Name
+		}
+		st.Methods = append(st.Methods, imethod{
+			Name_: mname,
+			Typ_:  totype(m.Type).FuncType(),
+		})
+	}
+}
+
+func (ctx *Context) newInterface(methods []reflect.Method) reflect.Type {
+	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
+	st := (*interfaceType)(toKindType(rt))
+	st.Methods = nil
+	var info []string
+	var lastname string
+	var mname string
+	for _, m := range methods {
+		if m.Name == lastname {
+			continue
+		}
+		lastname = m.Name
+		if !methodIsExported(m.Name) {
+			mname = m.PkgPath + "." + m.Name
+		} else {
+			mname = m.Name
+		}
+		st.Methods = append(st.Methods, imethod{
+			Name_: mname,
+			Typ_:  totype(m.Type).FuncType(),
+		})
+		info = append(info, methodStr(m.Name, m.Type))
+	}
+	if len(st.Methods) > 0 {
+		rt.Equal = interequal
+	}
+	var str string
+	if len(info) > 0 {
+		str = fmt.Sprintf("*interface { %v }", strings.Join(info, "; "))
+	} else {
+		str = "*interface {}"
+	}
+	if t, ok := ctx.interfceLookupCache[str]; ok {
+		return t
+	}
+	rt.Str_ = str
+	typ := toType(rt)
+	ctx.interfceLookupCache[str] = typ
+	return typ
 }
