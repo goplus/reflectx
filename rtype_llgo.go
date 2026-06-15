@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/goplus/reflectx/internal/abi"
 )
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
@@ -145,6 +147,9 @@ func closureOf(ftyp *funcType) *rtype
 
 //go:linkname toFuncType reflect.toFuncType
 func toFuncType(ftyp *structType) *funcType
+
+//go:linkname makeFunc reflect.makeFunc
+func makeFunc(typ reflect.Type, method bool, fn func(args []reflect.Value) (results []reflect.Value)) reflect.Value
 
 func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
@@ -293,17 +298,9 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		return rt, nil
 	} else if skind == reflect.Func {
 		ut.Moff += fnoff
-		//return rt, tt.Elem().Field(3).Slice(0, mcount).Interface().([]method)
-		data := toWord(tt.Elem().Field(3).Slice(0, mcount).Interface())
-		return rt, *(*[]method)(data)
+		return rt, tt.Elem().Field(3).Slice(0, mcount).Interface().([]method)
 	}
-	//return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
-	data := toWord(tt.Elem().Field(2).Slice(0, mcount).Interface())
-	return rt, *(*[]method)(data)
-}
-
-func toWord(i interface{}) unsafe.Pointer {
-	return (*emptyInterface)(unsafe.Pointer(&i)).word
+	return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
 }
 
 func (ctx *Context) Reset() {
@@ -313,15 +310,73 @@ func resetAll() {
 }
 
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
-	// rt, _ := newType("", "", styp, maxmfunc, 0)
-	// prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)
-	// rt.PtrToThis = resolveReflectType(prt)
-	// (*ptrType)(unsafe.Pointer(prt)).Elem = rt
-	// setTypeName(rt, styp.PkgPath(), styp.Name())
-	// prt.Uncommon().PkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
-	// return toType(rt)
-	panic("TODO newMethodSet")
+	rt, _ := newType("", "", styp, maxmfunc, 0)
+	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
+	rt.PtrToThis_ = prt
+	(*ptrType)(unsafe.Pointer(prt)).Elem = rt
+	setTypeName(rt, styp.PkgPath(), styp.Name())
+	prt.Uncommon().PkgPath_ = styp.PkgPath()
+	return toType(rt)
+}
+
+func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
+	rt := totype(typ)
+	ut := rt.Uncommon()
+	if ut == nil {
+		return fmt.Errorf("not found uncommonType of %v", typ)
+	}
+	if uint16(mcount) > ut.Mcount {
+		return fmt.Errorf("too many methods of %v", typ)
+	}
+	ut.Xcount = uint16(xcount)
 	return nil
+}
+
+type textOff = abi.Text
+
+var globalMethodCache = make(map[int]*ifnValue)
+
+type ifnValue struct {
+	method  method
+	pmethod method
+}
+
+func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mtyp *abi.Type, tfn, ptfn reflect.Value, mfn, pmfn reflect.Value) {
+	var in []reflect.Type
+	var out []reflect.Type
+	var ntyp reflect.Type
+	in, out, ntyp, _, _ = parserMethodType(m.Type, nil)
+	mtyp = totype(ntyp)
+	var ftyp reflect.Type
+	if m.Pointer {
+		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
+	} else {
+		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
+	}
+	if m.Pointer {
+		ptfn = makeFunc(ftyp, false, m.Func)
+		pmfn = makeFunc(ftyp, true, m.Func)
+	} else {
+		tfn = makeFunc(ftyp, false, m.Func)
+		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
+		ptfn = makeFunc(ftyp, false, func(args []reflect.Value) []reflect.Value {
+			args[0] = args[0].Elem()
+			return m.Func(args)
+		})
+		mfn = makeFunc(ftyp, true, func(args []reflect.Value) []reflect.Value {
+			args[0] = args[0].Elem()
+			return m.Func(args)
+		})
+		pmfn = mfn
+	}
+	return
+}
+
+func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
+	if ctx.fnHasImethod != nil {
+		return ctx.fnHasImethod(typ, method)
+	}
+	return true
 }
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
@@ -333,6 +388,75 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			}
 			return n < 0
 		})
+	}
+	var mcount, pcount int
+	var xcount, pxcount int
+	pcount = len(methods)
+	var mlist []string
+	for _, m := range methods {
+		isexport := methodIsExported(m.Name)
+		if isexport {
+			pxcount++
+		}
+		if !m.Pointer {
+			if isexport {
+				xcount++
+			}
+			mlist = append(mlist, m.Name)
+			mcount++
+		}
+	}
+	ptyp := PtrTo(typ)
+	if err := resizeMethod(typ, mcount, xcount); err != nil {
+		return err
+	}
+	if err := resizeMethod(ptyp, pcount, pxcount); err != nil {
+		return err
+	}
+	rt := totype(typ)
+	prt := totype(ptyp)
+
+	ms := rtypeMethods(rt)
+	pms := rtypeMethods(prt)
+
+	var onePtr bool
+	switch typ.Kind() {
+	case reflect.Func, reflect.Chan, reflect.Map:
+		onePtr = true
+	case reflect.Struct:
+		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
+	}
+	_ = onePtr
+	var index int
+	for i, m := range methods {
+		if m.FuncId > 0 {
+			if pv, ok := globalMethodCache[m.FuncId]; ok {
+				pms[i] = pv.pmethod
+				if !m.Pointer {
+					ms[index] = pv.method
+					index++
+				}
+				continue
+			}
+		}
+		var mname string
+		if !methodIsExported(m.Name) {
+			mname = m.PkgPath + "." + m.Name
+		} else {
+			mname = m.Name
+		}
+		mtyp, tfn, ptfn, mfn, pmfn := createMethod(typ, ptyp, m, index)
+		pms[i].Name_ = mname
+		pms[i].Mtyp_ = mtyp.FuncType()
+		pms[i].Tfn_ = textOff(ptfn.Pointer())
+		pms[i].Ifn_ = textOff(pmfn.Pointer())
+		if !m.Pointer {
+			ms[index].Name_ = mname
+			ms[index].Mtyp_ = mtyp.FuncType()
+			ms[index].Tfn_ = textOff(tfn.Pointer())
+			ms[index].Ifn_ = textOff(mfn.Pointer())
+			index++
+		}
 	}
 	return nil
 }
