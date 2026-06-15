@@ -392,7 +392,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	var mcount, pcount int
 	var xcount, pxcount int
 	pcount = len(methods)
-	var mlist []string
 	for _, m := range methods {
 		isexport := methodIsExported(m.Name)
 		if isexport {
@@ -402,7 +401,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			if isexport {
 				xcount++
 			}
-			mlist = append(mlist, m.Name)
 			mcount++
 		}
 	}
@@ -419,14 +417,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	ms := rtypeMethods(rt)
 	pms := rtypeMethods(prt)
 
-	var onePtr bool
-	switch typ.Kind() {
-	case reflect.Func, reflect.Chan, reflect.Map:
-		onePtr = true
-	case reflect.Struct:
-		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
-	}
-	_ = onePtr
 	var index int
 	for i, m := range methods {
 		if m.FuncId > 0 {
@@ -450,11 +440,18 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		pms[i].Mtyp_ = mtyp.FuncType()
 		pms[i].Tfn_ = textOff(ptfn.Pointer())
 		pms[i].Ifn_ = textOff(pmfn.Pointer())
+
+		if m.FuncId > 0 {
+			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
+		}
 		if !m.Pointer {
 			ms[index].Name_ = mname
 			ms[index].Mtyp_ = mtyp.FuncType()
 			ms[index].Tfn_ = textOff(tfn.Pointer())
 			ms[index].Ifn_ = textOff(mfn.Pointer())
+			if m.FuncId > 0 {
+				globalMethodCache[m.FuncId].method = ms[index]
+			}
 			index++
 		}
 	}
