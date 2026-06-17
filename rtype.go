@@ -304,10 +304,6 @@ func DumpType(w io.Writer, typ reflect.Type) {
 	}
 }
 
-func MethodX(typ reflect.Type, i int) reflect.Method {
-	return rtypeMethodX(totype(typ), i)
-}
-
 func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
 		return toType(t).Method(i)

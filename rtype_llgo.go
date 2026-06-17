@@ -519,3 +519,72 @@ func (ctx *Context) newInterface(methods []reflect.Method) reflect.Type {
 	ctx.interfceLookupCache[str] = typ
 	return typ
 }
+
+func SetUnderlying(typ reflect.Type, styp reflect.Type) {
+	rt := totype(typ)
+	ort := totype(styp)
+	switch styp.Kind() {
+	case reflect.Struct:
+		st := (*structType)(unsafe.Pointer(rt))
+		ost := (*structType)(unsafe.Pointer(ort))
+		st.Fields = ost.Fields
+	case reflect.Ptr:
+		st := (*ptrType)(unsafe.Pointer(rt))
+		ost := (*ptrType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+	case reflect.Slice:
+		st := (*sliceType)(unsafe.Pointer(rt))
+		ost := (*sliceType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+	case reflect.Array:
+		st := (*arrayType)(unsafe.Pointer(rt))
+		ost := (*arrayType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+		st.Slice = ost.Slice
+		st.Len = ost.Len
+	case reflect.Chan:
+		st := (*chanType)(unsafe.Pointer(rt))
+		ost := (*chanType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+		st.Dir = ost.Dir
+	case reflect.Interface:
+		st := (*interfaceType)(unsafe.Pointer(rt))
+		ost := (*interfaceType)(unsafe.Pointer(ort))
+		st.Methods = ost.Methods
+	case reflect.Map:
+		st := (*mapType)(unsafe.Pointer(rt))
+		ost := (*mapType)(unsafe.Pointer(ort))
+		cloneMap(st, ost)
+	case reflect.Func:
+		st := (*funcType)(unsafe.Pointer(rt))
+		ost := (*funcType)(unsafe.Pointer(ort))
+		st.In = ost.In
+		st.Out = ost.Out
+	}
+	rt.Size_ = ort.Size_
+	rt.TFlag |= tflagUncommon | tflagExtraStar | tflagNamed
+	rt.Kind_ = ort.Kind_
+	rt.Align_ = ort.Align_
+	rt.FieldAlign_ = ort.FieldAlign_
+	rt.GCData = ort.GCData
+	rt.PtrBytes = ort.PtrBytes
+	rt.Equal = ort.Equal
+	//rt.Str = resolveReflectName(rtype_nameOff(ort, ort.Str))
+	if isRegularMemory(typ) {
+		rt.TFlag |= tflagRegularMemory
+	}
+}
+
+// icall stat
+func IcallStat() (capacity int, allocate int, aviable int) {
+	return
+}
+
+// icall global cached
+func IcallCached() int {
+	return 0
+}
+
+func (ctx *Context) IcallAlloc() int {
+	return 0
+}
