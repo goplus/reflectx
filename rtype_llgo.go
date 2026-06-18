@@ -186,7 +186,6 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
 	var rt *rtype
-	var fnoff uint32
 	var tt reflect.Value
 	ort := totype(styp)
 	skind := styp.Kind()
@@ -251,13 +250,9 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.Elem = ost.Elem
 		st.Dir = ost.Dir
 	case reflect.Func:
-		numIn := styp.NumIn()
-		numOut := styp.NumOut()
-		narg := numIn + numOut
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(funcType{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
-			{Name: "N", Type: reflect.ArrayOf(narg, reflect.TypeOf((*rtype)(nil)))},
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
@@ -280,6 +275,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 	}
+
 	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 	rt.Size_ = ort.Size_
 	rt.TFlag = ort.TFlag | tflagUncommon
@@ -296,9 +292,6 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	ut.Moff = uint32(unsafe.Sizeof(uncommonType{}))
 	if skind == reflect.Interface {
 		return rt, nil
-	} else if skind == reflect.Func {
-		ut.Moff += fnoff
-		return rt, tt.Elem().Field(3).Slice(0, mcount).Interface().([]method)
 	}
 	return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
 }
