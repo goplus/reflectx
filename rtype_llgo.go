@@ -297,9 +297,16 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 }
 
 func (ctx *Context) Reset() {
+	ctx.nAllocateError = 0
+	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
+	ctx.structLookupCache = make(map[string][]reflect.Type)
+	ctx.interfceLookupCache = make(map[string]reflect.Type)
+	ctx.methodIndexList = make(map[int][]int)
+	ctx.fnHasImethod = nil
 }
 
 func resetAll() {
+	globalMethodCache = make(map[int]*ifnValue)
 }
 
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
