@@ -346,6 +346,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mty
 	} else {
 		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
 	}
+
 	if m.Pointer {
 		ptfn = makeFunc(ftyp, false, m.Func)
 		pmfn = makeFunc(ftyp, true, m.Func)
@@ -371,6 +372,12 @@ func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
 	}
 	return true
 }
+
+//go:linkname gcEnable C.GC_enable
+func gcEnable()
+
+//go:linkname gcDisable C.GC_disable
+func gcDisable()
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
 	if sortMethods {
@@ -410,6 +417,9 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	ms := rtypeMethods(rt)
 	pms := rtypeMethods(prt)
 
+	gcDisable()
+	defer gcEnable()
+
 	var index int
 	for i, m := range methods {
 		if m.FuncId > 0 {
@@ -431,17 +441,16 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		mtyp, tfn, ptfn, mfn, pmfn := createMethod(typ, ptyp, m, index)
 		pms[i].Name_ = mname
 		pms[i].Mtyp_ = mtyp.FuncType()
-		pms[i].Tfn_ = textOff(ptfn.Pointer())
-		pms[i].Ifn_ = textOff(pmfn.Pointer())
-
+		pms[i].Tfn_ = textOff(ptfn.UnsafePointer())
+		pms[i].Ifn_ = textOff(pmfn.UnsafePointer())
 		if m.FuncId > 0 {
 			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
 		}
 		if !m.Pointer {
 			ms[index].Name_ = mname
 			ms[index].Mtyp_ = mtyp.FuncType()
-			ms[index].Tfn_ = textOff(tfn.Pointer())
-			ms[index].Ifn_ = textOff(mfn.Pointer())
+			ms[index].Tfn_ = textOff(tfn.UnsafePointer())
+			ms[index].Ifn_ = textOff(mfn.UnsafePointer())
 			if m.FuncId > 0 {
 				globalMethodCache[m.FuncId].method = ms[index]
 			}
