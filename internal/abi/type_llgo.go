@@ -358,34 +358,6 @@ func (t *UncommonType) ExportedMethods() []Method {
 	return (*[1 << 16]Method)(addChecked(unsafe.Pointer(t), uintptr(t.Moff), "t.xcount > 0"))[:t.Xcount:t.Xcount]
 }
 
-// func (t *UncommonType) Methods() []Method {
-// 	if t.Mcount == 0 {
-// 		return nil
-// 	}
-// 	methodsPtr := addChecked(unsafe.Pointer(t), uintptr(t.Moff), "t.mcount > 0")
-// 	methods := make([]Method, t.Mcount)
-// 	for i := 0; i < int(t.Mcount); i++ {
-// 		elemPtr := addChecked(methodsPtr, uintptr(i)*unsafe.Sizeof(Method{}), "accessing method element")
-// 		elem := (*Method)(elemPtr)
-// 		methods[i] = *elem
-// 	}
-// 	return methods
-// }
-
-// func (t *UncommonType) ExportedMethods() []Method {
-// 	if t.Xcount == 0 {
-// 		return nil
-// 	}
-// 	mthdsPtr := addChecked(unsafe.Pointer(t), uintptr(t.Moff), "t.xcount > 0")
-// 	mthds := make([]Method, t.Xcount)
-// 	for i := 0; i < int(t.Xcount); i++ {
-// 		elemPtr := addChecked(mthdsPtr, uintptr(i)*unsafe.Sizeof(Method{}), "accessing method element")
-// 		elem := (*Method)(elemPtr)
-// 		mthds[i] = *elem
-// 	}
-// 	return mthds
-// }
-
 // Imethod represents a method on an interface type
 type Imethod struct {
 	Name_ string    // name of method
