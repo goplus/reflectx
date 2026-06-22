@@ -329,6 +329,7 @@ func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
 		return fmt.Errorf("too many methods of %v", typ)
 	}
 	ut.Xcount = uint16(xcount)
+	ut.Mcount = uint16(mcount)
 	return nil
 }
 
