@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/goplus/reflectx/internal/abi"
 )
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
@@ -146,6 +148,9 @@ func closureOf(ftyp *funcType) *rtype
 //go:linkname toFuncType reflect.toFuncType
 func toFuncType(ftyp *structType) *funcType
 
+//go:linkname makeFunc reflect.makeFunc
+func makeFunc(typ reflect.Type, method bool, fn func(args []reflect.Value) (results []reflect.Value)) reflect.Value
+
 func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
 		return toType(t).Method(i)
@@ -181,7 +186,6 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
 	var rt *rtype
-	var fnoff uint32
 	var tt reflect.Value
 	ort := totype(styp)
 	skind := styp.Kind()
@@ -246,13 +250,9 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		st.Elem = ost.Elem
 		st.Dir = ost.Dir
 	case reflect.Func:
-		numIn := styp.NumIn()
-		numOut := styp.NumOut()
-		narg := numIn + numOut
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(funcType{})},
 			{Name: "U", Type: reflect.TypeOf(uncommonType{})},
-			{Name: "N", Type: reflect.ArrayOf(narg, reflect.TypeOf((*rtype)(nil)))},
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 		st := (*funcType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
@@ -275,6 +275,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 			{Name: "M", Type: reflect.ArrayOf(mcount, reflect.TypeOf(method{}))},
 		}))
 	}
+
 	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 	rt.Size_ = ort.Size_
 	rt.TFlag = ort.TFlag | tflagUncommon
@@ -291,38 +292,100 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	ut.Moff = uint32(unsafe.Sizeof(uncommonType{}))
 	if skind == reflect.Interface {
 		return rt, nil
-	} else if skind == reflect.Func {
-		ut.Moff += fnoff
-		//return rt, tt.Elem().Field(3).Slice(0, mcount).Interface().([]method)
-		data := toWord(tt.Elem().Field(3).Slice(0, mcount).Interface())
-		return rt, *(*[]method)(data)
 	}
-	//return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
-	data := toWord(tt.Elem().Field(2).Slice(0, mcount).Interface())
-	return rt, *(*[]method)(data)
-}
-
-func toWord(i interface{}) unsafe.Pointer {
-	return (*emptyInterface)(unsafe.Pointer(&i)).word
+	return rt, tt.Elem().Field(2).Slice(0, mcount).Interface().([]method)
 }
 
 func (ctx *Context) Reset() {
+	ctx.nAllocateError = 0
+	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
+	ctx.structLookupCache = make(map[string][]reflect.Type)
+	ctx.interfceLookupCache = make(map[string]reflect.Type)
+	ctx.methodIndexList = make(map[int][]int)
+	ctx.fnHasImethod = nil
 }
 
 func resetAll() {
+	globalMethodCache = make(map[int]*ifnValue)
 }
 
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
-	// rt, _ := newType("", "", styp, maxmfunc, 0)
-	// prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)
-	// rt.PtrToThis = resolveReflectType(prt)
-	// (*ptrType)(unsafe.Pointer(prt)).Elem = rt
-	// setTypeName(rt, styp.PkgPath(), styp.Name())
-	// prt.Uncommon().PkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
-	// return toType(rt)
-	panic("TODO newMethodSet")
+	rt, _ := newType("", "", styp, maxmfunc, 0)
+	prt, _ := newType("", "", reflect.PtrTo(styp), maxpfunc, 0)
+	rt.PtrToThis_ = prt
+	(*ptrType)(unsafe.Pointer(prt)).Elem = rt
+	setTypeName(rt, styp.PkgPath(), styp.Name())
+	prt.Uncommon().PkgPath_ = styp.PkgPath()
+	return toType(rt)
+}
+
+func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
+	rt := totype(typ)
+	ut := rt.Uncommon()
+	if ut == nil {
+		return fmt.Errorf("not found uncommonType of %v", typ)
+	}
+	if uint16(mcount) > ut.Mcount {
+		return fmt.Errorf("too many methods of %v", typ)
+	}
+	ut.Xcount = uint16(xcount)
+	ut.Mcount = uint16(mcount)
 	return nil
 }
+
+type textOff = abi.Text
+
+var globalMethodCache = make(map[int]*ifnValue)
+
+type ifnValue struct {
+	method  method
+	pmethod method
+}
+
+func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mtyp *abi.Type, tfn, ptfn reflect.Value, mfn, pmfn reflect.Value) {
+	var in []reflect.Type
+	var out []reflect.Type
+	var ntyp reflect.Type
+	in, out, ntyp, _, _ = parserMethodType(m.Type, nil)
+	mtyp = totype(ntyp)
+	var ftyp reflect.Type
+	if m.Pointer {
+		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
+	} else {
+		ftyp = reflect.FuncOf(append([]reflect.Type{typ}, in...), out, m.Type.IsVariadic())
+	}
+
+	if m.Pointer {
+		ptfn = makeFunc(ftyp, false, m.Func)
+		pmfn = makeFunc(ftyp, true, m.Func)
+	} else {
+		tfn = makeFunc(ftyp, false, m.Func)
+		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
+		ptfn = makeFunc(ftyp, false, func(args []reflect.Value) []reflect.Value {
+			args[0] = args[0].Elem()
+			return m.Func(args)
+		})
+		mfn = makeFunc(ftyp, true, func(args []reflect.Value) []reflect.Value {
+			args[0] = args[0].Elem()
+			return m.Func(args)
+		})
+		pmfn = mfn
+	}
+	return
+}
+
+func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
+	if ctx.fnHasImethod != nil {
+		return ctx.fnHasImethod(typ, method)
+	}
+	return true
+}
+
+//go:linkname gcEnable C.GC_enable
+func gcEnable()
+
+//go:linkname gcDisable C.GC_disable
+func gcDisable()
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
 	if sortMethods {
@@ -333,6 +396,74 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			}
 			return n < 0
 		})
+	}
+	var mcount, pcount int
+	var xcount, pxcount int
+	pcount = len(methods)
+	for _, m := range methods {
+		isexport := methodIsExported(m.Name)
+		if isexport {
+			pxcount++
+		}
+		if !m.Pointer {
+			if isexport {
+				xcount++
+			}
+			mcount++
+		}
+	}
+	ptyp := PtrTo(typ)
+	if err := resizeMethod(typ, mcount, xcount); err != nil {
+		return err
+	}
+	if err := resizeMethod(ptyp, pcount, pxcount); err != nil {
+		return err
+	}
+	rt := totype(typ)
+	prt := totype(ptyp)
+
+	ms := rtypeMethods(rt)
+	pms := rtypeMethods(prt)
+
+	gcDisable()
+	defer gcEnable()
+
+	var index int
+	for i, m := range methods {
+		if m.FuncId > 0 {
+			if pv, ok := globalMethodCache[m.FuncId]; ok {
+				pms[i] = pv.pmethod
+				if !m.Pointer {
+					ms[index] = pv.method
+					index++
+				}
+				continue
+			}
+		}
+		var mname string
+		if !methodIsExported(m.Name) {
+			mname = m.PkgPath + "." + m.Name
+		} else {
+			mname = m.Name
+		}
+		mtyp, tfn, ptfn, mfn, pmfn := createMethod(typ, ptyp, m, index)
+		pms[i].Name_ = mname
+		pms[i].Mtyp_ = mtyp.FuncType()
+		pms[i].Tfn_ = textOff(ptfn.UnsafePointer())
+		pms[i].Ifn_ = textOff(pmfn.UnsafePointer())
+		if m.FuncId > 0 {
+			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
+		}
+		if !m.Pointer {
+			ms[index].Name_ = mname
+			ms[index].Mtyp_ = mtyp.FuncType()
+			ms[index].Tfn_ = textOff(tfn.UnsafePointer())
+			ms[index].Ifn_ = textOff(mfn.UnsafePointer())
+			if m.FuncId > 0 {
+				globalMethodCache[m.FuncId].method = ms[index]
+			}
+			index++
+		}
 	}
 	return nil
 }
@@ -397,4 +528,73 @@ func (ctx *Context) newInterface(methods []reflect.Method) reflect.Type {
 	typ := toType(rt)
 	ctx.interfceLookupCache[str] = typ
 	return typ
+}
+
+func SetUnderlying(typ reflect.Type, styp reflect.Type) {
+	rt := totype(typ)
+	ort := totype(styp)
+	switch styp.Kind() {
+	case reflect.Struct:
+		st := (*structType)(unsafe.Pointer(rt))
+		ost := (*structType)(unsafe.Pointer(ort))
+		st.Fields = ost.Fields
+	case reflect.Ptr:
+		st := (*ptrType)(unsafe.Pointer(rt))
+		ost := (*ptrType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+	case reflect.Slice:
+		st := (*sliceType)(unsafe.Pointer(rt))
+		ost := (*sliceType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+	case reflect.Array:
+		st := (*arrayType)(unsafe.Pointer(rt))
+		ost := (*arrayType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+		st.Slice = ost.Slice
+		st.Len = ost.Len
+	case reflect.Chan:
+		st := (*chanType)(unsafe.Pointer(rt))
+		ost := (*chanType)(unsafe.Pointer(ort))
+		st.Elem = ost.Elem
+		st.Dir = ost.Dir
+	case reflect.Interface:
+		st := (*interfaceType)(unsafe.Pointer(rt))
+		ost := (*interfaceType)(unsafe.Pointer(ort))
+		st.Methods = ost.Methods
+	case reflect.Map:
+		st := (*mapType)(unsafe.Pointer(rt))
+		ost := (*mapType)(unsafe.Pointer(ort))
+		cloneMap(st, ost)
+	case reflect.Func:
+		st := (*funcType)(unsafe.Pointer(rt))
+		ost := (*funcType)(unsafe.Pointer(ort))
+		st.In = ost.In
+		st.Out = ost.Out
+	}
+	rt.Size_ = ort.Size_
+	rt.TFlag |= tflagUncommon | tflagExtraStar | tflagNamed
+	rt.Kind_ = ort.Kind_
+	rt.Align_ = ort.Align_
+	rt.FieldAlign_ = ort.FieldAlign_
+	rt.GCData = ort.GCData
+	rt.PtrBytes = ort.PtrBytes
+	rt.Equal = ort.Equal
+	//rt.Str = resolveReflectName(rtype_nameOff(ort, ort.Str))
+	if isRegularMemory(typ) {
+		rt.TFlag |= tflagRegularMemory
+	}
+}
+
+// icall stat
+func IcallStat() (capacity int, allocate int, aviable int) {
+	return
+}
+
+// icall global cached
+func IcallCached() int {
+	return 0
+}
+
+func (ctx *Context) IcallAlloc() int {
+	return 0
 }

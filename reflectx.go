@@ -179,3 +179,7 @@ func MethodByName(typ reflect.Type, name string) (m reflect.Method, ok bool) {
 	m, ok = rtypeMethodByNameX(totype(typ), name)
 	return
 }
+
+func MethodX(typ reflect.Type, i int) reflect.Method {
+	return rtypeMethodX(totype(typ), i)
+}
