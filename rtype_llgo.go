@@ -36,7 +36,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
 	}
-	t.TFlag |= tflagNamed
+	t.TFlag = (t.TFlag & ^tflagExtraStar) | tflagNamed
 	t.Str_ = name
 	if t.TFlag&tflagUncommon == tflagUncommon {
 		t.Uncommon().PkgPath_ = pkgpath
@@ -374,18 +374,15 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mty
 	return
 }
 
+//go:linkname DirectIfaceData github.com/goplus/llgo/runtime/internal/runtime.DirectIfaceData
+func DirectIfaceData(typ *abi.Type) bool
+
 func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
 	if ctx.fnHasImethod != nil {
 		return ctx.fnHasImethod(typ, method)
 	}
 	return true
 }
-
-//go:linkname gcEnable C.GC_enable
-func gcEnable()
-
-//go:linkname gcDisable C.GC_disable
-func gcDisable()
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
 	if sortMethods {
@@ -424,9 +421,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 
 	ms := rtypeMethods(rt)
 	pms := rtypeMethods(prt)
-
-	gcDisable()
-	defer gcEnable()
 
 	var index int
 	for i, m := range methods {
@@ -572,7 +566,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		st.Out = ost.Out
 	}
 	rt.Size_ = ort.Size_
-	rt.TFlag |= tflagUncommon | tflagExtraStar | tflagNamed
+	rt.TFlag |= tflagUncommon /*| tflagExtraStar*/ | tflagNamed
 	rt.Kind_ = ort.Kind_
 	rt.Align_ = ort.Align_
 	rt.FieldAlign_ = ort.FieldAlign_
