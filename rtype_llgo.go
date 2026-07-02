@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/goplus/reflectx/internal/abi"
@@ -564,9 +565,19 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		ost := (*funcType)(unsafe.Pointer(ort))
 		st.In = ost.In
 		st.Out = ost.Out
+		// delete named closure entry from namedFuncMap by matching its runtime func type
+		namedFuncMap.Range(func(k, v any) bool {
+			if v != nil {
+				if (*emptyInterface)(unsafe.Pointer(&v)).word == unsafe.Pointer(rt) {
+					namedFuncMap.Delete(k)
+					return false
+				}
+			}
+			return true
+		})
 	}
 	rt.Size_ = ort.Size_
-	rt.TFlag |= tflagUncommon /*| tflagExtraStar*/ | tflagNamed
+	rt.TFlag |= tflagUncommon | tflagNamed
 	rt.Kind_ = ort.Kind_
 	rt.Align_ = ort.Align_
 	rt.FieldAlign_ = ort.FieldAlign_
@@ -578,6 +589,9 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		rt.TFlag |= tflagRegularMemory
 	}
 }
+
+//go:linkname namedFuncMap reflect.namedFuncMap
+var namedFuncMap sync.Map // map[*abi.StructType]*abi.FuncType
 
 // icall stat
 func IcallStat() (capacity int, allocate int, aviable int) {
