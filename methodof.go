@@ -30,7 +30,7 @@ type ptfnKey struct {
 }
 
 // icall stat
-func IcallStat() (capacity int, allocate int, aviable int) {
+func IcallStat() (capacity int, allocate int, available int) {
 	mps := abi.Default
 	return mps.Cap(), mps.Used(), mps.Available()
 }
