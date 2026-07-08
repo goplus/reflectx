@@ -6,6 +6,7 @@ Golang reflect package hack tools
 ### Go Version
 
 - Go1.21 ~ Go1.26
+- LLGo
 - macOS Linux Windows WebAssembly
 
 ### ABI

@@ -594,7 +594,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 var namedFuncMap sync.Map // map[*abi.StructType]*abi.FuncType
 
 // icall stat
-func IcallStat() (capacity int, allocate int, aviable int) {
+func IcallStat() (capacity int, allocate int, available int) {
 	return
 }
 
