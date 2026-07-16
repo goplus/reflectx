@@ -181,7 +181,7 @@ func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
 }
 
 var (
-	zeroIfn = unsafe.Pointer(reflect.ValueOf(func() {}).Pointer())
+	zeroIfn = reflect.ValueOf(func() {}).UnsafePointer()
 )
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {

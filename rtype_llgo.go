@@ -32,7 +32,6 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
 	}
-	//exported := isExported(name)
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
@@ -343,7 +342,7 @@ type ifnValue struct {
 	pmethod method
 }
 
-func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mtyp *abi.Type, tfn, ptfn reflect.Value, mfn, pmfn reflect.Value) {
+func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, hasIfn bool) (mtyp *abi.Type, tfn, ptfn, ifn, pifn unsafe.Pointer) {
 	var in []reflect.Type
 	var out []reflect.Type
 	var ntyp reflect.Type
@@ -357,20 +356,28 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mty
 	}
 
 	if m.Pointer {
-		ptfn = makeFunc(ftyp, false, m.Func)
-		pmfn = makeFunc(ftyp, true, m.Func)
+		ptfn = makeFunc(ftyp, false, m.Func).UnsafePointer()
+		if hasIfn {
+			pifn = makeFunc(ftyp, true, m.Func).UnsafePointer()
+		} else {
+			pifn = zeroIfn
+		}
 	} else {
-		tfn = makeFunc(ftyp, false, m.Func)
+		tfn = makeFunc(ftyp, false, m.Func).UnsafePointer()
 		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
 		ptfn = makeFunc(ftyp, false, func(args []reflect.Value) []reflect.Value {
 			args[0] = args[0].Elem()
 			return m.Func(args)
-		})
-		mfn = makeFunc(ftyp, true, func(args []reflect.Value) []reflect.Value {
-			args[0] = args[0].Elem()
-			return m.Func(args)
-		})
-		pmfn = mfn
+		}).UnsafePointer()
+		if hasIfn {
+			ifn = makeFunc(ftyp, true, func(args []reflect.Value) []reflect.Value {
+				args[0] = args[0].Elem()
+				return m.Func(args)
+			}).UnsafePointer()
+		} else {
+			ifn = zeroIfn
+		}
+		pifn = ifn
 	}
 	return
 }
@@ -384,6 +391,10 @@ func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
 	}
 	return true
 }
+
+var (
+	zeroIfn = reflect.ValueOf(func() {}).UnsafePointer()
+)
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
 	if sortMethods {
@@ -441,19 +452,20 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		} else {
 			mname = m.Name
 		}
-		mtyp, tfn, ptfn, mfn, pmfn := createMethod(typ, ptyp, m, index)
+		hasIfn := ctx.hasImethod(typ, m)
+		mtyp, tfn, ptfn, ifn, pifn := createMethod(typ, ptyp, m, hasIfn)
 		pms[i].Name_ = mname
 		pms[i].Mtyp_ = mtyp.FuncType()
-		pms[i].Tfn_ = textOff(ptfn.UnsafePointer())
-		pms[i].Ifn_ = textOff(pmfn.UnsafePointer())
+		pms[i].Tfn_ = textOff(ptfn)
+		pms[i].Ifn_ = textOff(pifn)
 		if m.FuncId > 0 {
 			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
 		}
 		if !m.Pointer {
 			ms[index].Name_ = mname
 			ms[index].Mtyp_ = mtyp.FuncType()
-			ms[index].Tfn_ = textOff(tfn.UnsafePointer())
-			ms[index].Ifn_ = textOff(mfn.UnsafePointer())
+			ms[index].Tfn_ = textOff(tfn)
+			ms[index].Ifn_ = textOff(ifn)
 			if m.FuncId > 0 {
 				globalMethodCache[m.FuncId].method = ms[index]
 			}
