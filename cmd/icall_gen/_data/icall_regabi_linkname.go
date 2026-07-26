@@ -2,7 +2,7 @@
 // +build goexperiment.regabiargs amd64 arm64 ppc64 ppc64le riscv64 go1.23,loong64
 // +build !go1.23 linknamefix
 
-package icall
+package pkgname
 
 import (
 	_ "reflect"

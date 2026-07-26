@@ -1,16 +1,17 @@
 //go:build goexperiment.regabiargs || amd64 || arm64 || ppc64 || ppc64le || riscv64 || (go1.23 && loong64)
 // +build goexperiment.regabiargs amd64 arm64 ppc64 ppc64le riscv64 go1.23,loong64
 
-package $pkgname
+package pkgname
 
 import (
 	"reflect"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/goplus/reflectx/abi"
 )
 
-const capacity = $max_size
+const capacity = 1024
 
 type methodUsed struct {
 	fun reflect.Value
@@ -18,12 +19,12 @@ type methodUsed struct {
 }
 
 type provider struct {
-	used []*methodUsed
-	n    int
+	used []unsafe.Pointer
+	n    atomic.Int64
 }
 
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
-	ptr := mp.used[index].ptr
+	ptr := atomic.LoadPointer(&mp.used[index])
 	moveMakeFuncArgPtrs(ptr, r)
 	callReflect(ptr, frame, retValid, r)
 }
@@ -32,16 +33,6 @@ func spillArgs()
 func unspillArgs()
 
 func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
-	var index = -1
-	for i := 0; i < capacity; i++ {
-		if p.used[i] == nil {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return nil, -1
-	}
 	var fn reflect.Value
 	if (!info.Pointer && !info.OnePtr) || info.Indirect {
 		ftyp := info.Func.Type()
@@ -71,30 +62,34 @@ func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 	} else {
 		fn = info.Func
 	}
-	p.used[index] = &methodUsed{
-		fun: fn,
-		ptr: (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&fn)).ptr,
+	ptr := (*struct{ typ, ptr unsafe.Pointer })(unsafe.Pointer(&fn)).ptr
+	for i := 0; i < capacity; i++ {
+		if atomic.CompareAndSwapPointer(&p.used[i], nil, ptr) {
+			p.n.Add(1)
+			icall := icall_fn[i]
+			return unsafe.Pointer(reflect.ValueOf(icall).Pointer()), i
+		}
 	}
-	p.n++
-	icall := icall_fn[index]
-	return unsafe.Pointer(reflect.ValueOf(icall).Pointer()), index
+	return nil, -1
 }
 
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
-		if n < capacity && p.used[n] != nil {
-			p.used[n] = nil
-			p.n--
+		if n < 0 || n >= capacity {
+			continue
+		}
+		if atomic.SwapPointer(&p.used[n], nil) != nil {
+			p.n.Add(-1)
 		}
 	}
 }
 
 func (p *provider) Available() int {
-	return capacity - p.n
+	return capacity - int(p.n.Load())
 }
 
 func (p *provider) Used() int {
-	return p.n
+	return int(p.n.Load())
 }
 
 func (p *provider) Cap() int {
@@ -103,12 +98,12 @@ func (p *provider) Cap() int {
 
 func (p *provider) Clear() {
 	clear(p.used)
-	p.n = 0
+	p.n.Store(0)
 }
 
 var (
 	mp = &provider{
-		used: make([]*methodUsed, capacity),
+		used: make([]unsafe.Pointer, capacity),
 	}
 )
 

@@ -11,6 +11,7 @@ package icall
 
 import (
 	"reflect"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/goplus/reflectx/abi"
@@ -19,15 +20,14 @@ import (
 const capacity = 1024
 
 type provider struct {
-	used []*abi.MethodInfo
-	n    int
+	used []atomic.Pointer[abi.MethodInfo]
+	n    atomic.Int64
 }
 
 func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) {
 	for i := 0; i < capacity; i++ {
-		if p.used[i] == nil {
-			p.n++
-			p.used[i] = info
+		if p.used[i].CompareAndSwap(nil, info) {
+			p.n.Add(1)
 			fn := icall_array[i]
 			return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), i
 		}
@@ -36,20 +36,22 @@ func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) 
 }
 
 func (p *provider) Available() int {
-	return capacity - p.n
+	return capacity - int(p.n.Load())
 }
 
 func (p *provider) Remove(indexs []int) {
 	for _, n := range indexs {
-		if n < capacity && p.used[n] != nil {
-			p.used[n] = nil
-			p.n--
+		if n < 0 || n >= capacity {
+			continue
+		}
+		if p.used[n].Swap(nil) != nil {
+			p.n.Add(-1)
 		}
 	}
 }
 
 func (p *provider) Used() int {
-	return p.n
+	return int(p.n.Load())
 }
 
 func (p *provider) Cap() int {
@@ -58,12 +60,12 @@ func (p *provider) Cap() int {
 
 func (p *provider) Clear() {
 	clear(p.used)
-	p.n = 0
+	p.n.Store(0)
 }
 
 var (
 	mp = &provider{
-		used: make([]*abi.MethodInfo, capacity),
+		used: make([]atomic.Pointer[abi.MethodInfo], capacity),
 	}
 )
 
@@ -72,7 +74,7 @@ func init() {
 }
 
 func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
-	info := mp.used[index]
+	info := mp.used[index].Load()
 	var receiver reflect.Value
 	if !info.Pointer && info.OnePtr {
 		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem()
@@ -125,6 +127,7 @@ func add(p unsafe.Pointer, x uintptr, whySafe string) unsafe.Pointer {
 }
 
 type unsafeptr = unsafe.Pointer
+
 
 var icall_array = []interface{}{
 	func(p, a unsafeptr) { i_x(0, p, unsafeptr(&a)) },

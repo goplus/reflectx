@@ -3,7 +3,7 @@
 // +build go1.23
 // +build !linknamefix
 
-package icall
+package pkgname
 
 import (
 	"unsafe"

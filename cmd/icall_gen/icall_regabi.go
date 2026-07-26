@@ -24,16 +24,17 @@ func writeRegAbi(filename string, pkgName string, size int) error {
 		abi  string
 		file string
 	}
+
+	r := strings.NewReplacer("pkgname", pkgName, "1024", strconv.Itoa(size))
 	gofiles := []info{
-		{id: "", abi: icall_regabi},
-		{id: "_linkname", abi: regabi_linkname},
-		{id: "_nolinkname", abi: regabi_nolinkname},
+		{id: "", abi: ""},
+		{id: "_linkname", abi: r.Replace(regabi_linkname)},
+		{id: "_nolinkname", abi: r.Replace(regabi_nolinkname)},
 	}
 	for i := 0; i < len(gofiles); i++ {
 		gofiles[i].file = filepath.Join(dir, strings.Replace(f, ".go", "_regabi"+gofiles[i].id+".go", 1))
 	}
 	var buf bytes.Buffer
-	r := strings.NewReplacer("$pkgname", pkgName, "$max_size", strconv.Itoa(size))
 	buf.WriteString(r.Replace(icall_regabi))
 	buf.WriteString("\n")
 
