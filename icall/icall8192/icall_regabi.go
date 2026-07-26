@@ -5,6 +5,8 @@ package icall
 
 import (
 	"reflect"
+	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/goplus/reflectx/abi"
@@ -18,20 +20,26 @@ type methodUsed struct {
 }
 
 type provider struct {
+	mu   sync.RWMutex
 	used []*methodUsed
 	n    int
 }
 
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
-	ptr := mp.used[index].ptr
+	method := mp.lookup(index)
+	ptr := method.ptr
 	moveMakeFuncArgPtrs(ptr, r)
 	callReflect(ptr, frame, retValid, r)
+	// Context.Reset may clear the slot after lookup. Keep the copied method alive
+	// until callReflect returns without holding the provider lock over user code.
+	runtime.KeepAlive(method)
 }
 
 func spillArgs()
 func unspillArgs()
 
 func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
+	p.mu.Lock()
 	var index = -1
 	for i := 0; i < capacity; i++ {
 		if p.used[i] == nil {
@@ -40,6 +48,7 @@ func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 		}
 	}
 	if index == -1 {
+		p.mu.Unlock()
 		return nil, -1
 	}
 	var fn reflect.Value
@@ -77,24 +86,33 @@ func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 	}
 	p.n++
 	icall := icall_fn[index]
+	p.mu.Unlock()
 	return unsafe.Pointer(reflect.ValueOf(icall).Pointer()), index
 }
 
 func (p *provider) Remove(indexs []int) {
+	p.mu.Lock()
 	for _, n := range indexs {
 		if n < capacity && p.used[n] != nil {
 			p.used[n] = nil
 			p.n--
 		}
 	}
+	p.mu.Unlock()
 }
 
 func (p *provider) Available() int {
-	return capacity - p.n
+	p.mu.RLock()
+	n := capacity - p.n
+	p.mu.RUnlock()
+	return n
 }
 
 func (p *provider) Used() int {
-	return p.n
+	p.mu.RLock()
+	n := p.n
+	p.mu.RUnlock()
+	return n
 }
 
 func (p *provider) Cap() int {
@@ -102,8 +120,17 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
+	p.mu.Lock()
 	clear(p.used)
 	p.n = 0
+	p.mu.Unlock()
+}
+
+func (p *provider) lookup(index int) *methodUsed {
+	p.mu.RLock()
+	method := p.used[index]
+	p.mu.RUnlock()
+	return method
 }
 
 var (

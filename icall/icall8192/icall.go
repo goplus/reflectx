@@ -11,6 +11,8 @@ package icall
 
 import (
 	"reflect"
+	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/goplus/reflectx/abi"
@@ -19,37 +21,49 @@ import (
 const capacity = 8192
 
 type provider struct {
+	mu   sync.RWMutex
 	used []*abi.MethodInfo
 	n    int
 }
 
 func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) {
+	p.mu.Lock()
 	for i := 0; i < capacity; i++ {
 		if p.used[i] == nil {
 			p.n++
 			p.used[i] = info
 			fn := icall_array[i]
+			p.mu.Unlock()
 			return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), i
 		}
 	}
+	p.mu.Unlock()
 	return nil, -1
 }
 
 func (p *provider) Available() int {
-	return capacity - p.n
+	p.mu.RLock()
+	n := capacity - p.n
+	p.mu.RUnlock()
+	return n
 }
 
 func (p *provider) Remove(indexs []int) {
+	p.mu.Lock()
 	for _, n := range indexs {
 		if n < capacity && p.used[n] != nil {
 			p.used[n] = nil
 			p.n--
 		}
 	}
+	p.mu.Unlock()
 }
 
 func (p *provider) Used() int {
-	return p.n
+	p.mu.RLock()
+	n := p.n
+	p.mu.RUnlock()
+	return n
 }
 
 func (p *provider) Cap() int {
@@ -57,8 +71,17 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
+	p.mu.Lock()
 	clear(p.used)
 	p.n = 0
+	p.mu.Unlock()
+}
+
+func (p *provider) lookup(index int) *abi.MethodInfo {
+	p.mu.RLock()
+	info := p.used[index]
+	p.mu.RUnlock()
+	return info
 }
 
 var (
@@ -72,7 +95,7 @@ func init() {
 }
 
 func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
-	info := mp.used[index]
+	info := mp.lookup(index)
 	var receiver reflect.Value
 	if !info.Pointer && info.OnePtr {
 		receiver = reflect.NewAt(info.Type, unsafe.Pointer(&ptr)).Elem()
@@ -118,6 +141,9 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 			*(*byte)(add(p, info.InSize+i, "")) = *(*byte)(add(po, uintptr(i), ""))
 		}
 	}
+	// Context.Reset may clear the slot after lookup. Keep the copied method alive
+	// until the call returns without holding the provider lock over user code.
+	runtime.KeepAlive(info)
 }
 
 func add(p unsafe.Pointer, x uintptr, whySafe string) unsafe.Pointer {
@@ -125,6 +151,7 @@ func add(p unsafe.Pointer, x uintptr, whySafe string) unsafe.Pointer {
 }
 
 type unsafeptr = unsafe.Pointer
+
 
 var icall_array = []interface{}{
 	func(p, a unsafeptr) { i_x(0, p, unsafeptr(&a)) },
