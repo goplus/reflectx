@@ -48,7 +48,7 @@ func writeFile(filename string, pkgName string, size int) error {
 	}
 
 	var buf bytes.Buffer
-	r := strings.NewReplacer("$pkgname", pkgName, "$max_size", strconv.Itoa(size))
+	r := strings.NewReplacer("pkgname", pkgName, "1024", strconv.Itoa(size))
 	buf.WriteString(r.Replace(head))
 	buf.WriteString("\n")
 
