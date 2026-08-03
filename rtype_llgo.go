@@ -148,9 +148,6 @@ func closureOf(ftyp *funcType) *rtype
 //go:linkname toFuncType reflect.toFuncType
 func toFuncType(ftyp *structType) *funcType
 
-//go:linkname makeFunc reflect.makeFunc
-func makeFunc(typ reflect.Type, method bool, fn func(args []reflect.Value) (results []reflect.Value)) reflect.Value
-
 func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
 		return toType(t).Method(i)
@@ -356,24 +353,21 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, hasIfn bool) (m
 	}
 
 	if m.Pointer {
-		ptfn = makeFunc(ftyp, false, m.Func).UnsafePointer()
+		ptfn = reflect.MakeFunc(ftyp, m.Func).UnsafePointer()
 		if hasIfn {
-			pifn = makeFunc(ftyp, true, m.Func).UnsafePointer()
+			pifn = reflect.MakeFunc(ftyp, m.Func).UnsafePointer()
 		} else {
 			pifn = zeroIfn
 		}
 	} else {
-		tfn = makeFunc(ftyp, false, m.Func).UnsafePointer()
+		tfn = reflect.MakeFunc(ftyp, m.Func).UnsafePointer()
 		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())
-		ptfn = makeFunc(ftyp, false, func(args []reflect.Value) []reflect.Value {
+		ptfn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
 			args[0] = args[0].Elem()
 			return m.Func(args)
 		}).UnsafePointer()
 		if hasIfn {
-			ifn = makeFunc(ftyp, true, func(args []reflect.Value) []reflect.Value {
-				args[0] = args[0].Elem()
-				return m.Func(args)
-			}).UnsafePointer()
+			ifn = ptfn
 		} else {
 			ifn = zeroIfn
 		}
