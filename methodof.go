@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/goplus/reflectx/internal/syncmap"
+
 	"github.com/goplus/reflectx/abi"
 	_ "github.com/goplus/reflectx/internal/icall512"
 )
@@ -51,22 +53,25 @@ func resetAll() {
 }
 
 func (ctx *Context) Reset() {
+	ctx.methodIndexLock.Lock()
 	for i, list := range ctx.methodIndexList {
 		abi.Default.List()[i].Remove(list)
 	}
-	ctx.nAllocateError = 0
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[int][]int)
-	ctx.fnHasImethod = nil
+	clear(ctx.methodIndexList)
+	ctx.methodIndexLock.Unlock()
+	ctx.nAllocateError.Store(0)
+	syncmap.Clear(ctx.embedLookupCache)
+	syncmap.Clear(ctx.interfceLookupCache)
+	syncmap.Clear(ctx.structLookupCache)
 }
 
 func (ctx *Context) IcallAlloc() int {
 	n := 0
+	ctx.methodIndexLock.Lock()
 	for _, list := range ctx.methodIndexList {
 		n += len(list)
 	}
+	ctx.methodIndexLock.Unlock()
 	return n
 }
 
@@ -88,11 +93,13 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 			break
 		}
 		if info.FuncId == 0 {
+			ctx.methodIndexLock.Lock()
 			ctx.methodIndexList[i] = append(ctx.methodIndexList[i], mindex)
+			ctx.methodIndexLock.Unlock()
 		}
 		return ifn, true
 	}
-	ctx.nAllocateError++
+	ctx.nAllocateError.Add(1)
 	return
 }
 
@@ -318,12 +325,12 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	rt.TFlag |= tflagUserMethod
 	prt.TFlag |= tflagUserMethod
 
-	if ctx.nAllocateError != 0 {
+	if n := ctx.nAllocateError.Load(); n != 0 {
 		ncap := abi.Default.Cap()
 		err := &AllocError{
 			Typ: typ,
 			Cap: ncap,
-			Req: ncap + ctx.nAllocateError,
+			Req: ncap + int(n),
 		}
 		if !DisableAllocateWarning {
 			log.Printf("warning, %v, import _ %q\n", err, "github.com/goplus/reflectx/icall/icall[N]")
@@ -456,11 +463,11 @@ func (ctx *Context) newInterface(methods []reflect.Method) reflect.Type {
 	} else {
 		str = "*interface {}"
 	}
-	if t, ok := ctx.interfceLookupCache[str]; ok {
-		return t
+	if t, ok := ctx.interfceLookupCache.Load(str); ok {
+		return t.(reflect.Type)
 	}
 	rt.Str = resolveReflectName(newName(str, "", false))
 	typ := toType(rt)
-	ctx.interfceLookupCache[str] = typ
+	ctx.interfceLookupCache.Store(str, typ)
 	return typ
 }

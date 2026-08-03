@@ -193,8 +193,8 @@ func (ctx *Context) StructToMethodSet(styp reflect.Type) reflect.Type {
 	if len(ms) == 0 {
 		return styp
 	}
-	if typ, ok := ctx.embedLookupCache[styp]; ok {
-		return typ
+	if typ, ok := ctx.embedLookupCache.Load(styp); ok {
+		return typ.(reflect.Type)
 	}
 	var methods []Method
 	var mcout, pcount int
@@ -210,7 +210,7 @@ func (ctx *Context) StructToMethodSet(styp reflect.Type) reflect.Type {
 	if err != nil {
 		log.Panicln("error loadMethods", err)
 	}
-	ctx.embedLookupCache[styp] = typ
+	ctx.embedLookupCache.Store(styp, typ)
 	return typ
 }
 

@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/goplus/reflectx/internal/abi"
+	"github.com/goplus/reflectx/internal/syncmap"
 )
 
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
@@ -85,15 +86,17 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 		st.Fields[i].Name_ = n
 	}
 	str := typ.String()
-	if ts, ok := ctx.structLookupCache[str]; ok {
+	if v, ok := ctx.structLookupCache.Load(str); ok {
+		ts := v.([]reflect.Type)
 		for _, t := range ts {
 			if haveIdenticalType(totype(t), totype(typ), true) {
 				return t
 			}
 		}
 		ts = append(ts, typ)
+		ctx.structLookupCache.Store(str, ts)
 	} else {
-		ctx.structLookupCache[str] = []reflect.Type{typ}
+		ctx.structLookupCache.Store(str, []reflect.Type{typ})
 	}
 	// fix equal for blank fields and uncomparable type
 	if rt.Equal != nil && underscoreCount > 0 {
@@ -294,12 +297,10 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 }
 
 func (ctx *Context) Reset() {
-	ctx.nAllocateError = 0
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[int][]int)
-	ctx.fnHasImethod = nil
+	ctx.nAllocateError.Store(0)
+	syncmap.Clear(ctx.embedLookupCache)
+	syncmap.Clear(ctx.interfceLookupCache)
+	syncmap.Clear(ctx.structLookupCache)
 }
 
 func resetAll() {
@@ -522,12 +523,12 @@ func (ctx *Context) newInterface(methods []reflect.Method) reflect.Type {
 	} else {
 		str = "*interface {}"
 	}
-	if t, ok := ctx.interfceLookupCache[str]; ok {
-		return t
+	if t, ok := ctx.interfceLookupCache.Load(str); ok {
+		return t.(reflect.Type)
 	}
 	rt.Str_ = str
 	typ := toType(rt)
-	ctx.interfceLookupCache[str] = typ
+	ctx.interfceLookupCache.Store(str, typ)
 	return typ
 }
 

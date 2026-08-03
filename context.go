@@ -3,6 +3,8 @@ package reflectx
 import (
 	"fmt"
 	"reflect"
+	"sync"
+	"sync/atomic"
 )
 
 var (
@@ -13,19 +15,17 @@ var (
 var Default *Context = NewContext()
 
 type Context struct {
-	embedLookupCache    map[reflect.Type]reflect.Type
-	structLookupCache   map[string][]reflect.Type
-	interfceLookupCache map[string]reflect.Type
+	embedLookupCache    sync.Map // map[reflect.Type]reflect.Type
+	structLookupCache   sync.Map // map[string][]reflect.Type
+	interfceLookupCache sync.Map // map[string]reflect.Type
 	methodIndexList     map[int][]int
+	methodIndexLock     sync.Mutex
 	fnHasImethod        func(typ reflect.Type, method Method) bool
-	nAllocateError      int
+	nAllocateError      atomic.Int64
 }
 
 func NewContext() *Context {
 	ctx := &Context{}
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
 	ctx.methodIndexList = make(map[int][]int)
 	return ctx
 }

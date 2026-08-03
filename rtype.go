@@ -414,15 +414,16 @@ func (ctx *Context) StructOf(fields []reflect.StructField) reflect.Type {
 		st.Fields[i].Name = n
 	}
 	str := typ.String()
-	if ts, ok := ctx.structLookupCache[str]; ok {
+	if v, ok := ctx.structLookupCache.Load(str); ok {
+		ts := v.([]reflect.Type)
 		for _, t := range ts {
 			if haveIdenticalType(totype(t), totype(typ), true) {
 				return t
 			}
 		}
-		ts = append(ts, typ)
+		ctx.structLookupCache.Store(str, append(ts, typ))
 	} else {
-		ctx.structLookupCache[str] = []reflect.Type{typ}
+		ctx.structLookupCache.Store(str, []reflect.Type{typ})
 	}
 	// fix equal for blank fields and uncomparable type
 	if rt.Equal != nil && underscoreCount > 0 {
