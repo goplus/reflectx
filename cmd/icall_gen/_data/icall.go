@@ -87,17 +87,15 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 	in := []reflect.Value{receiver}
 	if inCount := info.Func.Type().NumIn(); inCount > 1 {
 		sz := info.InTyp.Size()
-		buf := make([]byte, sz, sz)
-		if sz > info.InSize {
-			sz = info.InSize
-		}
-		for i := uintptr(0); i < sz; i++ {
-			buf[i] = *(*byte)(add(p, i, ""))
-		}
 		var inArgs reflect.Value
 		if sz == 0 {
 			inArgs = reflect.New(info.InTyp).Elem()
 		} else {
+			buf := make([]byte, sz)
+			if sz > info.InSize {
+				sz = info.InSize
+			}
+			copy(buf, unsafe.Slice((*byte)(p), sz))
 			inArgs = reflect.NewAt(info.InTyp, unsafe.Pointer(&buf[0])).Elem()
 		}
 		for i := 1; i < inCount; i++ {

@@ -53,7 +53,7 @@ func writeFile(filename string, pkgName string, size int) error {
 	buf.WriteString("\n")
 
 	fnWrite := func(name string, t string) {
-		buf.WriteString(fmt.Sprintf("\nvar %v = []interface{}{\n", name))
+		buf.WriteString(fmt.Sprintf("\nvar %v = []func(p, a unsafeptr){\n", name))
 		for i := 0; i < size; i++ {
 			r := strings.NewReplacer("$index", strconv.Itoa(i))
 			buf.WriteString(r.Replace(t))
