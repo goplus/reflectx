@@ -1418,6 +1418,36 @@ func TestMethodWrongReturnCount(t *testing.T) {
 	reflect.New(typ).MethodByName("Bad").Call(nil)
 }
 
+func TestIcallCachedCount(t *testing.T) {
+	styp := reflectx.NamedStructOf("main", "icallCachedCount", []reflect.StructField{
+		{Name: "P", Type: reflect.TypeOf((*int)(nil))},
+	})
+	typ := reflectx.NewMethodSet(styp, 1, 1)
+	method := reflectx.MakeMethod(
+		"Cached",
+		"main",
+		false,
+		reflect.TypeOf(func() {}),
+		func([]reflect.Value) []reflect.Value { return nil },
+	)
+	method.FuncId = 0x5245464c
+
+	_, allocatedBefore, _ := reflectx.IcallStat()
+	cachedBefore := reflectx.IcallCached()
+	if err := reflectx.SetMethodSet(typ, []reflectx.Method{method}, false); err != nil {
+		t.Fatal(err)
+	}
+	_, allocatedAfter, _ := reflectx.IcallStat()
+	cachedAfter := reflectx.IcallCached()
+
+	if got, want := allocatedAfter-allocatedBefore, 2; got != want {
+		t.Fatalf("allocated icalls: got %d, want %d", got, want)
+	}
+	if got, want := cachedAfter-cachedBefore, allocatedAfter-allocatedBefore; got != want {
+		t.Fatalf("cached icalls: got %d, want %d", got, want)
+	}
+}
+
 func BenchmarkNativeCallPtr(b *testing.B) {
 	pt := &emtpyCall{}
 	for i := 0; i < b.N; i++ {

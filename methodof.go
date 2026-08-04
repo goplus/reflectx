@@ -263,12 +263,13 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		pms[i].Tfn = ptfn
 		var pifn unsafe.Pointer = zeroIfn
 		hasIfn := ctx.hasImethod(typ, m)
+		var allocated bool
 		if hasIfn {
-			pifn, _ = ctx.registerMethod(pinfo, m.FuncId)
+			pifn, allocated = ctx.registerMethod(pinfo, m.FuncId)
 		}
 		pms[i].Ifn = resolveReflectText(pifn)
 		if m.FuncId > 0 {
-			if hasIfn {
+			if allocated {
 				globalIfnCached++
 			}
 			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
@@ -288,8 +289,8 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 					Variadic: m.Type.IsVariadic(),
 					OnePtr:   onePtr,
 				}
-				ifn, _ = ctx.registerMethod(info, m.FuncId)
-				if m.FuncId > 0 {
+				ifn, allocated = ctx.registerMethod(info, m.FuncId)
+				if m.FuncId > 0 && allocated {
 					globalIfnCached++
 				}
 			}
@@ -298,9 +299,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			ms[index].Tfn = tfn
 			ms[index].Ifn = resolveReflectText(ifn)
 			if m.FuncId > 0 {
-				if hasIfn {
-					globalIfnCached++
-				}
 				globalMethodCache[m.FuncId].method = ms[index]
 			}
 			index++
