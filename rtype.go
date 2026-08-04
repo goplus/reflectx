@@ -304,18 +304,18 @@ func DumpType(w io.Writer, typ reflect.Type) {
 	}
 }
 
-func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
+func rtypeMethodX(t *rtype, index int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
-		return toType(t).Method(i)
+		return toType(t).Method(index)
 	}
 	methods := rtypeMethods(t)
-	if i < 0 || i >= len(methods) {
+	if index < 0 || index >= len(methods) {
 		panic("reflect: Method index out of range")
 	}
-	p := methods[i]
+	p := methods[index]
 	pname := rtype_nameOff(t, p.Name)
 	m.Name = pname.Name()
-	m.Index = i
+	m.Index = index
 	fl := flag(reflect.Func)
 	if t.TFlag&tflagUserMethod != 0 {
 		fl |= flagIndir
@@ -326,15 +326,15 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 	}
 	ft := (*funcType)(unsafe.Pointer(mtyp))
 	ins := funcTypeIn(ft)
-	in := make([]reflect.Type, 0, 1+len(ins))
-	in = append(in, toType(t))
-	for _, arg := range ins {
-		in = append(in, toType(arg))
+	in := make([]reflect.Type, 1+len(ins))
+	in[0] = toType(t)
+	for i, arg := range ins {
+		in[i+1] = toType(arg)
 	}
 	outs := funcTypeOut(ft)
-	out := make([]reflect.Type, 0, len(outs))
-	for _, ret := range outs {
-		out = append(out, toType(ret))
+	out := make([]reflect.Type, len(outs))
+	for i, ret := range outs {
+		out[i] = toType(ret)
 	}
 	mt := reflect.FuncOf(in, out, ft.IsVariadic())
 	m.Type = mt

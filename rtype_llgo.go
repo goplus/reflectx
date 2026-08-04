@@ -148,26 +148,26 @@ func closureOf(ftyp *funcType) *rtype
 //go:linkname toFuncType reflect.toFuncType
 func toFuncType(ftyp *structType) *funcType
 
-func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
+func rtypeMethodX(t *rtype, index int) (m reflect.Method) {
 	if reflect.Kind(t.Kind()) == reflect.Interface {
-		return toType(t).Method(i)
+		return toType(t).Method(index)
 	}
 	methods := rtypeMethods(t)
-	if i < 0 || i >= len(methods) {
+	if index < 0 || index >= len(methods) {
 		panic("reflect: Method index out of range")
 	}
-	p := methods[i]
+	p := methods[index]
 	m.Name = p.Name()
 	fl := flag(reflect.Func)
 	ft := p.Mtyp_
-	in := make([]reflect.Type, 0, 1+len(ft.In))
-	in = append(in, toType(t))
-	for _, arg := range ft.In {
-		in = append(in, toType(arg))
+	in := make([]reflect.Type, 1+len(ft.In))
+	in[0] = toType(t)
+	for i, arg := range ft.In {
+		in[i+1] = toType(arg)
 	}
-	out := make([]reflect.Type, 0, len(ft.Out))
-	for _, ret := range ft.Out {
-		out = append(out, toType(ret))
+	out := make([]reflect.Type, len(ft.Out))
+	for i, ret := range ft.Out {
+		out[i] = toType(ret)
 	}
 	mt := reflect.FuncOf(in, out, ft.Variadic())
 	m.Type = mt
@@ -177,7 +177,7 @@ func rtypeMethodX(t *rtype, i int) (m reflect.Method) {
 		env unsafe.Pointer
 	}{p.Tfn_, nil}
 	m.Func = toValue(Value{closureOf(mtfn), unsafe.Pointer(fv), fl | flagIndir})
-	m.Index = i
+	m.Index = index
 	return m
 }
 
