@@ -190,7 +190,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	var mcount, pcount int
 	var xcount, pxcount int
 	pcount = len(methods)
-	var mlist []string
 	for _, m := range methods {
 		isexport := methodIsExported(m.Name)
 		if isexport {
@@ -200,7 +199,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			if isexport {
 				xcount++
 			}
-			mlist = append(mlist, m.Name)
 			mcount++
 		}
 	}
