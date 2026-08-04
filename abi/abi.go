@@ -8,6 +8,7 @@ import (
 type MethodInfo struct {
 	Name     string
 	Func     reflect.Value
+	Call     func([]reflect.Value) []reflect.Value
 	Type     reflect.Type
 	InTyp    reflect.Type
 	OutTyp   reflect.Type

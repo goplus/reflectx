@@ -1396,6 +1396,28 @@ func makeDynamicEmptyCall() reflect.Type {
 	return typ
 }
 
+func TestMethodWrongReturnCount(t *testing.T) {
+	styp := reflectx.NamedStructOf("main", "wrongReturnCount", []reflect.StructField{{Name: "X", Type: tyInt}})
+	typ := reflectx.NewMethodSet(styp, 1, 1)
+	bad := reflectx.MakeMethod(
+		"Bad",
+		"main",
+		false,
+		reflect.FuncOf(nil, []reflect.Type{tyInt}, false),
+		func([]reflect.Value) []reflect.Value { return nil },
+	)
+	if err := reflectx.SetMethodSet(typ, []reflectx.Method{bad}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if got := recover(); got != "reflect: wrong return count from function created by MakeFunc" {
+			t.Fatalf("panic: got %v", got)
+		}
+	}()
+	reflect.New(typ).MethodByName("Bad").Call(nil)
+}
+
 func BenchmarkNativeCallPtr(b *testing.B) {
 	pt := &emtpyCall{}
 	for i := 0; i < b.N; i++ {

@@ -104,11 +104,9 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 			in[i] = inArgs.Field(i - 1)
 		}
 	}
-	var r []reflect.Value
-	if info.Variadic {
-		r = info.Func.CallSlice(in)
-	} else {
-		r = info.Func.Call(in)
+	r := info.Call(in)
+	if len(r) != info.OutTyp.NumField() {
+		panic("reflect: wrong return count from function created by MakeFunc")
 	}
 	if info.OutTyp.NumField() > 0 {
 		out := reflect.New(info.OutTyp).Elem()
