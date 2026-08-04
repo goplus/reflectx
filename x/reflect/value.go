@@ -106,6 +106,7 @@ type makeFuncCtxt struct {
 	regPtrs abi.IntArgRegBitmap
 }
 
+//go:nosplit
 func moveMakeFuncArgPtrs(ctxt *makeFuncCtxt, args *abi.RegArgs) {
 	for i, arg := range args.Ints {
 		// Avoid write barriers! Because our write barrier enqueues what

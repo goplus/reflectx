@@ -70,15 +70,8 @@ func (ctx *Context) IcallAlloc() int {
 	return n
 }
 
-func methodInfoText(info *abi.MethodInfo) string {
-	if info.Pointer {
-		return "(*" + info.Type.String() + ")." + info.Name
-	}
-	return info.Type.String() + "." + info.Name
-}
-
 // register method info
-func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, allocated bool) {
+func (ctx *Context) registerMethod(info *abi.MethodInfo, funcID int) (ifn unsafe.Pointer, allocated bool) {
 	for i, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
 			continue
@@ -87,7 +80,7 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo) (ifn unsafe.Pointer, al
 		if mindex == -1 {
 			break
 		}
-		if info.FuncId == 0 {
+		if funcID == 0 {
 			ctx.methodIndexList[i] = append(ctx.methodIndexList[i], mindex)
 		}
 		return ifn, true
@@ -253,9 +246,9 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		isz := inTypeSize(inTyp)
 		osz := outTypeSize(outTyp)
 		pinfo := &abi.MethodInfo{
-			Name:     m.Name,
 			Type:     typ,
 			Func:     mfn,
+			Call:     m.Func,
 			InTyp:    inTyp,
 			OutTyp:   outTyp,
 			InSize:   isz,
@@ -264,7 +257,6 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			Indirect: !m.Pointer,
 			Variadic: m.Type.IsVariadic(),
 			OnePtr:   onePtr,
-			FuncId:   m.FuncId,
 		}
 		pms[i].Name = mname
 		pms[i].Mtyp = mtyp
@@ -272,7 +264,7 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		var pifn unsafe.Pointer = zeroIfn
 		hasIfn := ctx.hasImethod(typ, m)
 		if hasIfn {
-			pifn, _ = ctx.registerMethod(pinfo)
+			pifn, _ = ctx.registerMethod(pinfo, m.FuncId)
 		}
 		pms[i].Ifn = resolveReflectText(pifn)
 		if m.FuncId > 0 {
@@ -286,18 +278,17 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			hasIfn = hasIfn && onePtr
 			if hasIfn {
 				info := &abi.MethodInfo{
-					Name:     m.Name,
 					Type:     typ,
 					Func:     mfn,
+					Call:     m.Func,
 					InTyp:    inTyp,
 					OutTyp:   outTyp,
 					InSize:   isz,
 					OutSize:  osz,
 					Variadic: m.Type.IsVariadic(),
 					OnePtr:   onePtr,
-					FuncId:   m.FuncId,
 				}
-				ifn, _ = ctx.registerMethod(info)
+				ifn, _ = ctx.registerMethod(info, m.FuncId)
 				if m.FuncId > 0 {
 					globalIfnCached++
 				}

@@ -84,8 +84,10 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 			receiver = receiver.Elem()
 		}
 	}
-	in := []reflect.Value{receiver}
-	if inCount := info.Func.Type().NumIn(); inCount > 1 {
+	inCount := info.Func.Type().NumIn()
+	in := make([]reflect.Value, inCount)
+	in[0] = receiver
+	if inCount > 1 {
 		sz := info.InTyp.Size()
 		var inArgs reflect.Value
 		if sz == 0 {
@@ -99,14 +101,12 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 			inArgs = reflect.NewAt(info.InTyp, unsafe.Pointer(&buf[0])).Elem()
 		}
 		for i := 1; i < inCount; i++ {
-			in = append(in, inArgs.Field(i-1))
+			in[i] = inArgs.Field(i - 1)
 		}
 	}
-	var r []reflect.Value
-	if info.Variadic {
-		r = info.Func.CallSlice(in)
-	} else {
-		r = info.Func.Call(in)
+	r := info.Call(in)
+	if len(r) != info.OutTyp.NumField() {
+		panic("reflect: wrong return count from function created by MakeFunc")
 	}
 	if info.OutTyp.NumField() > 0 {
 		out := reflect.New(info.OutTyp).Elem()
@@ -114,9 +114,7 @@ func i_x(index int, ptr unsafe.Pointer, p unsafe.Pointer) {
 			out.Field(i).Set(v)
 		}
 		po := unsafe.Pointer(out.UnsafeAddr())
-		for i := uintptr(0); i < info.OutSize; i++ {
-			*(*byte)(add(p, info.InSize+i, "")) = *(*byte)(add(po, uintptr(i), ""))
-		}
+		copy(unsafe.Slice((*byte)(add(p, info.InSize, "")), info.OutSize), unsafe.Slice((*byte)(po), info.OutSize))
 	}
 }
 

@@ -13,16 +13,12 @@ import (
 
 const capacity = 2048
 
-type methodUsed struct {
-	fun reflect.Value
-	ptr unsafe.Pointer
-}
-
 type provider struct {
 	used []unsafe.Pointer
 	n    atomic.Int64
 }
 
+//go:nosplit
 func i_x(c unsafe.Pointer, frame unsafe.Pointer, retValid *bool, r unsafe.Pointer, index int) {
 	ptr := atomic.LoadPointer(&mp.used[index])
 	moveMakeFuncArgPtrs(ptr, r)
@@ -48,17 +44,10 @@ func (p *provider) Insert(info *abi.MethodInfo) (unsafe.Pointer, int) {
 			out[i] = ftyp.Out(i)
 		}
 		ftyp = reflect.FuncOf(in, out, info.Variadic)
-		if info.Variadic {
-			fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
-				args[0] = args[0].Elem()
-				return info.Func.CallSlice(args)
-			})
-		} else {
-			fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
-				args[0] = args[0].Elem()
-				return info.Func.Call(args)
-			})
-		}
+		fn = reflect.MakeFunc(ftyp, func(args []reflect.Value) []reflect.Value {
+			args[0] = args[0].Elem()
+			return info.Call(args)
+		})
 	} else {
 		fn = info.Func
 	}

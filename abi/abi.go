@@ -6,8 +6,8 @@ import (
 )
 
 type MethodInfo struct {
-	Name     string
 	Func     reflect.Value
+	Call     func([]reflect.Value) []reflect.Value
 	Type     reflect.Type
 	InTyp    reflect.Type
 	OutTyp   reflect.Type
@@ -17,7 +17,6 @@ type MethodInfo struct {
 	Indirect bool
 	Variadic bool
 	OnePtr   bool
-	FuncId   int
 }
 
 type MethodProvider interface {

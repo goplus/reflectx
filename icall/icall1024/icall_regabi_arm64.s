@@ -32,7 +32,7 @@ TEXT NAME(SB),(NOSPLIT|WRAPPER),$432		\
 	ADD	$LOCAL_REGARGS, RSP, R20		\
 	CALL	runtime·spillArgs(SB)		\
 	MOVD	32(RSP), R26		\
-	MOVD	R26, 16(RSP)		\
+	MOVD	R26, 8(RSP)		\
 	MOVD	$argframe+0(FP), R3		\
 	MOVD	R3, 16(RSP)		\
 	MOVB	$0, LOCAL_RETVALID(RSP)		\
