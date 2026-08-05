@@ -78,7 +78,7 @@ func (ctx *Context) registerMethod(info *abi.MethodInfo, funcID int) (ifn unsafe
 		}
 		ifn, mindex := mp.Insert(info)
 		if mindex == -1 {
-			break
+			continue
 		}
 		if funcID == 0 {
 			ctx.methodIndexList[i] = append(ctx.methodIndexList[i], mindex)
