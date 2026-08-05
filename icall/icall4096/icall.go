@@ -11,6 +11,7 @@ package icall
 
 import (
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -20,19 +21,25 @@ import (
 const capacity = 4096
 
 type provider struct {
+	mu   sync.Mutex
 	used []atomic.Pointer[abi.MethodInfo]
+	free []int
 	n    atomic.Int64
 }
 
 func (p *provider) Insert(info *abi.MethodInfo) (ifn unsafe.Pointer, index int) {
-	for i := 0; i < capacity; i++ {
-		if p.used[i].CompareAndSwap(nil, info) {
-			p.n.Add(1)
-			fn := icall_array[i]
-			return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), i
-		}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := len(p.free)
+	if n == 0 {
+		return nil, -1
 	}
-	return nil, -1
+	index = p.free[n-1]
+	p.free = p.free[:n-1]
+	p.used[index].Store(info)
+	p.n.Add(1)
+	fn := icall_array[index]
+	return unsafe.Pointer(reflect.ValueOf(fn).Pointer()), index
 }
 
 func (p *provider) Available() int {
@@ -40,11 +47,14 @@ func (p *provider) Available() int {
 }
 
 func (p *provider) Remove(indexs []int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	for _, n := range indexs {
 		if n < 0 || n >= capacity {
 			continue
 		}
 		if p.used[n].Swap(nil) != nil {
+			p.free = append(p.free, n)
 			p.n.Add(-1)
 		}
 	}
@@ -59,15 +69,31 @@ func (p *provider) Cap() int {
 }
 
 func (p *provider) Clear() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	clear(p.used)
+	p.resetFree()
 	p.n.Store(0)
 }
 
-var (
-	mp = &provider{
-		used: make([]atomic.Pointer[abi.MethodInfo], capacity),
+func (p *provider) resetFree() {
+	if cap(p.free) < capacity {
+		p.free = make([]int, capacity)
+	} else {
+		p.free = p.free[:capacity]
 	}
-)
+	for i := range p.free {
+		p.free[i] = capacity - 1 - i
+	}
+}
+
+func newProvider() *provider {
+	p := &provider{used: make([]atomic.Pointer[abi.MethodInfo], capacity)}
+	p.resetFree()
+	return p
+}
+
+var mp = newProvider()
 
 func init() {
 	abi.AddMethodProvider(mp)

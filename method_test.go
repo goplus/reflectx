@@ -1354,22 +1354,68 @@ type emtpyCall struct {
 }
 
 //go:noinline
-func (t *emtpyCall) Set(x int, y int) {
-
-}
+func (t *emtpyCall) Set(x int, y int) {}
 
 //go:noinline
-func (t emtpyCall) Info(x int, y int) {
+func (t emtpyCall) Info(x int, y int) {}
 
+func BenchmarkNativeCallPtr(b *testing.B) {
+	pt := &emtpyCall{}
+	for i := 0; i < b.N; i++ {
+		pt.Set(100, 200)
+	}
+}
+
+func BenchmarkReflectCallPtr(b *testing.B) {
+	b.StopTimer()
+	pt := &emtpyCall{}
+	set := reflect.ValueOf(pt).MethodByName("Set").Interface().(func(int, int))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		set(100, 200)
+	}
+}
+
+func BenchmarkNativeCallNoPtr(b *testing.B) {
+	pt := emtpyCall{}
+	for i := 0; i < b.N; i++ {
+		pt.Info(100, 200)
+	}
+}
+
+func BenchmarkReflectCallNoPtr(b *testing.B) {
+	b.StopTimer()
+	pt := emtpyCall{}
+	set := reflect.ValueOf(pt).MethodByName("Info").Interface().(func(int, int))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		set(100, 200)
+	}
+}
+
+func BenchmarkNativeCallIndirect(b *testing.B) {
+	pt := &emtpyCall{}
+	for i := 0; i < b.N; i++ {
+		pt.Info(100, 200)
+	}
+}
+
+func BenchmarkReflectCallIndirect(b *testing.B) {
+	b.StopTimer()
+	pt := &emtpyCall{}
+	set := reflect.ValueOf(pt).MethodByName("Info").Interface().(func(int, int))
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		set(100, 200)
+	}
 }
 
 func makeDynamicEmptyCall() reflect.Type {
 	fs := []reflect.StructField{
-		reflect.StructField{Name: "X", Type: reflect.TypeOf(0)},
-		reflect.StructField{Name: "Y", Type: reflect.TypeOf(0)},
+		{Name: "X", Type: reflect.TypeOf(0)},
+		{Name: "Y", Type: reflect.TypeOf(0)},
 	}
 	styp := reflectx.NamedStructOf("main", "emptyCall", fs)
-	//var typ reflect.Type
 	typ := reflectx.NewMethodSet(styp, 1, 2)
 	mInfo := reflectx.MakeMethod(
 		"Info",
@@ -1418,23 +1464,6 @@ func TestMethodWrongReturnCount(t *testing.T) {
 	reflect.New(typ).MethodByName("Bad").Call(nil)
 }
 
-func BenchmarkNativeCallPtr(b *testing.B) {
-	pt := &emtpyCall{}
-	for i := 0; i < b.N; i++ {
-		pt.Set(100, 200)
-	}
-}
-
-func BenchmarkReflectCallPtr(b *testing.B) {
-	b.StopTimer()
-	pt := &emtpyCall{}
-	set := reflect.ValueOf(pt).MethodByName("Set").Interface().(func(int, int))
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		set(100, 200)
-	}
-}
-
 func BenchmarkDynamicCallPtr(b *testing.B) {
 	b.StopTimer()
 	typ := makeDynamicEmptyCall()
@@ -1446,45 +1475,11 @@ func BenchmarkDynamicCallPtr(b *testing.B) {
 	}
 }
 
-func BenchmarkNativeCallNoPtr(b *testing.B) {
-	pt := emtpyCall{}
-	for i := 0; i < b.N; i++ {
-		pt.Info(100, 200)
-	}
-}
-
-func BenchmarkReflectCallNoPtr(b *testing.B) {
-	b.StopTimer()
-	pt := emtpyCall{}
-	set := reflect.ValueOf(pt).MethodByName("Info").Interface().(func(int, int))
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		set(100, 200)
-	}
-}
-
 func BenchmarkDynamicCallNoPtr(b *testing.B) {
 	b.StopTimer()
 	typ := makeDynamicEmptyCall()
 	pt := reflect.New(typ).Elem()
 	set := pt.MethodByName("Info").Interface().(func(int, int))
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		set(100, 200)
-	}
-}
-
-func BenchmarkNativeCallIndirect(b *testing.B) {
-	pt := &emtpyCall{}
-	for i := 0; i < b.N; i++ {
-		pt.Info(100, 200)
-	}
-}
-
-func BenchmarkReflectCallIndirect(b *testing.B) {
-	b.StopTimer()
-	pt := &emtpyCall{}
-	set := reflect.ValueOf(pt).MethodByName("Info").Interface().(func(int, int))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		set(100, 200)
