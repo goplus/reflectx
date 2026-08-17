@@ -136,7 +136,7 @@ func rtypeMethodByNameX(t *rtype, name string) (m reflect.Method, ok bool) {
 	return reflect.Method{}, false
 }
 
-//go:linkname interequal github.com/goplus/llgo/runtime/internal/runtime.interequal
+//go:linkname interequal github.com/xgo-dev/llgo/runtime/internal/runtime.interequal
 func interequal(p, q unsafe.Pointer) bool
 
 //go:linkname haveIdenticalType reflect.haveIdenticalType
@@ -376,7 +376,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, hasIfn bool) (m
 	return
 }
 
-//go:linkname DirectIfaceData github.com/goplus/llgo/runtime/internal/runtime.DirectIfaceData
+//go:linkname DirectIfaceData github.com/xgo-dev/llgo/runtime/internal/runtime.DirectIfaceData
 func DirectIfaceData(typ *abi.Type) bool
 
 func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
