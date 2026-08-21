@@ -1,5 +1,6 @@
-//go:build (go1.22 && goexperiment.regabiargs) || go1.23
+//go:build ((go1.22 && goexperiment.regabiargs) || go1.23) && !go1.27
 // +build go1.22,goexperiment.regabiargs go1.23
+// +build !go1.27
 
 // Copyright 2022 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style

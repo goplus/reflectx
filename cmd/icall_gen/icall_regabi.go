@@ -66,6 +66,22 @@ var (
 		{id: "riscv64", abi: regabi_riscv64},
 		{id: "loong64", abi: regabi_loong64},
 	}
+	go127 := func(id, constraint, asm, helpers string) info {
+		if strings.HasPrefix(asm, "//go:build") {
+			asm = asm[strings.Index(asm, "\n\n")+2:]
+		}
+		asm = "//go:build " + constraint + "\n\n" + asm
+		asm = strings.ReplaceAll(asm, "runtime·spillArgs", "·spillArgs")
+		asm = strings.ReplaceAll(asm, "runtime·unspillArgs", "·unspillArgs")
+		return info{id: "go127_" + id, abi: asm + "\n" + helpers}
+	}
+	infos = append(infos,
+		go127("amd64", "go1.27 && amd64", regabi_amd64, regabi_go127_amd64),
+		go127("arm64", "go1.27 && arm64", regabi_arm64, regabi_go127_arm64),
+		go127("ppc64x", "go1.27 && (ppc64 || ppc64le)", regabi_ppc64x, regabi_go127_ppc64x),
+		go127("riscv64", "go1.27 && riscv64", regabi_riscv64, regabi_go127_riscv64),
+		go127("loong64", "go1.27 && loong64", regabi_loong64, regabi_go127_loong64),
+	)
 	for i := 0; i < len(infos); i++ {
 		infos[i].file = filepath.Join(dir, strings.Replace(f, ".go", "_regabi_"+infos[i].id+".s", 1))
 	}
@@ -93,17 +109,32 @@ var icall_regabi string
 //go:embed _data/icall_regabi_amd64.s
 var regabi_amd64 string
 
+//go:embed _data/icall_regabi_go127_amd64.s
+var regabi_go127_amd64 string
+
 //go:embed _data/icall_regabi_arm64.s
 var regabi_arm64 string
+
+//go:embed _data/icall_regabi_go127_arm64.s
+var regabi_go127_arm64 string
 
 //go:embed _data/icall_regabi_ppc64x.s
 var regabi_ppc64x string
 
+//go:embed _data/icall_regabi_go127_ppc64x.s
+var regabi_go127_ppc64x string
+
 //go:embed _data/icall_regabi_riscv64.s
 var regabi_riscv64 string
 
+//go:embed _data/icall_regabi_go127_riscv64.s
+var regabi_go127_riscv64 string
+
 //go:embed _data/icall_regabi_loong64.s
 var regabi_loong64 string
+
+//go:embed _data/icall_regabi_go127_loong64.s
+var regabi_go127_loong64 string
 
 //go:embed _data/icall_regabi_linkname.go
 var regabi_linkname string

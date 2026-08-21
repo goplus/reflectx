@@ -1,5 +1,6 @@
-//go:build ppc64 || ppc64le
+//go:build (ppc64 || ppc64le) && !go1.27
 // +build ppc64 ppc64le
+// +build !go1.27
 
 // Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
