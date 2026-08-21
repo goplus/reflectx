@@ -6,6 +6,7 @@ Golang reflect package hack tools
 ### Go Version
 
 - Go 1.21 ~ 1.26
+- Go 1.27 ([linkname mode](#build-linkname-mode)）
 
 ### Compilers
 
