@@ -415,15 +415,17 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 			mcount++
 		}
 	}
-	ptyp := PtrTo(typ)
+
+	rt := totype(typ)
+	prt := totype(typ).PtrToThis_
+	ptyp := toType(prt)
+
 	if err := resizeMethod(typ, mcount, xcount); err != nil {
 		return err
 	}
 	if err := resizeMethod(ptyp, pcount, pxcount); err != nil {
 		return err
 	}
-	rt := totype(typ)
-	prt := totype(ptyp)
 
 	ms := rtypeMethods(rt)
 	pms := rtypeMethods(prt)
@@ -572,15 +574,12 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		st.In = ost.In
 		st.Out = ost.Out
 		// delete named closure entry from namedFuncMap by matching its runtime func type
-		namedFuncMap.Range(func(k, v any) bool {
-			if v != nil {
-				if (*emptyInterface)(unsafe.Pointer(&v)).word == unsafe.Pointer(rt) {
-					namedFuncMap.Delete(k)
-					return false
-				}
-			}
-			return true
-		})
+		namedFuncTypes.Lock()
+		if t, ok := namedFuncTypes.closures[st]; ok {
+			delete(namedFuncTypes.closures, st)
+			delete(namedFuncTypes.funcs, t)
+		}
+		namedFuncTypes.Unlock()
 	}
 	rt.Size_ = ort.Size_
 	rt.TFlag |= tflagUncommon | tflagNamed
@@ -596,8 +595,15 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	}
 }
 
-//go:linkname namedFuncMap reflect.namedFuncMap
-var namedFuncMap sync.Map // map[*abi.StructType]*abi.FuncType
+// Use typed maps: LLGo's sync.Map compatibility implementation performs linear
+// searches. Both directions must identify the same canonical descriptor pair.
+//
+//go:linkname namedFuncTypes reflect.namedFuncTypes
+var namedFuncTypes struct {
+	sync.Mutex
+	funcs    map[*abi.StructType]*abi.FuncType
+	closures map[*abi.FuncType]*abi.StructType
+}
 
 // icall stat
 func IcallStat() (capacity int, allocate int, available int) {
