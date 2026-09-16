@@ -24,6 +24,7 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 		{"src/cmd/asm/internal/flags/flags.go", patchAsmFlags},
 		{"src/cmd/go/internal/work/gc.go", patchGoGc},
 		{"src/cmd/go/internal/work/init.go", patchGoInit},
+		{"src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA},
 	}
 	n := 0
 	for _, p := range patches {
@@ -37,6 +38,17 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 			if !check {
 				fmt.Println(p.rel)
 			}
+		}
+	}
+	rel := "src/runtime/asm_arm64.s"
+	changed, err := patchAsmArm64(filepath.Join(root, rel), check)
+	if err != nil {
+		return n, fmt.Errorf("%s: %w", rel, err)
+	}
+	if changed {
+		n++
+		if !check {
+			fmt.Println(rel)
 		}
 	}
 	return n, nil
@@ -314,12 +326,13 @@ func insertAfterCountFlags(f *ast.File, v versionData) bool {
 	if fn == nil || fn.Body == nil {
 		return false
 	}
-	for _, stmt := range fn.Body.List {
-		if hasIdentExpr(stmt, "EnableIfaceFuncval") {
+	extra := v.stmts("compile.go")
+	if hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
+		if hasStringLit(fn.Body, "arm64") {
 			return false
 		}
+		return replaceStmtWithIdent(fn.Body, "EnableIfaceFuncval", extra)
 	}
-	extra := v.stmts("compile.go")
 	for i, stmt := range fn.Body.List {
 		es, ok := stmt.(*ast.ExprStmt)
 		if !ok {
@@ -331,6 +344,16 @@ func insertAfterCountFlags(f *ast.File, v versionData) bool {
 		}
 		fn.Body.List = insertStmts(fn.Body.List, i+1, extra...)
 		return true
+	}
+	return false
+}
+
+func replaceStmtWithIdent(body *ast.BlockStmt, ident string, extra []ast.Stmt) bool {
+	for i, stmt := range body.List {
+		if hasIdentExpr(stmt, ident) {
+			body.List = append(append(body.List[:i], extra...), body.List[i+1:]...)
+			return true
+		}
 	}
 	return false
 }
@@ -399,9 +422,14 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if fn == nil || fn.Body == nil {
 		return false, fmt.Errorf("Parse not found")
 	}
-	if !hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
-		extra := v.stmts("asm.go")
-		// After the NArg check.
+	extra := v.stmts("asm.go")
+	if hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
+		if !hasStringLit(fn.Body, "arm64") {
+			if replaceStmtWithIdent(fn.Body, "EnableIfaceFuncval", extra) {
+				changed = true
+			}
+		}
+	} else {
 		idx := 0
 		for i, stmt := range fn.Body.List {
 			ifs, ok := stmt.(*ast.IfStmt)
@@ -455,11 +483,29 @@ func addVarBoolFlag(f *ast.File, name, flagName, help string) bool {
 }
 
 func patchGoGc(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
-	if funcDecl(f, "wasmIfaceFuncval") != nil {
-		return false, nil
+	decls := v.decls("gc.go")
+	if len(decls) == 0 {
+		return false, fmt.Errorf("gc.go snippet has no decls")
 	}
-	f.Decls = append(f.Decls, v.decls("gc.go")...)
+	if fn := funcDecl(f, "wasmIfaceFuncval"); fn != nil {
+		if hasStringLit(fn, "arm64") {
+			return false, nil
+		}
+		replaceFuncDecl(f, "wasmIfaceFuncval", decls[0])
+		return true, nil
+	}
+	f.Decls = append(f.Decls, decls...)
 	return true, nil
+}
+
+func replaceFuncDecl(f *ast.File, name string, d ast.Decl) {
+	for i, old := range f.Decls {
+		fn, ok := old.(*ast.FuncDecl)
+		if ok && fn.Name.Name == name {
+			f.Decls[i] = d
+			return
+		}
+	}
 }
 
 func patchGoInit(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
@@ -484,4 +530,95 @@ func patchGoInit(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("buildModeInit() not found in BuildInit")
+}
+
+func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
+	changed := false
+	if !hasImport(f, "cmd/internal/obj/wasm") {
+		addImportAfter(f, "cmd/internal/obj/arm64", "cmd/internal/obj/wasm")
+		changed = true
+	}
+	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+		f.Decls = append(f.Decls, v.decls("arm64_ssa.go")...)
+		changed = true
+	}
+	if splitARM64CallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
+		changed = true
+	}
+	if splitARM64CallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
+		changed = true
+	}
+	return changed, nil
+}
+
+func splitARM64CallCase(f *ast.File, remove, keep string, body []ast.Stmt) bool {
+	var did bool
+	ast.Inspect(f, func(n ast.Node) bool {
+		sw, ok := n.(*ast.SwitchStmt)
+		if !ok || sw.Body == nil {
+			return true
+		}
+		for i, stmt := range sw.Body.List {
+			cc, ok := stmt.(*ast.CaseClause)
+			if !ok {
+				continue
+			}
+			if selectorInList(cc.List, remove) && selectorInList(cc.List, keep) {
+				cc.List = filterSelector(cc.List, remove)
+				neu := &ast.CaseClause{
+					List: []ast.Expr{&ast.SelectorExpr{X: ast.NewIdent("ssa"), Sel: ast.NewIdent(remove)}},
+					Body: body,
+				}
+				sw.Body.List = append(sw.Body.List[:i+1], append([]ast.Stmt{neu}, sw.Body.List[i+1:]...)...)
+				did = true
+				return false
+			}
+		}
+		return true
+	})
+	return did
+}
+
+func selectorInList(list []ast.Expr, name string) bool {
+	for _, e := range list {
+		sel, ok := e.(*ast.SelectorExpr)
+		if ok && sel.Sel.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func filterSelector(list []ast.Expr, name string) []ast.Expr {
+	out := make([]ast.Expr, 0, len(list))
+	for _, e := range list {
+		sel, ok := e.(*ast.SelectorExpr)
+		if ok && sel.Sel.Name == name {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+const arm64CallFNOld = "	MOVD	f+8(FP), R26;			\\\n	MOVD	(R26), R20;			\\\n	PCDATA	$PCDATA_StackMapIndex, $0;	\\\n	BL	(R20);				\\\n"
+
+const arm64CallFNNew = "	MOVD	f+8(FP), R26;			\\\n	MOVD	(R26), R20;			\\\n	TBZ	$0, R20, 3(PC);			\\\n	BIC	$1, R20, R26;			\\\n	MOVD	(R26), R20;			\\\n	PCDATA	$PCDATA_StackMapIndex, $0;	\\\n	BL	(R20);				\\\n"
+
+func patchAsmArm64(path string, check bool) (bool, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	if bytes.Contains(src, []byte("TBZ	$0, R20, 3(PC)")) {
+		return false, nil
+	}
+	if !bytes.Contains(src, []byte(arm64CallFNOld)) {
+		return false, fmt.Errorf("CALLFN indirect call sequence not found")
+	}
+	if check {
+		return true, nil
+	}
+	out := bytes.Replace(src, []byte(arm64CallFNOld), []byte(arm64CallFNNew), 1)
+	return true, os.WriteFile(path, out, 0644)
 }

@@ -1,4 +1,4 @@
-//go:build wasm && goplus.ifacefuncval && !llgo
+//go:build goplus.ifacefuncval && !llgo && (wasm || arm64)
 
 package reflectx
 
@@ -11,7 +11,7 @@ import (
 
 // ifaceFuncvalBit marks an itab.Fun entry as a MakeFunc funcval.
 // Must match cmd/internal/obj/wasm.IfaceFuncvalBit in the patched Go
-// toolchain (wasm -tags goplus.ifacefuncval → compile -ifacefuncval).
+// toolchain (wasm or arm64 -tags goplus.ifacefuncval → compile -ifacefuncval).
 const ifaceFuncvalBit = 1
 
 // ifaceFuncvalFns keeps MakeFunc funcvals reachable. itab.Fun stores the

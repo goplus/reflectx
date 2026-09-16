@@ -3,6 +3,7 @@ package main
 import (
 	"go/parser"
 	"go/token"
+	"os"
 	"strings"
 	"testing"
 )
@@ -163,6 +164,70 @@ func testVer() versionData {
 func TestGoVersion(t *testing.T) {
 	if _, err := goVersion("/no/such"); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestPatchArm64SSA(t *testing.T) {
+	src := `package arm64
+
+import (
+	"cmd/internal/obj"
+	"cmd/internal/obj/arm64"
+)
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.OpARM64CALLstatic, ssa.OpARM64CALLclosure, ssa.OpARM64CALLinter:
+		s.Call(v)
+	case ssa.OpARM64CALLtail, ssa.OpARM64CALLtailinter:
+		s.TailCall(v)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchArm64SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+		t.Fatal("missing ssaGenIfaceFuncvalCall")
+	}
+	changed, err = patchArm64SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchAsmArm64(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/asm_arm64.s"
+	src := "TEXT x(SB), $0\n" + arm64CallFNOld + "RET\n"
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchAsmArm64(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	changed, err = patchAsmArm64(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent")
 	}
 }
 
