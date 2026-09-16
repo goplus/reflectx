@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/goplus/reflectx/abi"
-	_ "github.com/goplus/reflectx/internal/icall512"
 )
 
 var globalMethodCache = make(map[int]*ifnValue)
@@ -48,6 +47,7 @@ func resetAll() {
 	parserMethodTypeCache = make(map[reflect.Type]*parserMethodTypeResult)
 	inTypeSizeCache = make(map[reflect.Type]uintptr)
 	outTypeSizeCache = make(map[reflect.Type]uintptr)
+	clearIfaceFuncval()
 }
 
 func (ctx *Context) Reset() {
@@ -72,6 +72,9 @@ func (ctx *Context) IcallAlloc() int {
 
 // register method info
 func (ctx *Context) registerMethod(info *abi.MethodInfo, funcID int) (ifn unsafe.Pointer, allocated bool) {
+	if ifn = ifaceFuncval(info); ifn != nil {
+		return ifn, true
+	}
 	for i, mp := range abi.Default.List() {
 		if mp.Available() == 0 {
 			continue
