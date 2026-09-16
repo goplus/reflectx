@@ -71,6 +71,9 @@ go install github.com/goplus/reflectx/cmd/icall_gen@latest
 icall_gen -o icall1024.go -pkg main -size 1024
 ```
 
+#### wasm ifacefuncval
+See [cmd/iface_patch/README.md](cmd/iface_patch/README.md).
+
 #### build linkname mode
 ```shell
 go build -tags linknamefix -ldflags="-checklinkname=0"
