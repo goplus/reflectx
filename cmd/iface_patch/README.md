@@ -1,7 +1,8 @@
 # iface_patch
 
-Patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval` can replace
-icall stubs with tagged MakeFunc funcvals (`itab.Fun = makeFuncImpl*|1`).
+Optional: patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval`
+can replace icall stubs with tagged MakeFunc funcvals
+(`itab.Fun = makeFuncImpl*|1`).
 
 Supported `GOARCH` values: **wasm**, **arm64**, **amd64**, **386** (any `GOOS`
 that uses that backend).

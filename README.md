@@ -73,8 +73,8 @@ go install github.com/goplus/reflectx/cmd/icall_gen@latest
 icall_gen -o icall1024.go -pkg main -size 1024
 ```
 
-### ifacefuncval
-Alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
+### ifacefuncval (optional)
+Optional alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
 (`makeFuncImpl*|1`). No stub table; methods share `makeFuncStub`.
 
 Needs a **patched Go 1.27.1** and an explicit tag.
