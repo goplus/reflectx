@@ -264,11 +264,7 @@ func BuildInit() {
 }
 
 func testVer() versionData {
-	v, err := loadVersion("go1.27")
-	if err != nil {
-		panic(err)
-	}
-	return v
+	return mustVer("go1.27")
 }
 
 func TestGoVersion(t *testing.T) {
