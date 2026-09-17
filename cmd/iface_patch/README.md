@@ -36,11 +36,7 @@ go version   # go1.27.1 from $GOROOT
 Re-running on an already patched tree is a no-op. Supported versions are
 the directories under `_data/` (`iface_patch -h` lists them).
 
-`go clean -cache` is **not required**. `-ifacefuncval` is added to
-**`forcedGcflags` / `forcedAsmflags`**, which are part of the compile/asm
-action ID, so tagged and untagged builds do not share cache entries.
-Rebuilding `compile`/`asm` with `make.bash` also changes `toolID`. Use
-`go clean -cache` only to drop an old GOCACHE from before that fix.
+`go clean -cache` can clear the build cache; it is not required.
 
 Do not mix this `GOROOT` with another `go` on `PATH`.
 
@@ -55,8 +51,7 @@ go test -tags goplus.ifacefuncval -v .
 ```
 
 `make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`
-rebuilds `fmt`/`runtime` into `GOCACHE` (different action ID) so their
-interface calls unwrap.
+rebuilds `fmt`/`runtime` into `GOCACHE` so their interface calls unwrap.
 
 ### wasip1
 
