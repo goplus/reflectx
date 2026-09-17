@@ -41,7 +41,7 @@ func loadVersion(ver string) (versionData, error) {
 	return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
 }
 
-// matchDataDir maps go1.N.x onto _data/go1.N (exact dir wins if present).
+// matchDataDir prefers _data/<VERSION>/, else _data/go1.N/.
 func matchDataDir(ver string) string {
 	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
 		return ver
