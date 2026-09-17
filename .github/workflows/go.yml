@@ -140,6 +140,9 @@ jobs:
         export PATH="$GOROOT/bin:$PATH"
         go clean -cache
         go test -v -tags goplus.ifacefuncval .
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          GOARCH=386 go test -v -tags goplus.ifacefuncval .
+        fi
 
   Test-Windows:
     strategy:

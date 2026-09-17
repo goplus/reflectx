@@ -13,7 +13,7 @@ import (
 // PCs are both even, so the bit is free.
 //
 // Matches github.com/goplus/reflectx when built with
-// -tags goplus.ifacefuncval on wasm, arm64, or amd64.
+// -tags goplus.ifacefuncval on wasm, arm64, amd64, or 386.
 //
 // At an indirect call the target is unwrapped: CTXT is set to the
 // untagged pointer (the funcval) and the call uses the code pointer
