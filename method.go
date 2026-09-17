@@ -349,6 +349,62 @@ func methodIsExported(name string) bool {
 	return token.IsExported(name)
 }
 
+func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
+	rt := totype(typ)
+	ut := rt.Uncommon()
+	if ut == nil {
+		return fmt.Errorf("not found uncommonType of %v", typ)
+	}
+	if uint16(mcount) > ut.Mcount {
+		return fmt.Errorf("too many methods of %v", typ)
+	}
+	ut.Xcount = uint16(xcount)
+	ut.Mcount = uint16(mcount)
+	return nil
+}
+
+func setupMethodTables(typ reflect.Type, methods []Method, sortMethods bool) (ptyp reflect.Type, ms, pms []method, onePtr bool, err error) {
+	if sortMethods {
+		sort.Slice(methods, func(i, j int) bool {
+			n := strings.Compare(methods[i].Name, methods[j].Name)
+			if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
+				panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
+			}
+			return n < 0
+		})
+	}
+	pcount := len(methods)
+	var mcount, xcount, pxcount int
+	for _, m := range methods {
+		isexport := methodIsExported(m.Name)
+		if isexport {
+			pxcount++
+		}
+		if !m.Pointer {
+			if isexport {
+				xcount++
+			}
+			mcount++
+		}
+	}
+	ptyp = PtrTo(typ)
+	if err = resizeMethod(typ, mcount, xcount); err != nil {
+		return
+	}
+	if err = resizeMethod(ptyp, pcount, pxcount); err != nil {
+		return
+	}
+	switch typ.Kind() {
+	case reflect.Func, reflect.Chan, reflect.Map:
+		onePtr = true
+	case reflect.Struct:
+		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
+	}
+	ms = rtypeMethods(totype(typ))
+	pms = rtypeMethods(totype(ptyp))
+	return
+}
+
 func methodStr(name string, typ reflect.Type) string {
 	return strings.Replace(typ.String(), "func", name, 1)
 }

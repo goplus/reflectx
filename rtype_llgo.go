@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -294,16 +293,18 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 }
 
 func (ctx *Context) Reset() {
-	ctx.nAllocateError = 0
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[int][]int)
-	ctx.fnHasImethod = nil
+	ctx.reset()
 }
 
 func resetAll() {
 	globalMethodCache = make(map[int]*ifnValue)
+}
+
+func PtrTo(t reflect.Type) reflect.Type {
+	if p := totype(t).PtrToThis_; p != nil {
+		return toType(p)
+	}
+	return reflect.PtrTo(t)
 }
 
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
@@ -314,20 +315,6 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	setTypeName(rt, styp.PkgPath(), styp.Name())
 	prt.Uncommon().PkgPath_ = styp.PkgPath()
 	return toType(rt)
-}
-
-func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
-	rt := totype(typ)
-	ut := rt.Uncommon()
-	if ut == nil {
-		return fmt.Errorf("not found uncommonType of %v", typ)
-	}
-	if uint16(mcount) > ut.Mcount {
-		return fmt.Errorf("too many methods of %v", typ)
-	}
-	ut.Xcount = uint16(xcount)
-	ut.Mcount = uint16(mcount)
-	return nil
 }
 
 type textOff = abi.Text
@@ -391,44 +378,10 @@ var (
 )
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
-	if sortMethods {
-		sort.Slice(methods, func(i, j int) bool {
-			n := strings.Compare(methods[i].Name, methods[j].Name)
-			if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
-				panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
-			}
-			return n < 0
-		})
-	}
-	var mcount, pcount int
-	var xcount, pxcount int
-	pcount = len(methods)
-	for _, m := range methods {
-		isexport := methodIsExported(m.Name)
-		if isexport {
-			pxcount++
-		}
-		if !m.Pointer {
-			if isexport {
-				xcount++
-			}
-			mcount++
-		}
-	}
-
-	rt := totype(typ)
-	prt := totype(typ).PtrToThis_
-	ptyp := toType(prt)
-
-	if err := resizeMethod(typ, mcount, xcount); err != nil {
+	ptyp, ms, pms, _, err := setupMethodTables(typ, methods, sortMethods)
+	if err != nil {
 		return err
 	}
-	if err := resizeMethod(ptyp, pcount, pxcount); err != nil {
-		return err
-	}
-
-	ms := rtypeMethods(rt)
-	pms := rtypeMethods(prt)
 
 	var index int
 	for i, m := range methods {
