@@ -547,6 +547,18 @@ func TestLoadVersion(t *testing.T) {
 	if _, err := loadVersion("go1.25.14"); err != nil {
 		t.Fatal(err)
 	}
+	for _, ver := range []string{"go1.25", "go1.25.0", "go1.25.10", "go1.25.14"} {
+		v, err := loadVersion(ver)
+		if err != nil {
+			t.Fatalf("%s: %v", ver, err)
+		}
+		if v.ver != "go1.25.14" {
+			t.Fatalf("%s resolved to %s, want go1.25.14", ver, v.ver)
+		}
+	}
+	if _, err := loadVersion("go1.25.14rc1"); err == nil {
+		t.Fatal("expected unsupported go1.25.14rc1")
+	}
 }
 
 func mustVer(name string) versionData {

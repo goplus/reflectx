@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -33,11 +34,54 @@ func supportedVersions() []string {
 }
 
 func loadVersion(ver string) (versionData, error) {
-	dir := path.Join("_data", ver)
-	if _, err := fs.Stat(patchData, dir); err != nil {
-		return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
+	ver = strings.TrimSpace(ver)
+	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
+		return versionData{ver: ver}, nil
 	}
-	return versionData{ver: ver}, nil
+	if alias := resolveSeries(ver, "go1.25"); alias != "" {
+		return versionData{ver: alias}, nil
+	}
+	return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
+}
+
+func isSeriesVersion(ver, series string) bool {
+	if ver == series {
+		return true
+	}
+	rest, ok := strings.CutPrefix(ver, series+".")
+	if !ok || rest == "" {
+		return false
+	}
+	_, err := strconv.Atoi(rest)
+	return err == nil
+}
+
+// resolveSeries maps go1.25 / go1.25.x onto the highest _data/go1.25.* dir.
+func resolveSeries(ver, series string) string {
+	if !isSeriesVersion(ver, series) {
+		return ""
+	}
+	best := ""
+	bestPatch := -1
+	prefix := series + "."
+	for _, d := range supportedVersions() {
+		if d != series && !strings.HasPrefix(d, prefix) {
+			continue
+		}
+		patch := 0
+		if strings.HasPrefix(d, prefix) {
+			p, err := strconv.Atoi(d[len(prefix):])
+			if err != nil {
+				continue
+			}
+			patch = p
+		}
+		if patch > bestPatch {
+			bestPatch = patch
+			best = d
+		}
+	}
+	return best
 }
 
 func (v versionData) read(name string) string {
