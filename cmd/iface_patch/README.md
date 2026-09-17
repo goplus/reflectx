@@ -1,6 +1,6 @@
 # iface_patch
 
-Optional: patch a Go **1.25.x**, **1.26.x**, or **1.27.1** source tree so
+Optional: patch a Go **1.25.x**, **1.26.x**, or **1.27.x** source tree so
 `-tags goplus.ifacefuncval` can replace icall stubs with tagged MakeFunc
 funcvals (`itab.Fun = makeFuncImpl*|1`).
 
@@ -124,7 +124,7 @@ calls the first word (`makeFuncStub`).
 
 Snippets are embedded from `_data/<VERSION>/` (`go1.25.14`, `go1.26.8`,
 `go1.27.1`, and later version dirs). Any `go1.25.x` uses `go1.25.14`;
-any `go1.26.x` uses `go1.26.8`.
+any `go1.26.x` uses `go1.26.8`; any `go1.27.x` uses `go1.27.1`.
 Go fragments use `//go:build ignore`. Assembly CALLFN old/new pairs are
 plain `.s` files used as exact text replacements.
 

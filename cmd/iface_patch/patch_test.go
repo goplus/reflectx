@@ -556,6 +556,9 @@ func TestLoadVersion(t *testing.T) {
 		{"go1.26.0", "go1.26.8"},
 		{"go1.26.3", "go1.26.8"},
 		{"go1.26.8", "go1.26.8"},
+		{"go1.27", "go1.27.1"},
+		{"go1.27.0", "go1.27.1"},
+		{"go1.27.1", "go1.27.1"},
 	} {
 		v, err := loadVersion(tc.in)
 		if err != nil {
@@ -570,6 +573,9 @@ func TestLoadVersion(t *testing.T) {
 	}
 	if _, err := loadVersion("go1.26.8rc1"); err == nil {
 		t.Fatal("expected unsupported go1.26.8rc1")
+	}
+	if _, err := loadVersion("go1.27.1rc1"); err == nil {
+		t.Fatal("expected unsupported go1.27.1rc1")
 	}
 }
 

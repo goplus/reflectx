@@ -38,7 +38,7 @@ func loadVersion(ver string) (versionData, error) {
 	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
 		return versionData{ver: ver}, nil
 	}
-	for _, series := range []string{"go1.25", "go1.26"} {
+	for _, series := range []string{"go1.25", "go1.26", "go1.27"} {
 		if alias := resolveSeries(ver, series); alias != "" {
 			return versionData{ver: alias}, nil
 		}
