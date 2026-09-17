@@ -264,11 +264,7 @@ func BuildInit() {
 }
 
 func testVer() versionData {
-	v, err := loadVersion("go1.27.1")
-	if err != nil {
-		panic(err)
-	}
-	return v
+	return mustVer("go1.27")
 }
 
 func TestGoVersion(t *testing.T) {
@@ -538,23 +534,51 @@ func TestLoadVersion(t *testing.T) {
 	if _, err := loadVersion("go1.0.0"); err == nil {
 		t.Fatal("expected unsupported version")
 	}
-	if _, err := loadVersion("go1.27.1"); err != nil {
-		t.Fatal(err)
+	for _, tc := range []struct{ in, want string }{
+		{"go1.25", "go1.25"},
+		{"go1.25.0", "go1.25"},
+		{"go1.25.10", "go1.25"},
+		{"go1.25.14", "go1.25"},
+		{"go1.26", "go1.26"},
+		{"go1.26.0", "go1.26"},
+		{"go1.26.3", "go1.26"},
+		{"go1.26.8", "go1.26"},
+		{"go1.27", "go1.27"},
+		{"go1.27.0", "go1.27"},
+		{"go1.27.1", "go1.27"},
+	} {
+		v, err := loadVersion(tc.in)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.in, err)
+		}
+		if v.ver != tc.want {
+			t.Fatalf("%s resolved to %s, want %s", tc.in, v.ver, tc.want)
+		}
 	}
-	if _, err := loadVersion("go1.26.8"); err != nil {
-		t.Fatal(err)
+	if _, err := loadVersion("go1.25.14rc1"); err == nil {
+		t.Fatal("expected unsupported go1.25.14rc1")
+	}
+	if _, err := loadVersion("go1.26.8rc1"); err == nil {
+		t.Fatal("expected unsupported go1.26.8rc1")
+	}
+	if _, err := loadVersion("go1.27.1rc1"); err == nil {
+		t.Fatal("expected unsupported go1.27.1rc1")
 	}
 }
 
-func go1268Ver() versionData {
-	v, err := loadVersion("go1.26.8")
+func mustVer(name string) versionData {
+	v, err := loadVersion(name)
 	if err != nil {
 		panic(err)
 	}
 	return v
 }
 
-func TestPatchAmd64SSAGo126(t *testing.T) {
+func noTailinterVers() []string {
+	return []string{"go1.25", "go1.26"}
+}
+
+func TestPatchAmd64SSANoTailinter(t *testing.T) {
 	src := `package amd64
 
 import "cmd/internal/obj/x86"
@@ -568,35 +592,39 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 	}
 }
 `
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := go1268Ver()
-	changed, err := patchAmd64SSA(fset, f, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !changed {
-		t.Fatal("expected change")
-	}
-	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
-		t.Fatal("missing helper")
-	}
-	if hasIdentExpr(f, "OpAMD64CALLtailinter") {
-		t.Fatal("go1.26.8 must not introduce CALLtailinter")
-	}
-	changed, err = patchAmd64SSA(fset, f, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if changed {
-		t.Fatal("expected idempotent")
+	for _, ver := range noTailinterVers() {
+		t.Run(ver, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v := mustVer(ver)
+			changed, err := patchAmd64SSA(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !changed {
+				t.Fatal("expected change")
+			}
+			if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+				t.Fatal("missing helper")
+			}
+			if hasIdentExpr(f, "OpAMD64CALLtailinter") {
+				t.Fatalf("%s must not introduce CALLtailinter", ver)
+			}
+			changed, err = patchAmd64SSA(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed {
+				t.Fatal("expected idempotent")
+			}
+		})
 	}
 }
 
-func TestPatchArm64SSAGo126(t *testing.T) {
+func TestPatchArm64SSANoTailinter(t *testing.T) {
 	src := `package arm64
 
 import "cmd/internal/obj/arm64"
@@ -610,32 +638,36 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 	}
 }
 `
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := go1268Ver()
-	changed, err := patchArm64SSA(fset, f, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !changed {
-		t.Fatal("expected change")
-	}
-	if hasIdentExpr(f, "OpARM64CALLtailinter") {
-		t.Fatal("go1.26.8 must not introduce CALLtailinter")
-	}
-	changed, err = patchArm64SSA(fset, f, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if changed {
-		t.Fatal("expected idempotent")
+	for _, ver := range noTailinterVers() {
+		t.Run(ver, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v := mustVer(ver)
+			changed, err := patchArm64SSA(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !changed {
+				t.Fatal("expected change")
+			}
+			if hasIdentExpr(f, "OpARM64CALLtailinter") {
+				t.Fatalf("%s must not introduce CALLtailinter", ver)
+			}
+			changed, err = patchArm64SSA(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed {
+				t.Fatal("expected idempotent")
+			}
+		})
 	}
 }
 
-func TestPatch386SSAGo126(t *testing.T) {
+func TestPatch386SSANoTailinter(t *testing.T) {
 	src := `package x86
 
 import "cmd/internal/obj/x86"
@@ -649,32 +681,36 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 	}
 }
 `
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := go1268Ver()
-	changed, err := patch386SSA(fset, f, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !changed {
-		t.Fatal("expected change")
-	}
-	if hasIdentExpr(f, "Op386CALLtailinter") {
-		t.Fatal("go1.26.8 must not introduce CALLtailinter")
-	}
-	changed, err = patch386SSA(fset, f, v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if changed {
-		t.Fatal("expected idempotent")
+	for _, ver := range noTailinterVers() {
+		t.Run(ver, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v := mustVer(ver)
+			changed, err := patch386SSA(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !changed {
+				t.Fatal("expected change")
+			}
+			if hasIdentExpr(f, "Op386CALLtailinter") {
+				t.Fatalf("%s must not introduce CALLtailinter", ver)
+			}
+			changed, err = patch386SSA(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed {
+				t.Fatal("expected idempotent")
+			}
+		})
 	}
 }
 
-func TestPatchAsmFlagsGo126(t *testing.T) {
+func TestPatchAsmFlagsNoStd(t *testing.T) {
 	src := `package flags
 
 import (
@@ -696,30 +732,35 @@ func Parse() {
 	}
 }
 `
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "flags.go", src, parser.ParseComments)
-	if err != nil {
-		t.Fatal(err)
-	}
-	changed, err := patchAsmFlags(fset, f, go1268Ver())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !changed {
-		t.Fatal("expected change")
-	}
-	if !hasIdent(f, "IfaceFuncval") {
-		t.Fatal("missing IfaceFuncval flag")
-	}
-	if !hasIdentExpr(funcDecl(f, "Parse").Body, "EnableIfaceFuncval") {
-		t.Fatal("Parse missing EnableIfaceFuncval")
-	}
-	changed, err = patchAsmFlags(fset, f, go1268Ver())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if changed {
-		t.Fatal("expected idempotent")
+	for _, ver := range noTailinterVers() {
+		t.Run(ver, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "flags.go", src, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v := mustVer(ver)
+			changed, err := patchAsmFlags(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !changed {
+				t.Fatal("expected change")
+			}
+			if !hasIdent(f, "IfaceFuncval") {
+				t.Fatal("missing IfaceFuncval flag")
+			}
+			if !hasIdentExpr(funcDecl(f, "Parse").Body, "EnableIfaceFuncval") {
+				t.Fatal("Parse missing EnableIfaceFuncval")
+			}
+			changed, err = patchAsmFlags(fset, f, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed {
+				t.Fatal("expected idempotent")
+			}
+		})
 	}
 }
 

@@ -1,6 +1,6 @@
 # iface_patch
 
-Optional: patch a Go **1.26.8** or **1.27.1** source tree so
+Optional: patch a Go **1.25.x**, **1.26.x**, or **1.27.x** source tree so
 `-tags goplus.ifacefuncval` can replace icall stubs with tagged MakeFunc
 funcvals (`itab.Fun = makeFuncImpl*|1`).
 
@@ -120,10 +120,21 @@ A tagged `itab.Fun` is `makeFuncImpl* | 1`. Code PCs and heap pointers are
 even, so bit 0 is free. The unwrap sets CTXT to the untagged pointer and
 calls the first word (`makeFuncStub`).
 
-## `_data/<VERSION>/`
+## `_data/`
 
-Snippets are embedded from `_data/<VERSION>/` (`go1.26.8`, `go1.27.1`, and
-later version dirs).
+Matching uses `VERSION` as the directory name:
+
+1. Exact `_data/go1.N.x/` if that directory exists
+2. Else `_data/go1.N/` (`go1.25.14` → `go1.25`)
+
+Current series dirs and the trees they were taken from:
+
+| Dir | Source |
+|---|---|
+| `go1.25` | go1.25.14 |
+| `go1.26` | go1.26.8 |
+| `go1.27` | go1.27.1 |
+
 Go fragments use `//go:build ignore`. Assembly CALLFN old/new pairs are
 plain `.s` files used as exact text replacements.
 
@@ -140,6 +151,6 @@ plain `.s` files used as exact text replacements.
 | `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
 | `386_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_386.s` |
 
-To support another Go version, copy `_data/go1.27.1/` (or `_data/go1.26.8/`)
-to `_data/go1.xx.y/` and adjust the snippets until `iface_patch` matches
-that tree.
+To support another series, copy `_data/go1.27/` to `_data/go1.28/`.
+To pin a patch release that diverges, copy to `_data/go1.27.2/` (exact
+match wins). Adjust the snippets until `iface_patch` matches that tree.

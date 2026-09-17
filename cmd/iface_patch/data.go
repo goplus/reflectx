@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -33,11 +34,44 @@ func supportedVersions() []string {
 }
 
 func loadVersion(ver string) (versionData, error) {
-	dir := path.Join("_data", ver)
-	if _, err := fs.Stat(patchData, dir); err != nil {
-		return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
+	ver = strings.TrimSpace(ver)
+	if dir := matchDataDir(ver); dir != "" {
+		return versionData{ver: dir}, nil
 	}
-	return versionData{ver: ver}, nil
+	return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
+}
+
+// matchDataDir prefers _data/<VERSION>/, else _data/go1.N/.
+func matchDataDir(ver string) string {
+	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
+		return ver
+	}
+	series := seriesOf(ver)
+	if series == "" || series == ver {
+		return ""
+	}
+	if _, err := fs.Stat(patchData, path.Join("_data", series)); err == nil {
+		return series
+	}
+	return ""
+}
+
+func seriesOf(ver string) string {
+	if !strings.HasPrefix(ver, "go") {
+		return ""
+	}
+	parts := strings.Split(ver, ".")
+	switch len(parts) {
+	case 2:
+		return ver
+	case 3:
+		if _, err := strconv.Atoi(parts[2]); err != nil {
+			return ""
+		}
+		return parts[0] + "." + parts[1]
+	default:
+		return ""
+	}
 }
 
 func (v versionData) read(name string) string {

@@ -75,7 +75,7 @@ jobs:
   Test-Wasm-IfaceFuncval:
     strategy:
       matrix:
-        go-tag: [go1.26.8, go1.27.1]
+        go-tag: [go1.25.0, go1.25.14, go1.26.0, go1.26.8, go1.27.0, go1.27.1]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -116,7 +116,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-14]
-        go-tag: [go1.26.8, go1.27.1]
+        go-tag: [go1.25.0, go1.25.14, go1.26.0, go1.26.8, go1.27.0, go1.27.1]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
