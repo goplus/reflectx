@@ -40,13 +40,14 @@ Do not mix this `GOROOT` with another `go` on `PATH`.
 
 ## Run tests
 
-### Native (linux/darwin amd64, arm64, or 386)
+### Native (linux/darwin amd64 or arm64; linux 386)
 
 ```shell
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
 go clean -cache
 go test -tags goplus.ifacefuncval -v .
+GOARCH=386 go test -tags goplus.ifacefuncval -v .   # linux only; darwin dropped 386
 ```
 
 `make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`

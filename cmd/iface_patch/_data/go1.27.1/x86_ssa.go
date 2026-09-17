@@ -35,7 +35,8 @@ func callOrTail(s *ssagen.State, v *ssa.Value, tail bool) {
 // Tagged and Rn == DX: stub cannot live in DX (that is CTXT), so load it
 // into AX (same as CALLFN) and emit CALL/ARET AX. TailCall(v) would target
 // DX, which is now the impl pointer, not the code PC. ARET REG is how
-// TailCall already lowers a register-target interface tail call.
+// TailCall already lowers a register-target interface tail call
+// (see ssagen.TailCall).
 func ssaGenIfaceFuncvalCallReg(s *ssagen.State, v *ssa.Value, tail bool) {
 	if !objabi.EnableIfaceFuncval {
 		callOrTail(s, v, tail)
