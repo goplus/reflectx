@@ -264,7 +264,7 @@ func BuildInit() {
 }
 
 func testVer() versionData {
-	v, err := loadVersion("go1.27.1")
+	v, err := loadVersion("go1.27")
 	if err != nil {
 		panic(err)
 	}
@@ -538,27 +538,18 @@ func TestLoadVersion(t *testing.T) {
 	if _, err := loadVersion("go1.0.0"); err == nil {
 		t.Fatal("expected unsupported version")
 	}
-	if _, err := loadVersion("go1.27.1"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := loadVersion("go1.26.8"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := loadVersion("go1.25.14"); err != nil {
-		t.Fatal(err)
-	}
 	for _, tc := range []struct{ in, want string }{
-		{"go1.25", "go1.25.14"},
-		{"go1.25.0", "go1.25.14"},
-		{"go1.25.10", "go1.25.14"},
-		{"go1.25.14", "go1.25.14"},
-		{"go1.26", "go1.26.8"},
-		{"go1.26.0", "go1.26.8"},
-		{"go1.26.3", "go1.26.8"},
-		{"go1.26.8", "go1.26.8"},
-		{"go1.27", "go1.27.1"},
-		{"go1.27.0", "go1.27.1"},
-		{"go1.27.1", "go1.27.1"},
+		{"go1.25", "go1.25"},
+		{"go1.25.0", "go1.25"},
+		{"go1.25.10", "go1.25"},
+		{"go1.25.14", "go1.25"},
+		{"go1.26", "go1.26"},
+		{"go1.26.0", "go1.26"},
+		{"go1.26.3", "go1.26"},
+		{"go1.26.8", "go1.26"},
+		{"go1.27", "go1.27"},
+		{"go1.27.0", "go1.27"},
+		{"go1.27.1", "go1.27"},
 	} {
 		v, err := loadVersion(tc.in)
 		if err != nil {
@@ -588,7 +579,7 @@ func mustVer(name string) versionData {
 }
 
 func noTailinterVers() []string {
-	return []string{"go1.25.14", "go1.26.8"}
+	return []string{"go1.25", "go1.26"}
 }
 
 func TestPatchAmd64SSANoTailinter(t *testing.T) {

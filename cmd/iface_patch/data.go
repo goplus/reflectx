@@ -35,55 +35,43 @@ func supportedVersions() []string {
 
 func loadVersion(ver string) (versionData, error) {
 	ver = strings.TrimSpace(ver)
-	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
-		return versionData{ver: ver}, nil
-	}
-	for _, series := range []string{"go1.25", "go1.26", "go1.27"} {
-		if alias := resolveSeries(ver, series); alias != "" {
-			return versionData{ver: alias}, nil
-		}
+	if dir := matchDataDir(ver); dir != "" {
+		return versionData{ver: dir}, nil
 	}
 	return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
 }
 
-func isSeriesVersion(ver, series string) bool {
-	if ver == series {
-		return true
+// matchDataDir maps go1.N.x onto _data/go1.N (exact dir wins if present).
+func matchDataDir(ver string) string {
+	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
+		return ver
 	}
-	rest, ok := strings.CutPrefix(ver, series+".")
-	if !ok || rest == "" {
-		return false
-	}
-	_, err := strconv.Atoi(rest)
-	return err == nil
-}
-
-// resolveSeries maps go1.N / go1.N.x onto the highest _data/go1.N.* dir.
-func resolveSeries(ver, series string) string {
-	if !isSeriesVersion(ver, series) {
+	series := seriesOf(ver)
+	if series == "" || series == ver {
 		return ""
 	}
-	best := ""
-	bestPatch := -1
-	prefix := series + "."
-	for _, d := range supportedVersions() {
-		if d != series && !strings.HasPrefix(d, prefix) {
-			continue
-		}
-		patch := 0
-		if strings.HasPrefix(d, prefix) {
-			p, err := strconv.Atoi(d[len(prefix):])
-			if err != nil {
-				continue
-			}
-			patch = p
-		}
-		if patch > bestPatch {
-			bestPatch = patch
-			best = d
-		}
+	if _, err := fs.Stat(patchData, path.Join("_data", series)); err == nil {
+		return series
 	}
-	return best
+	return ""
+}
+
+func seriesOf(ver string) string {
+	if !strings.HasPrefix(ver, "go") {
+		return ""
+	}
+	parts := strings.Split(ver, ".")
+	switch len(parts) {
+	case 2:
+		return ver
+	case 3:
+		if _, err := strconv.Atoi(parts[2]); err != nil {
+			return ""
+		}
+		return parts[0] + "." + parts[1]
+	default:
+		return ""
+	}
 }
 
 func (v versionData) read(name string) string {

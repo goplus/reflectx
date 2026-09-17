@@ -120,11 +120,10 @@ A tagged `itab.Fun` is `makeFuncImpl* | 1`. Code PCs and heap pointers are
 even, so bit 0 is free. The unwrap sets CTXT to the untagged pointer and
 calls the first word (`makeFuncStub`).
 
-## `_data/<VERSION>/`
+## `_data/go1.N/`
 
-Snippets are embedded from `_data/<VERSION>/` (`go1.25.14`, `go1.26.8`,
-`go1.27.1`, and later version dirs). Any `go1.25.x` uses `go1.25.14`;
-any `go1.26.x` uses `go1.26.8`; any `go1.27.x` uses `go1.27.1`.
+Snippets are embedded from `_data/go1.N/` (`go1.25`, `go1.26`, `go1.27`).
+A tree whose `VERSION` is `go1.N` or `go1.N.x` uses `_data/go1.N/`.
 Go fragments use `//go:build ignore`. Assembly CALLFN old/new pairs are
 plain `.s` files used as exact text replacements.
 
@@ -141,6 +140,5 @@ plain `.s` files used as exact text replacements.
 | `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
 | `386_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_386.s` |
 
-To support another Go version, copy `_data/go1.27.1/` (or `_data/go1.26.8/`,
-`_data/go1.25.14/`) to `_data/go1.xx.y/` and adjust the snippets until
-`iface_patch` matches that tree.
+To support another Go version, copy `_data/go1.27/` to `_data/go1.xx/`
+and adjust the snippets until `iface_patch` matches that tree.
