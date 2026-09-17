@@ -89,10 +89,12 @@ iface_patch /path/to/go1.27.1
 cd /path/to/go1.27.1/src && ./make.bash
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go clean -cache
 go test -tags goplus.ifacefuncval .
 # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval .
 ```
+
+`go clean -cache` is optional. `-ifacefuncval` is in `forcedGcflags` (compile
+action ID), so tagged and untagged builds do not share cache entries.
 
 Without the tag, a patched compiler matches official gc. An unpatched
 compiler still accepts the tag; interface method calls then trap.

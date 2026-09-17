@@ -31,16 +31,16 @@ cd /path/to/go1.27.1/src && ./make.bash   # Windows: make.bat
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
 go version   # go1.27.1 from $GOROOT
-go clean -cache
 ```
 
 Re-running on an already patched tree is a no-op. Supported versions are
 the directories under `_data/` (`iface_patch -h` lists them).
 
-`go clean -cache` is required after `make.bash` or after upgrading the
-patch. `-ifacefuncval` is added to **`forcedGcflags` / `forcedAsmflags`**
-so it is part of the compile action ID. If a wasip1 or native `runtime`/`fmt`
-was built **without** the flag, a tagged test can reuse it and trap.
+`go clean -cache` is **not required**. `-ifacefuncval` is added to
+**`forcedGcflags` / `forcedAsmflags`**, which are part of the compile/asm
+action ID, so tagged and untagged builds do not share cache entries.
+Rebuilding `compile`/`asm` with `make.bash` also changes `toolID`. Use
+`go clean -cache` only to drop an old GOCACHE from before that fix.
 
 Do not mix this `GOROOT` with another `go` on `PATH`.
 
@@ -51,12 +51,12 @@ Do not mix this `GOROOT` with another `go` on `PATH`.
 ```shell
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go clean -cache
 go test -tags goplus.ifacefuncval -v .
 ```
 
 `make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`
-must rebuild `fmt`/`runtime` into `GOCACHE` so their interface calls unwrap.
+rebuilds `fmt`/`runtime` into `GOCACHE` (different action ID) so their
+interface calls unwrap.
 
 ### wasip1
 
@@ -66,7 +66,6 @@ and pass `-exec wasmtime`:
 ```shell
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go clean -cache
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
 ```
 
@@ -80,7 +79,6 @@ GOOS=wasip1 GOARCH=wasm go test -tags goplus.ifacefuncval .
 
 ```shell
 export GOFLAGS='-tags=goplus.ifacefuncval'
-go clean -cache
 go test -v .                                          # native
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .    # wasip1
 ```
