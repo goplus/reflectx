@@ -78,7 +78,7 @@ Alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
 (`makeFuncImpl*|1`). No stub table; methods share `makeFuncStub`.
 
 Needs a **patched Go 1.27.1** (`cmd/iface_patch`) and an explicit tag.
-Supported `GOARCH`: wasm, arm64, amd64, 386 (linux 386; darwin dropped 386).
+Supported `GOARCH`: wasm, arm64, amd64, 386.
 
 ```shell
 go run ./cmd/iface_patch /path/to/go1.27.1
