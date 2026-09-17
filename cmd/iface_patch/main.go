@@ -16,7 +16,6 @@ func main() {
 Patch a Go source tree for goplus.ifacefuncval (wasm, arm64, amd64, 386).
 Then: cd <goroot>/src && ./make.bash
       export GOROOT=<goroot> PATH=$GOROOT/bin:$PATH
-      go clean -cache
       go test -tags goplus.ifacefuncval -v .   # native
       # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
 See cmd/iface_patch/README.md.

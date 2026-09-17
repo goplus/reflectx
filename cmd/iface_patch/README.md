@@ -1,7 +1,8 @@
 # iface_patch
 
-Patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval` can replace
-icall stubs with tagged MakeFunc funcvals (`itab.Fun = makeFuncImpl*|1`).
+Optional: patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval`
+can replace icall stubs with tagged MakeFunc funcvals
+(`itab.Fun = makeFuncImpl*|1`).
 
 Supported `GOARCH` values: **wasm**, **arm64**, **amd64**, **386** (any `GOOS`
 that uses that backend).
@@ -15,26 +16,28 @@ at runtime (`uninitialized element` / invalid PC).
 
 ## Patch and rebuild
 
+Install:
+
+```
+go install github.com/goplus/reflectx/cmd/iface_patch@latest
+```
+
 `iface_patch` only edits source. Rebuild with **`make.bash`** in that tree
 (`go install cmd/asm cmd/compile cmd/go` is not enough):
 
 ```shell
-go run ./cmd/iface_patch /path/to/go1.27.1
-go run ./cmd/iface_patch -check /path/to/go1.27.1
+iface_patch /path/to/go1.27.1
+iface_patch -check /path/to/go1.27.1
 cd /path/to/go1.27.1/src && ./make.bash   # Windows: make.bat
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
 go version   # go1.27.1 from $GOROOT
-go clean -cache
 ```
 
 Re-running on an already patched tree is a no-op. Supported versions are
 the directories under `_data/` (`iface_patch -h` lists them).
 
-`go clean -cache` is required after `make.bash` or after upgrading the
-patch. `-ifacefuncval` is added to **`forcedGcflags` / `forcedAsmflags`**
-so it is part of the compile action ID. If a wasip1 or native `runtime`/`fmt`
-was built **without** the flag, a tagged test can reuse it and trap.
+`go clean -cache` can clear the build cache; it is not required.
 
 Do not mix this `GOROOT` with another `go` on `PATH`.
 
@@ -45,12 +48,11 @@ Do not mix this `GOROOT` with another `go` on `PATH`.
 ```shell
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go clean -cache
 go test -tags goplus.ifacefuncval -v .
 ```
 
 `make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`
-must rebuild `fmt`/`runtime` into `GOCACHE` so their interface calls unwrap.
+rebuilds `fmt`/`runtime` into `GOCACHE` so their interface calls unwrap.
 
 ### wasip1
 
@@ -60,7 +62,6 @@ and pass `-exec wasmtime`:
 ```shell
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go clean -cache
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
 ```
 
@@ -74,7 +75,6 @@ GOOS=wasip1 GOARCH=wasm go test -tags goplus.ifacefuncval .
 
 ```shell
 export GOFLAGS='-tags=goplus.ifacefuncval'
-go clean -cache
 go test -v .                                          # native
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .    # wasip1
 ```

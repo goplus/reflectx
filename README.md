@@ -73,22 +73,27 @@ go install github.com/goplus/reflectx/cmd/icall_gen@latest
 icall_gen -o icall1024.go -pkg main -size 1024
 ```
 
-### ifacefuncval
-Alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
+### ifacefuncval (optional)
+Optional alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
 (`makeFuncImpl*|1`). No stub table; methods share `makeFuncStub`.
 
-Needs a **patched Go 1.27.1** (`cmd/iface_patch`) and an explicit tag.
+Needs a **patched Go 1.27.1** and an explicit tag.
 Supported `GOARCH`: wasm, arm64, amd64, 386.
 
+* install iface_patch
+```
+go install github.com/goplus/reflectx/cmd/iface_patch@latest
+```
 ```shell
-go run ./cmd/iface_patch /path/to/go1.27.1
+iface_patch /path/to/go1.27.1
 cd /path/to/go1.27.1/src && ./make.bash
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go clean -cache
 go test -tags goplus.ifacefuncval .
 # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval .
 ```
+
+`go clean -cache` can clear the build cache; it is not required.
 
 Without the tag, a patched compiler matches official gc. An unpatched
 compiler still accepts the tag; interface method calls then trap.
