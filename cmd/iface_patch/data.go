@@ -38,8 +38,10 @@ func loadVersion(ver string) (versionData, error) {
 	if _, err := fs.Stat(patchData, path.Join("_data", ver)); err == nil {
 		return versionData{ver: ver}, nil
 	}
-	if alias := resolveSeries(ver, "go1.25"); alias != "" {
-		return versionData{ver: alias}, nil
+	for _, series := range []string{"go1.25", "go1.26"} {
+		if alias := resolveSeries(ver, series); alias != "" {
+			return versionData{ver: alias}, nil
+		}
 	}
 	return versionData{}, fmt.Errorf("unsupported Go version %q (have %s)", ver, strings.Join(supportedVersions(), ", "))
 }
@@ -56,7 +58,7 @@ func isSeriesVersion(ver, series string) bool {
 	return err == nil
 }
 
-// resolveSeries maps go1.25 / go1.25.x onto the highest _data/go1.25.* dir.
+// resolveSeries maps go1.N / go1.N.x onto the highest _data/go1.N.* dir.
 func resolveSeries(ver, series string) string {
 	if !isSeriesVersion(ver, series) {
 		return ""
