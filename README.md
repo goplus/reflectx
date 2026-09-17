@@ -90,7 +90,6 @@ cd /path/to/go/src && ./make.bash
 export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
 go test -tags goplus.ifacefuncval .
-go test -tags goplus.ifacefuncval fmt sort
 # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval .
 ```
 

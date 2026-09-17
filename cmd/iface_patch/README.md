@@ -49,7 +49,6 @@ Do not mix this `GOROOT` with another `go` on `PATH`.
 export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
 go test -tags goplus.ifacefuncval -v .
-go test -tags goplus.ifacefuncval -v fmt sort
 ```
 
 `make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`
@@ -64,12 +63,7 @@ and pass `-exec wasmtime`:
 export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
-GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v -run '^Test' fmt sort
 ```
-
-`-run '^Test'` skips Examples (they need a `/tmp` preopen that bare
-`wasmtime` does not provide). Or use
-`-exec 'wasmtime --dir=/tmp --dir=.'` and run the full packages.
 
 This does **not** run the tests:
 
@@ -82,7 +76,6 @@ GOOS=wasip1 GOARCH=wasm go test -tags goplus.ifacefuncval .
 ```shell
 export GOFLAGS='-tags=goplus.ifacefuncval'
 go test -v .                                          # native
-go test -v fmt sort
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .    # wasip1
 ```
 
