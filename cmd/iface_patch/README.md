@@ -15,12 +15,18 @@ at runtime (`uninitialized element` / invalid PC).
 
 ## Patch and rebuild
 
+Install:
+
+```
+go install github.com/goplus/reflectx/cmd/iface_patch@latest
+```
+
 `iface_patch` only edits source. Rebuild with **`make.bash`** in that tree
 (`go install cmd/asm cmd/compile cmd/go` is not enough):
 
 ```shell
-go run ./cmd/iface_patch /path/to/go1.27.1
-go run ./cmd/iface_patch -check /path/to/go1.27.1
+iface_patch /path/to/go1.27.1
+iface_patch -check /path/to/go1.27.1
 cd /path/to/go1.27.1/src && ./make.bash   # Windows: make.bat
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
