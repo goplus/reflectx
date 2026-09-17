@@ -90,6 +90,61 @@ func ParseFlags() {
 	}
 }
 
+func TestPatchCompileFlagUpgradesOld(t *testing.T) {
+	src := `package base
+
+import (
+	"cmd/internal/objabi"
+	"log"
+)
+
+type CmdFlags struct {
+	ErrorURL     bool "help:\"print url\""
+	IfaceFuncval bool ` + "`help:\"treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)\"`" + `
+	Cfg          struct{}
+}
+
+func ParseFlags() {
+	registerFlags()
+	objabi.Flagparse(usage)
+	counter.CountFlags("compile/flag:", *flag.CommandLine)
+	if Flag.IfaceFuncval {
+		if buildcfg.GOARCH != "wasm" && buildcfg.GOARCH != "arm64" && buildcfg.GOARCH != "amd64" {
+			log.Fatal("-ifacefuncval is only supported on wasm, arm64, and amd64")
+		}
+		objabi.EnableIfaceFuncval = true
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "flag.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchCompileFlag(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected upgrade")
+	}
+	fn := funcDecl(f, "ParseFlags")
+	stmt := stmtWithIdent(fn.Body, "EnableIfaceFuncval")
+	if stmt == nil || !ifaceFuncvalBlockCurrent(stmt) {
+		t.Fatal("ParseFlags still missing 386")
+	}
+	if hasSelectorExpr(stmt, "wasm", "EnableIfaceFuncval") {
+		t.Fatal("EnableIfaceFuncval must stay on objabi")
+	}
+	changed, err = patchCompileFlag(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent after upgrade")
+	}
+}
+
 func TestPatchGoGcInserts(t *testing.T) {
 	src := `package work
 
@@ -388,6 +443,89 @@ func TestPatchAsmAmd64(t *testing.T) {
 		t.Fatal("expected change")
 	}
 	changed, err = patchAsmReplace(path, old, testVer().bytes("amd64_callfn_new.s"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatch386SSA(t *testing.T) {
+	src := `package x86
+
+import "cmd/internal/obj/x86"
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.Op386CALLstatic, ssa.Op386CALLclosure, ssa.Op386CALLinter:
+		s.Call(v)
+	case ssa.Op386CALLtail, ssa.Op386CALLtailinter:
+		s.TailCall(v)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patch386SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+		t.Fatal("missing ssaGenIfaceFuncvalCall")
+	}
+	changed, err = patch386SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatch386SSAMissingLayout(t *testing.T) {
+	src := `package x86
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.Op386CALLstatic:
+		s.Call(v)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = patch386SSA(fset, f, testVer())
+	if err == nil {
+		t.Fatal("expected error when CALL cases are missing")
+	}
+}
+
+func TestPatchAsm386(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/asm_386.s"
+	old := testVer().bytes("386_callfn_old.s")
+	src := "TEXT x(SB), $0\n" + string(old) + "RET\n"
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchAsmReplace(path, old, testVer().bytes("386_callfn_new.s"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	changed, err = patchAsmReplace(path, old, testVer().bytes("386_callfn_new.s"), false)
 	if err != nil {
 		t.Fatal(err)
 	}

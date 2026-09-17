@@ -3,8 +3,8 @@
 Patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval` can replace
 icall stubs with tagged MakeFunc funcvals (`itab.Fun = makeFuncImpl*|1`).
 
-Supported `GOARCH` values: **wasm**, **arm64**, **amd64** (any `GOOS` that
-uses that backend).
+Supported `GOARCH` values: **wasm**, **arm64**, **amd64**, **386** (any `GOOS`
+that uses that backend).
 
 The tag is **explicit** (not a ToolTag). Without it, the patched compiler
 emits the same interface-call sequence as unmodified Go.
@@ -40,7 +40,7 @@ Do not mix this `GOROOT` with another `go` on `PATH`.
 
 ## Run tests
 
-### Native (linux/darwin amd64 or arm64)
+### Native (linux/darwin amd64, arm64, or 386)
 
 ```shell
 export GOROOT=/path/to/go1.27.1
@@ -99,13 +99,15 @@ Untagged builds must match stock gc.
 | Location | Change |
 |---|---|
 | `cmd/internal/objabi/ifacefuncval.go` | `EnableIfaceFuncval` (shared; not wasm-only) |
-| `cmd/compile`, `cmd/asm` | `-ifacefuncval` on wasm, arm64, amd64 |
-| `cmd/go` | if `GOARCH` is wasm/arm64/amd64 and the tag is set, add `-ifacefuncval` to `forcedGcflags`/`forcedAsmflags` |
+| `cmd/compile`, `cmd/asm` | `-ifacefuncval` on wasm, arm64, amd64, 386 |
+| `cmd/go` | if `GOARCH` is wasm/arm64/amd64/386 and the tag is set, add `-ifacefuncval` to `forcedGcflags`/`forcedAsmflags` |
 | `cmd/internal/obj/wasm` | unwrap tagged PC at indirect `CALL` |
 | `cmd/compile/internal/arm64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=R26) |
 | `cmd/compile/internal/amd64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=DX, call via R12) |
+| `cmd/compile/internal/x86` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=DX, 32-bit) |
 | `runtime/asm_arm64.s` | unwrap in `CALLFN` before `BL (R20)` |
 | `runtime/asm_amd64.s` | unwrap in `CALLFN` before `CALL R12` |
+| `runtime/asm_386.s` | unwrap in `CALLFN` before `CALL AX` |
 
 A tagged `itab.Fun` is `makeFuncImpl* | 1`. Code PCs and heap pointers are
 even, so bit 0 is free. The unwrap sets CTXT to the untagged pointer and
@@ -125,8 +127,10 @@ plain `.s` files used as exact text replacements.
 | `wasmobj.go` / `unwrap.go` | wasm indirect-call unwrap |
 | `arm64_ssa.go`, `arm64_callinter.go`, `arm64_calltailinter.go` | arm64 compiler |
 | `amd64_ssa.go`, `amd64_callinter.go`, `amd64_calltailinter.go` | amd64 compiler |
+| `x86_ssa.go`, `x86_callinter.go`, `x86_calltailinter.go` | 386 compiler |
 | `arm64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_arm64.s` |
 | `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
+| `386_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_386.s` |
 
 To support another Go version, copy `_data/go1.27.1/` to `_data/go1.xx.y/`
 and adjust the snippets until `iface_patch` matches that tree.

@@ -26,6 +26,7 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 		{"src/cmd/go/internal/work/init.go", patchGoInit},
 		{"src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA},
 		{"src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA},
+		{"src/cmd/compile/internal/x86/ssa.go", patch386SSA},
 	}
 	n := 0
 	{
@@ -54,13 +55,16 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 			}
 		}
 	}
-	for _, rel := range []string{"src/runtime/asm_arm64.s", "src/runtime/asm_amd64.s"} {
+	for _, rel := range []string{"src/runtime/asm_arm64.s", "src/runtime/asm_amd64.s", "src/runtime/asm_386.s"} {
 		var changed bool
 		var err error
-		if rel == "src/runtime/asm_arm64.s" {
+		switch rel {
+		case "src/runtime/asm_arm64.s":
 			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("arm64_callfn_old.s"), v.bytes("arm64_callfn_new.s"), check)
-		} else {
+		case "src/runtime/asm_amd64.s":
 			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("amd64_callfn_old.s"), v.bytes("amd64_callfn_new.s"), check)
+		default:
+			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("386_callfn_old.s"), v.bytes("386_callfn_new.s"), check)
 		}
 		if err != nil {
 			return n, fmt.Errorf("%s: %w", rel, err)
@@ -209,6 +213,25 @@ func isSelector(e ast.Expr, pkg, name string) bool {
 func isIdent(e ast.Expr, name string) bool {
 	id, ok := e.(*ast.Ident)
 	return ok && id.Name == name
+}
+
+func hasSelectorExpr(n ast.Node, pkg, name string) bool {
+	found := false
+	ast.Inspect(n, func(x ast.Node) bool {
+		sel, ok := x.(*ast.SelectorExpr)
+		if ok && isSelector(sel, pkg, name) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+const ifaceFuncvalHelp = "treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64/386)"
+
+func ifaceFuncvalBlockCurrent(stmt ast.Stmt) bool {
+	return hasSelectorExpr(stmt, "objabi", "EnableIfaceFuncval") && hasStringLit(stmt, "386")
 }
 
 func callName(e ast.Expr) string {
@@ -416,9 +439,11 @@ func patchCompileFlag(_ *token.FileSet, f *ast.File, v versionData) (bool, error
 		field := &ast.Field{
 			Names: []*ast.Ident{ast.NewIdent("IfaceFuncval")},
 			Type:  ast.NewIdent("bool"),
-			Tag:   &ast.BasicLit{Kind: token.STRING, Value: "`help:\"treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)\"`"},
+			Tag:   &ast.BasicLit{Kind: token.STRING, Value: "`help:\"" + ifaceFuncvalHelp + "\"`"},
 		}
 		st.Fields.List = append(st.Fields.List[:idx], append([]*ast.Field{field}, st.Fields.List[idx:]...)...)
+		changed = true
+	} else if updateIfaceFuncvalFieldHelp(st) {
 		changed = true
 	}
 	if insertAfterCountFlags(f, v) {
@@ -427,14 +452,32 @@ func patchCompileFlag(_ *token.FileSet, f *ast.File, v versionData) (bool, error
 	return changed, nil
 }
 
+func updateIfaceFuncvalFieldHelp(st *ast.StructType) bool {
+	want := "`help:\"" + ifaceFuncvalHelp + "\"`"
+	for _, field := range st.Fields.List {
+		if len(field.Names) != 1 || field.Names[0].Name != "IfaceFuncval" || field.Tag == nil {
+			continue
+		}
+		if field.Tag.Value == want {
+			return false
+		}
+		field.Tag = &ast.BasicLit{Kind: token.STRING, Value: want}
+		return true
+	}
+	return false
+}
+
 func insertAfterCountFlags(f *ast.File, v versionData) bool {
 	fn := funcDecl(f, "ParseFlags")
 	if fn == nil || fn.Body == nil {
 		return false
 	}
 	extra := v.stmts("compile.go")
-	if hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
-		if hasIdentExpr(fn.Body, "objabi") && hasStringLit(fn.Body, "amd64") {
+	for _, stmt := range fn.Body.List {
+		if !hasIdentExpr(stmt, "EnableIfaceFuncval") {
+			continue
+		}
+		if ifaceFuncvalBlockCurrent(stmt) {
 			return false
 		}
 		return replaceStmtWithIdent(fn.Body, "EnableIfaceFuncval", extra)
@@ -524,9 +567,11 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 	}
 	if !hasIdent(f, "IfaceFuncval") {
-		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", "treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)") {
+		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", ifaceFuncvalHelp) {
 			return false, fmt.Errorf("Std flag var not found")
 		}
+		changed = true
+	} else if updateVarBoolFlagHelp(f, "IfaceFuncval", ifaceFuncvalHelp) {
 		changed = true
 	}
 	fn := funcDecl(f, "Parse")
@@ -534,8 +579,8 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		return false, fmt.Errorf("Parse not found")
 	}
 	extra := v.stmts("asm.go")
-	if hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
-		if !(hasIdentExpr(fn.Body, "objabi") && hasStringLit(fn.Body, "amd64")) {
+	if stmt := stmtWithIdent(fn.Body, "EnableIfaceFuncval"); stmt != nil {
+		if !ifaceFuncvalBlockCurrent(stmt) {
 			if replaceStmtWithIdent(fn.Body, "EnableIfaceFuncval", extra) {
 				changed = true
 			}
@@ -556,6 +601,45 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 	}
 	return changed, nil
+}
+
+func stmtWithIdent(body *ast.BlockStmt, ident string) ast.Stmt {
+	for _, stmt := range body.List {
+		if hasIdentExpr(stmt, ident) {
+			return stmt
+		}
+	}
+	return nil
+}
+
+func updateVarBoolFlagHelp(f *ast.File, name, help string) bool {
+	for _, d := range f.Decls {
+		gen, ok := d.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, s := range gen.Specs {
+			vs, ok := s.(*ast.ValueSpec)
+			if !ok || len(vs.Names) != 1 || vs.Names[0].Name != name || len(vs.Values) != 1 {
+				continue
+			}
+			call, ok := vs.Values[0].(*ast.CallExpr)
+			if !ok || len(call.Args) < 3 {
+				continue
+			}
+			lit, ok := call.Args[2].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				continue
+			}
+			cur, err := strconv.Unquote(lit.Value)
+			if err != nil || cur == help {
+				return false
+			}
+			call.Args[2] = &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(help)}
+			return true
+		}
+	}
+	return false
 }
 
 func addVarBoolFlag(f *ast.File, name, flagName, help string) bool {
@@ -594,23 +678,24 @@ func addVarBoolFlag(f *ast.File, name, flagName, help string) bool {
 }
 
 func patchGoGc(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
+	changed := false
 	decls := v.decls("gc.go")
 	if len(decls) == 0 {
 		return false, fmt.Errorf("gc.go snippet has no decls")
 	}
 	if fn := funcDecl(f, "ifaceFuncvalEnabled"); fn != nil {
-		if hasStringLit(fn, "amd64") {
-			return false, nil
+		if !hasStringLit(fn, "386") {
+			replaceFuncDecl(f, "ifaceFuncvalEnabled", decls[0])
+			changed = true
 		}
-		replaceFuncDecl(f, "ifaceFuncvalEnabled", decls[0])
-		return true, nil
-	}
-	if funcDecl(f, "wasmIfaceFuncval") != nil {
+	} else if funcDecl(f, "wasmIfaceFuncval") != nil {
 		replaceFuncDecl(f, "wasmIfaceFuncval", decls[0])
-		return true, nil
+		changed = true
+	} else {
+		f.Decls = append(f.Decls, decls...)
+		changed = true
 	}
-	f.Decls = append(f.Decls, decls...)
-	return true, nil
+	return changed, nil
 }
 
 func renameIdent(n ast.Node, old, new string) {
@@ -814,6 +899,46 @@ func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		})
 		if rewired < 2 {
 			return false, fmt.Errorf("amd64 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
+		}
+	}
+	return changed, nil
+}
+
+func patch386SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
+	changed := false
+	if !hasImport(f, "cmd/internal/objabi") {
+		addImportAfter(f, "cmd/internal/obj/x86", "cmd/internal/objabi")
+		changed = true
+	}
+	addedHelper := false
+	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+		f.Decls = append(f.Decls, v.decls("x86_ssa.go")...)
+		addedHelper = true
+		changed = true
+	}
+	if splitCallCase(f, "Op386CALLinter", "Op386CALLstatic", v.stmts("x86_callinter.go")) {
+		changed = true
+	}
+	if splitCallCase(f, "Op386CALLtailinter", "Op386CALLtail", v.stmts("x86_calltailinter.go")) {
+		changed = true
+	}
+	if addedHelper {
+		rewired := 0
+		ast.Inspect(f, func(n ast.Node) bool {
+			cc, ok := n.(*ast.CaseClause)
+			if !ok {
+				return true
+			}
+			if selectorInList(cc.List, "Op386CALLinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
+				rewired++
+			}
+			if selectorInList(cc.List, "Op386CALLtailinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalTailCall") {
+				rewired++
+			}
+			return true
+		})
+		if rewired < 2 {
+			return false, fmt.Errorf("386 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
 		}
 	}
 	return changed, nil
