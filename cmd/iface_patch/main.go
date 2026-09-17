@@ -13,7 +13,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: iface_patch [-check] <goroot>
 
-Patch a Go 1.26.8 or 1.27.1 source tree for goplus.ifacefuncval (wasm, arm64, amd64, 386).
+Patch a Go 1.25.14, 1.26.8, or 1.27.1 source tree for goplus.ifacefuncval (wasm, arm64, amd64, 386).
 Then: cd <goroot>/src && ./make.bash
       export GOROOT=<goroot> PATH=$GOROOT/bin:$PATH
       go test -tags goplus.ifacefuncval -v .
