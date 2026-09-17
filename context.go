@@ -30,6 +30,14 @@ func NewContext() *Context {
 	return ctx
 }
 
+func (ctx *Context) reset() {
+	ctx.nAllocateError = 0
+	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
+	ctx.structLookupCache = make(map[string][]reflect.Type)
+	ctx.interfceLookupCache = make(map[string]reflect.Type)
+	ctx.methodIndexList = make(map[int][]int)
+}
+
 func (p *Context) SetHasImethod(hasImethod func(typ reflect.Type, method Method) bool) {
 	p.fnHasImethod = hasImethod
 }

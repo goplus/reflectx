@@ -107,12 +107,7 @@ func (ctx *Context) Reset() {
 	for i, list := range ctx.methodIndexList {
 		abi.Default.List()[i].Remove(list)
 	}
-	ctx.nAllocateError = 0
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[int][]int)
-	ctx.fnHasImethod = nil
+	ctx.reset()
 }
 
 func (ctx *Context) registerMethod(info *abi.MethodInfo, funcID int) (ifn unsafe.Pointer, allocated bool) {

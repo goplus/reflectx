@@ -46,12 +46,7 @@ func resetAll() {
 }
 
 func (ctx *Context) Reset() {
-	ctx.nAllocateError = 0
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[int][]int)
-	ctx.fnHasImethod = nil
+	ctx.reset()
 }
 
 func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
