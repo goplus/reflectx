@@ -93,8 +93,6 @@ go test -tags goplus.ifacefuncval .
 # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval .
 ```
 
-`go clean -cache` can clear the build cache; it is not required.
-
 Without the tag, a patched compiler matches official gc. An unpatched
 compiler still accepts the tag; interface method calls then trap.
 
