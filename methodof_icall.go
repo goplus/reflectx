@@ -1,4 +1,4 @@
-//go:build !llgo && (!wasm || !goplus.ifacefuncval)
+//go:build !llgo && (!goplus.ifacefuncval || (!wasm && !arm64))
 
 package reflectx
 

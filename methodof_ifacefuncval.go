@@ -1,4 +1,4 @@
-//go:build wasm && goplus.ifacefuncval && !llgo
+//go:build goplus.ifacefuncval && !llgo && (wasm || arm64)
 
 package reflectx
 
@@ -11,7 +11,7 @@ import (
 
 // ifaceFuncvalBit marks an itab.Fun entry as a MakeFunc funcval.
 // Must match cmd/internal/obj/wasm.IfaceFuncvalBit in the patched Go
-// toolchain (wasm -tags goplus.ifacefuncval → compile -ifacefuncval).
+// toolchain (wasm or arm64 -tags goplus.ifacefuncval → compile -ifacefuncval).
 const ifaceFuncvalBit = 1
 
 // ifaceFuncvalFns keeps MakeFunc funcvals reachable. itab.Fun stores the
@@ -25,10 +25,10 @@ func clearIfaceFuncval() {
 	ifaceFuncvalFns = nil
 }
 
-// ifaceFuncval returns a wasm itab.Fun entry for info.
-// The patched Go wasm toolchain treats an odd function pointer as a
-// funcval: CTXT is the untagged pointer and the call target is the
-// first word (makeFuncStub).
+// ifaceFuncval returns an itab.Fun entry for info on wasm and arm64.
+// The patched toolchain treats an odd function pointer as a funcval:
+// CTXT is the untagged pointer and the call target is the first word
+// (makeFuncStub).
 func ifaceFuncval(info *abi.MethodInfo) unsafe.Pointer {
 	fn := info.Func
 	if (!info.Pointer && !info.OnePtr) || info.Indirect {

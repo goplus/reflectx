@@ -6,8 +6,8 @@ import "cmd/internal/obj"
 
 // EnableIfaceFuncval enables unwrapping tagged MakeFunc funcvals at
 // indirect calls. cmd/go passes -ifacefuncval to compile and asm when
-// building wasm with -tags goplus.ifacefuncval. Without it, codegen
-// matches unmodified Go.
+// building wasm or arm64 with -tags goplus.ifacefuncval. Without it,
+// codegen matches unmodified Go.
 var EnableIfaceFuncval bool
 
 // IfaceFuncvalBit marks an itab.Fun / indirect-call target as a
@@ -16,7 +16,7 @@ var EnableIfaceFuncval bool
 // PCs are both even, so the bit is free.
 //
 // Matches github.com/goplus/reflectx when built with
-// -tags goplus.ifacefuncval on wasm.
+// -tags goplus.ifacefuncval on wasm or arm64.
 //
 // At an indirect call the target is unwrapped: CTXT is set to the
 // untagged pointer (the funcval) and the call uses the code pointer

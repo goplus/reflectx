@@ -107,6 +107,37 @@ jobs:
         export PATH="$GOROOT/bin:$PATH"
         GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v -tags goplus.ifacefuncval .
 
+  Test-Darwin-IfaceFuncval:
+    runs-on: macos-14
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.27.x'
+
+    - name: Test iface_patch
+      run: go test -v ./cmd/iface_patch
+
+    - name: Clone Go 1.27.1
+      run: git clone --depth 1 --branch go1.27.1 https://github.com/golang/go.git "$HOME/go1.27.1"
+
+    - name: Patch Go
+      run: |
+        go run ./cmd/iface_patch "$HOME/go1.27.1"
+        go run ./cmd/iface_patch -check "$HOME/go1.27.1"
+
+    - name: Rebuild Go
+      run: cd "$HOME/go1.27.1/src" && ./make.bash
+
+    - name: Test-darwin-arm64-ifacefuncval
+      run: |
+        export GOROOT="$HOME/go1.27.1"
+        export PATH="$GOROOT/bin:$PATH"
+        go clean -cache
+        go test -v -tags goplus.ifacefuncval .
+
   Test-Windows:
     strategy:
       matrix:

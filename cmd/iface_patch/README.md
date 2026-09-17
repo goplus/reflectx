@@ -1,7 +1,8 @@
 # iface_patch
 
-Patch a **Go 1.27.1 source tree** so wasm can use `-tags goplus.ifacefuncval`:
-interface method `ifn` is a tagged MakeFunc funcval instead of an icall stub.
+Patch a **Go 1.27.1 source tree** so wasm and **darwin/linux arm64** can use
+`-tags goplus.ifacefuncval`: interface method `ifn` is a tagged MakeFunc
+funcval instead of an icall stub.
 
 The tag is **explicit**. It is not added as a ToolTag. Without the tag, the
 patched toolchain matches unmodified Go (icall path).
@@ -40,6 +41,17 @@ reused by a tagged test. That mismatch traps:
 
 ```text
 wasm trap: uninitialized element
+```
+
+## Run tests (darwin/arm64)
+
+After `make.bash` on Apple Silicon, native tests do not need wasmtime:
+
+```shell
+export GOROOT=/path/to/go1.27.1
+export PATH="$GOROOT/bin:$PATH"
+go clean -cache
+go test -tags goplus.ifacefuncval -v .
 ```
 
 ## Run tests (wasip1)
@@ -91,10 +103,12 @@ Disable by omitting the tag. `GOFLAGS` cannot subtract a tag
 
 * `cmd/internal/obj/wasm`: unwrap tagged `itab.Fun` (`makeFuncImpl*|1`) at
   indirect calls when `-ifacefuncval` is set
-* `cmd/compile` and `cmd/asm`: accept `-ifacefuncval`
-* `cmd/go`: when `GOARCH=wasm` and `-tags goplus.ifacefuncval` is set
-  (including via `GOFLAGS`), add `-ifacefuncval` to **`forcedGcflags` and
-  `forcedAsmflags`** so it is part of the compile action ID
+* `cmd/compile/internal/arm64`: same unwrap before `CALLinter` / `CALLtailinter`
+* `runtime/asm_arm64.s`: unwrap in `CALLFN` before `BL (R20)`
+* `cmd/compile` and `cmd/asm`: accept `-ifacefuncval` on wasm and arm64
+* `cmd/go`: when `GOARCH` is `wasm` or `arm64` and `-tags goplus.ifacefuncval`
+  is set (including via `GOFLAGS`), add `-ifacefuncval` to **`forcedGcflags`
+  and `forcedAsmflags`** so it is part of the compile action ID
 
 Replacement sources are in `_data/<VERSION>/` (that directory list is the
 supported-version list). To add a Go version, copy `_data/go1.27.1/` to
