@@ -416,7 +416,7 @@ func patchCompileFlag(_ *token.FileSet, f *ast.File, v versionData) (bool, error
 		field := &ast.Field{
 			Names: []*ast.Ident{ast.NewIdent("IfaceFuncval")},
 			Type:  ast.NewIdent("bool"),
-			Tag:   &ast.BasicLit{Kind: token.STRING, Value: "`help:\"wasm: treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval)\"`"},
+			Tag:   &ast.BasicLit{Kind: token.STRING, Value: "`help:\"treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)\"`"},
 		}
 		st.Fields.List = append(st.Fields.List[:idx], append([]*ast.Field{field}, st.Fields.List[idx:]...)...)
 		changed = true
@@ -524,7 +524,7 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 	}
 	if !hasIdent(f, "IfaceFuncval") {
-		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", "wasm: treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval)") {
+		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", "treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)") {
 			return false, fmt.Errorf("Std flag var not found")
 		}
 		changed = true
@@ -678,10 +678,10 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addedHelper = true
 		changed = true
 	}
-	if splitARM64CallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
+	if splitCallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
 		changed = true
 	}
-	if splitARM64CallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
+	if splitCallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
 		changed = true
 	}
 	if addedHelper {
@@ -706,7 +706,7 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	return changed, nil
 }
 
-func splitARM64CallCase(f *ast.File, remove, keep string, body []ast.Stmt) bool {
+func splitCallCase(f *ast.File, remove, keep string, body []ast.Stmt) bool {
 	var did bool
 	ast.Inspect(f, func(n ast.Node) bool {
 		sw, ok := n.(*ast.SwitchStmt)
@@ -765,7 +765,7 @@ func patchAsmReplace(path string, old, new []byte, check bool) (bool, error) {
 		return false, nil
 	}
 	if !bytes.Contains(src, old) {
-		return false, fmt.Errorf("CALLFN indirect call sequence not found")
+		return false, fmt.Errorf("CALLFN /* call function */ sequence not found")
 	}
 	if check {
 		return true, nil
@@ -791,10 +791,10 @@ func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addedHelper = true
 		changed = true
 	}
-	if splitARM64CallCase(f, "OpAMD64CALLinter", "OpAMD64CALLclosure", v.stmts("amd64_callinter.go")) {
+	if splitCallCase(f, "OpAMD64CALLinter", "OpAMD64CALLclosure", v.stmts("amd64_callinter.go")) {
 		changed = true
 	}
-	if splitARM64CallCase(f, "OpAMD64CALLtailinter", "OpAMD64CALLtail", v.stmts("amd64_calltailinter.go")) {
+	if splitCallCase(f, "OpAMD64CALLtailinter", "OpAMD64CALLtail", v.stmts("amd64_calltailinter.go")) {
 		changed = true
 	}
 	if addedHelper {

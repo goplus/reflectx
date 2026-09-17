@@ -1,3 +1,4 @@
+	/* call function */			\
 	MOVQ	f+8(FP), DX;			\
 	MOVQ	(DX), R12;			\
 	BTQ	$0, R12;			\

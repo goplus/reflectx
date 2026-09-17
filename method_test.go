@@ -40,6 +40,10 @@ func (i Int) Append(v ...int) int {
 	return sum
 }
 
+func stringerTail(s fmt.Stringer) string {
+	return s.String()
+}
+
 func TestIntMethodOf(t *testing.T) {
 	// Int type
 	var i Int
@@ -111,6 +115,9 @@ func TestIntMethodOf(t *testing.T) {
 	}
 	if v := fmt.Sprint(x.Addr()); v != "(100)" {
 		t.Fatalf("ptrTyp String(): have %v, want (100)", v)
+	}
+	if v := stringerTail(x.Interface().(fmt.Stringer)); v != "(100)" {
+		t.Fatalf("stringerTail: have %v, want (100)", v)
 	}
 
 	// Append
