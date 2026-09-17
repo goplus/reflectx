@@ -13,11 +13,12 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: iface_patch [-check] <goroot>
 
-Patch a Go source tree for wasm goplus.ifacefuncval.
+Patch a Go source tree for goplus.ifacefuncval (wasm, arm64, amd64).
 Then: cd <goroot>/src && ./make.bash
       export GOROOT=<goroot> PATH=$GOROOT/bin:$PATH
       go clean -cache
-      GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
+      go test -tags goplus.ifacefuncval -v .   # native
+      # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
 See cmd/iface_patch/README.md.
 Supported versions: %s
 `, strings.Join(supportedVersions(), ", "))

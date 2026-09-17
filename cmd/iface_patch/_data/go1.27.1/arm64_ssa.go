@@ -7,13 +7,14 @@ import (
 	"cmd/compile/internal/ssagen"
 	"cmd/internal/obj"
 	"cmd/internal/obj/arm64"
-	"cmd/internal/obj/wasm"
+	"cmd/internal/objabi"
 )
 
 // ssaGenIfaceFuncvalCall rewrites a tagged itab.Fun (makeFuncImpl*|1)
 // into CTXT + makeFuncStub before an indirect interface call.
+// Only when -ifacefuncval is set; otherwise CALLinter is a plain BL.
 func ssaGenIfaceFuncvalCall(s *ssagen.State, v *ssa.Value) {
-	if !wasm.EnableIfaceFuncval {
+	if !objabi.EnableIfaceFuncval {
 		return
 	}
 	rn := v.Args[0].Reg()
