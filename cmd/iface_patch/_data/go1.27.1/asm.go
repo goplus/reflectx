@@ -4,9 +4,9 @@ package p
 
 func _() {
 	if *IfaceFuncval {
-		if buildcfg.GOARCH != "wasm" && buildcfg.GOARCH != "arm64" {
-			log.Fatal("-ifacefuncval is only supported on wasm and arm64")
+		if buildcfg.GOARCH != "wasm" && buildcfg.GOARCH != "arm64" && buildcfg.GOARCH != "amd64" {
+			log.Fatal("-ifacefuncval is only supported on wasm, arm64, and amd64")
 		}
-		wasm.EnableIfaceFuncval = true
+		objabi.EnableIfaceFuncval = true
 	}
 }

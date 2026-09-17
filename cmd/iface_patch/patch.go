@@ -25,8 +25,22 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 		{"src/cmd/go/internal/work/gc.go", patchGoGc},
 		{"src/cmd/go/internal/work/init.go", patchGoInit},
 		{"src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA},
+		{"src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA},
 	}
 	n := 0
+	{
+		rel := "src/cmd/internal/objabi/ifacefuncval.go"
+		changed, err := writeGoSrc(filepath.Join(root, rel), v.goSrc("objabi_ifacefuncval.go"), check)
+		if err != nil {
+			return n, fmt.Errorf("%s: %w", rel, err)
+		}
+		if changed {
+			n++
+			if !check {
+				fmt.Println(rel)
+			}
+		}
+	}
 	for _, p := range patches {
 		path := filepath.Join(root, p.rel)
 		changed, err := patchFile(path, p.fn, v, check)
@@ -40,15 +54,22 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 			}
 		}
 	}
-	rel := "src/runtime/asm_arm64.s"
-	changed, err := patchAsmArm64(filepath.Join(root, rel), check)
-	if err != nil {
-		return n, fmt.Errorf("%s: %w", rel, err)
-	}
-	if changed {
-		n++
-		if !check {
-			fmt.Println(rel)
+	for _, rel := range []string{"src/runtime/asm_arm64.s", "src/runtime/asm_amd64.s"} {
+		var changed bool
+		var err error
+		if rel == "src/runtime/asm_arm64.s" {
+			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("arm64_callfn_old.s"), v.bytes("arm64_callfn_new.s"), check)
+		} else {
+			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("amd64_callfn_old.s"), v.bytes("amd64_callfn_new.s"), check)
+		}
+		if err != nil {
+			return n, fmt.Errorf("%s: %w", rel, err)
+		}
+		if changed {
+			n++
+			if !check {
+				fmt.Println(rel)
+			}
 		}
 	}
 	return n, nil
@@ -83,6 +104,17 @@ func patchFile(path string, fn patchFunc, v versionData, check bool) (bool, erro
 		return false, err
 	}
 	return true, os.WriteFile(path, out, 0644)
+}
+
+func writeGoSrc(path string, want []byte, check bool) (bool, error) {
+	old, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(old, want) {
+		return false, nil
+	}
+	if check {
+		return true, nil
+	}
+	return true, os.WriteFile(path, want, 0644)
 }
 
 func hasIdent(f *ast.File, name string) bool {
@@ -240,11 +272,84 @@ func patchWasmobj(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 		return true
 	})
-	if !hasIdent(f, "EnableIfaceFuncval") {
-		f.Decls = append(f.Decls, v.decls("wasmobj.go")...)
+	if !hasImport(f, "cmd/internal/objabi") {
+		addImportAfter(f, "cmd/internal/obj", "cmd/internal/objabi")
+		changed = true
+	}
+	decls := v.decls("wasmobj.go")
+	if fn := funcDecl(f, "unwrapIfaceFuncvalPC"); fn != nil {
+		if !hasIdentExpr(fn, "objabi") {
+			for _, d := range decls {
+				if u, ok := d.(*ast.FuncDecl); ok && u.Name.Name == "unwrapIfaceFuncvalPC" {
+					replaceFuncDecl(f, "unwrapIfaceFuncvalPC", u)
+					changed = true
+				}
+			}
+		}
+	} else {
+		f.Decls = append(f.Decls, decls...)
+		changed = true
+	}
+	if removeVar(f, "EnableIfaceFuncval") {
 		changed = true
 	}
 	return changed, nil
+}
+
+func removeVar(f *ast.File, name string) bool {
+	out := f.Decls[:0]
+	removed := false
+	for _, d := range f.Decls {
+		gen, ok := d.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			out = append(out, d)
+			continue
+		}
+		specs := gen.Specs[:0]
+		for _, s := range gen.Specs {
+			vs := s.(*ast.ValueSpec)
+			keep := false
+			for _, n := range vs.Names {
+				if n.Name != name {
+					keep = true
+					break
+				}
+			}
+			if keep {
+				specs = append(specs, s)
+			} else {
+				removed = true
+			}
+		}
+		if len(specs) > 0 {
+			gen.Specs = specs
+			out = append(out, gen)
+		}
+	}
+	if removed {
+		f.Decls = out
+	}
+	return removed
+}
+
+func removeImport(f *ast.File, path string) bool {
+	removed := false
+	for _, d := range f.Decls {
+		gen, ok := d.(*ast.GenDecl)
+		if !ok || gen.Tok != token.IMPORT {
+			continue
+		}
+		specs := gen.Specs[:0]
+		for _, s := range gen.Specs {
+			if importPath(s.(*ast.ImportSpec)) == path {
+				removed = true
+				continue
+			}
+			specs = append(specs, s)
+		}
+		gen.Specs = specs
+	}
+	return removed
 }
 
 func typeSpec(f *ast.File, name string) *ast.TypeSpec {
@@ -284,9 +389,10 @@ func fieldNamed(fl *ast.FieldList, name string) bool {
 
 func patchCompileFlag(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	changed := false
-	if !hasImport(f, "cmd/internal/obj/wasm") {
-		addImportAfter(f, "cmd/internal/obj", "cmd/internal/obj/wasm")
-		changed = true
+	if hasImport(f, "cmd/internal/obj/wasm") {
+		if removeImport(f, "cmd/internal/obj/wasm") {
+			changed = true
+		}
 	}
 	ts := typeSpec(f, "CmdFlags")
 	if ts == nil {
@@ -310,7 +416,7 @@ func patchCompileFlag(_ *token.FileSet, f *ast.File, v versionData) (bool, error
 		field := &ast.Field{
 			Names: []*ast.Ident{ast.NewIdent("IfaceFuncval")},
 			Type:  ast.NewIdent("bool"),
-			Tag:   &ast.BasicLit{Kind: token.STRING, Value: "`help:\"wasm: treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval)\"`"},
+			Tag:   &ast.BasicLit{Kind: token.STRING, Value: "`help:\"treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)\"`"},
 		}
 		st.Fields.List = append(st.Fields.List[:idx], append([]*ast.Field{field}, st.Fields.List[idx:]...)...)
 		changed = true
@@ -328,7 +434,7 @@ func insertAfterCountFlags(f *ast.File, v versionData) bool {
 	}
 	extra := v.stmts("compile.go")
 	if hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
-		if hasStringLit(fn.Body, "arm64") {
+		if hasIdentExpr(fn.Body, "objabi") && hasStringLit(fn.Body, "amd64") {
 			return false
 		}
 		return replaceStmtWithIdent(fn.Body, "EnableIfaceFuncval", extra)
@@ -404,9 +510,10 @@ func funcDecl(f *ast.File, name string) *ast.FuncDecl {
 
 func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	changed := false
-	if !hasImport(f, "cmd/internal/obj/wasm") {
-		addImportAfter(f, "cmd/internal/obj", "cmd/internal/obj/wasm")
-		changed = true
+	if hasImport(f, "cmd/internal/obj/wasm") {
+		if removeImport(f, "cmd/internal/obj/wasm") {
+			changed = true
+		}
 	}
 	if !hasImport(f, "internal/buildcfg") {
 		addImportAfter(f, "fmt", "internal/buildcfg")
@@ -417,7 +524,7 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 	}
 	if !hasIdent(f, "IfaceFuncval") {
-		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", "wasm: treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval)") {
+		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", "treat tagged itab.Fun as MakeFunc funcval (goplus.ifacefuncval; wasm/arm64/amd64)") {
 			return false, fmt.Errorf("Std flag var not found")
 		}
 		changed = true
@@ -428,7 +535,7 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	}
 	extra := v.stmts("asm.go")
 	if hasIdentExpr(fn.Body, "EnableIfaceFuncval") {
-		if !hasStringLit(fn.Body, "arm64") {
+		if !(hasIdentExpr(fn.Body, "objabi") && hasStringLit(fn.Body, "amd64")) {
 			if replaceStmtWithIdent(fn.Body, "EnableIfaceFuncval", extra) {
 				changed = true
 			}
@@ -491,8 +598,12 @@ func patchGoGc(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if len(decls) == 0 {
 		return false, fmt.Errorf("gc.go snippet has no decls")
 	}
-	if funcDecl(f, "ifaceFuncvalEnabled") != nil {
-		return false, nil
+	if fn := funcDecl(f, "ifaceFuncvalEnabled"); fn != nil {
+		if hasStringLit(fn, "amd64") {
+			return false, nil
+		}
+		replaceFuncDecl(f, "ifaceFuncvalEnabled", decls[0])
+		return true, nil
 	}
 	if funcDecl(f, "wasmIfaceFuncval") != nil {
 		replaceFuncDecl(f, "wasmIfaceFuncval", decls[0])
@@ -552,8 +663,13 @@ func patchGoInit(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 
 func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	changed := false
-	if !hasImport(f, "cmd/internal/obj/wasm") {
-		addImportAfter(f, "cmd/internal/obj/arm64", "cmd/internal/obj/wasm")
+	if hasImport(f, "cmd/internal/obj/wasm") {
+		if removeImport(f, "cmd/internal/obj/wasm") {
+			changed = true
+		}
+	}
+	if !hasImport(f, "cmd/internal/objabi") {
+		addImportAfter(f, "cmd/internal/obj/arm64", "cmd/internal/objabi")
 		changed = true
 	}
 	addedHelper := false
@@ -562,10 +678,10 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addedHelper = true
 		changed = true
 	}
-	if splitARM64CallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
+	if splitCallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
 		changed = true
 	}
-	if splitARM64CallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
+	if splitCallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
 		changed = true
 	}
 	if addedHelper {
@@ -590,7 +706,7 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	return changed, nil
 }
 
-func splitARM64CallCase(f *ast.File, remove, keep string, body []ast.Stmt) bool {
+func splitCallCase(f *ast.File, remove, keep string, body []ast.Stmt) bool {
 	var did bool
 	ast.Inspect(f, func(n ast.Node) bool {
 		sw, ok := n.(*ast.SwitchStmt)
@@ -640,24 +756,65 @@ func filterSelector(list []ast.Expr, name string) []ast.Expr {
 	return out
 }
 
-const arm64CallFNOld = "	MOVD	f+8(FP), R26;			\\\n	MOVD	(R26), R20;			\\\n	PCDATA	$PCDATA_StackMapIndex, $0;	\\\n	BL	(R20);				\\\n"
-
-const arm64CallFNNew = "	MOVD	f+8(FP), R26;			\\\n	MOVD	(R26), R20;			\\\n	TBZ	$0, R20, 3(PC);			\\\n	BIC	$1, R20, R26;			\\\n	MOVD	(R26), R20;			\\\n	PCDATA	$PCDATA_StackMapIndex, $0;	\\\n	BL	(R20);				\\\n"
-
-func patchAsmArm64(path string, check bool) (bool, error) {
+func patchAsmReplace(path string, old, new []byte, check bool) (bool, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return false, err
 	}
-	if bytes.Contains(src, []byte("TBZ	$0, R20, 3(PC)")) {
+	if bytes.Contains(src, new) {
 		return false, nil
 	}
-	if !bytes.Contains(src, []byte(arm64CallFNOld)) {
-		return false, fmt.Errorf("CALLFN indirect call sequence not found")
+	if !bytes.Contains(src, old) {
+		return false, fmt.Errorf("CALLFN /* call function */ sequence not found")
 	}
 	if check {
 		return true, nil
 	}
-	out := bytes.Replace(src, []byte(arm64CallFNOld), []byte(arm64CallFNNew), 1)
+	out := bytes.Replace(src, old, new, 1)
 	return true, os.WriteFile(path, out, 0644)
+}
+
+func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
+	changed := false
+	if hasImport(f, "cmd/internal/obj/wasm") {
+		if removeImport(f, "cmd/internal/obj/wasm") {
+			changed = true
+		}
+	}
+	if !hasImport(f, "cmd/internal/objabi") {
+		addImportAfter(f, "cmd/internal/obj/x86", "cmd/internal/objabi")
+		changed = true
+	}
+	addedHelper := false
+	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+		f.Decls = append(f.Decls, v.decls("amd64_ssa.go")...)
+		addedHelper = true
+		changed = true
+	}
+	if splitCallCase(f, "OpAMD64CALLinter", "OpAMD64CALLclosure", v.stmts("amd64_callinter.go")) {
+		changed = true
+	}
+	if splitCallCase(f, "OpAMD64CALLtailinter", "OpAMD64CALLtail", v.stmts("amd64_calltailinter.go")) {
+		changed = true
+	}
+	if addedHelper {
+		rewired := 0
+		ast.Inspect(f, func(n ast.Node) bool {
+			cc, ok := n.(*ast.CaseClause)
+			if !ok {
+				return true
+			}
+			if selectorInList(cc.List, "OpAMD64CALLinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
+				rewired++
+			}
+			if selectorInList(cc.List, "OpAMD64CALLtailinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalTailCall") {
+				rewired++
+			}
+			return true
+		})
+		if rewired < 2 {
+			return false, fmt.Errorf("amd64 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
+		}
+	}
+	return changed, nil
 }

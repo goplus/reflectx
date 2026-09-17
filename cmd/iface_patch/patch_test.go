@@ -289,18 +289,105 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 func TestPatchAsmArm64(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/asm_arm64.s"
-	src := "TEXT x(SB), $0\n" + arm64CallFNOld + "RET\n"
+	old := testVer().bytes("arm64_callfn_old.s")
+	src := "TEXT x(SB), $0\n" + string(old) + "RET\n"
 	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := patchAsmArm64(path, false)
+	changed, err := patchAsmReplace(path, old, testVer().bytes("arm64_callfn_new.s"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !changed {
 		t.Fatal("expected change")
 	}
-	changed, err = patchAsmArm64(path, false)
+	changed, err = patchAsmReplace(path, old, testVer().bytes("arm64_callfn_new.s"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchAmd64SSA(t *testing.T) {
+	src := `package amd64
+
+import (
+	"cmd/internal/obj"
+	"cmd/internal/obj/x86"
+)
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.OpAMD64CALLstatic, ssa.OpAMD64CALLtail, ssa.OpAMD64CALLtailinter:
+		s.Call(v)
+	case ssa.OpAMD64CALLclosure, ssa.OpAMD64CALLinter:
+		s.Call(v)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchAmd64SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+		t.Fatal("missing ssaGenIfaceFuncvalCall")
+	}
+	changed, err = patchAmd64SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchAmd64SSAMissingLayout(t *testing.T) {
+	src := `package amd64
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.OpAMD64CALLstatic:
+		s.Call(v)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = patchAmd64SSA(fset, f, testVer())
+	if err == nil {
+		t.Fatal("expected error when CALL cases are missing")
+	}
+}
+
+func TestPatchAsmAmd64(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/asm_amd64.s"
+	old := testVer().bytes("amd64_callfn_old.s")
+	src := "TEXT x(SB), $0\n" + string(old) + "RET\n"
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchAsmReplace(path, old, testVer().bytes("amd64_callfn_new.s"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected change")
+	}
+	changed, err = patchAsmReplace(path, old, testVer().bytes("amd64_callfn_new.s"), false)
 	if err != nil {
 		t.Fatal(err)
 	}

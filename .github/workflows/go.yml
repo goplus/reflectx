@@ -107,8 +107,11 @@ jobs:
         export PATH="$GOROOT/bin:$PATH"
         GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v -tags goplus.ifacefuncval .
 
-  Test-Darwin-IfaceFuncval:
-    runs-on: macos-14
+  Test-Native-IfaceFuncval:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
 
@@ -131,7 +134,7 @@ jobs:
     - name: Rebuild Go
       run: cd "$HOME/go1.27.1/src" && ./make.bash
 
-    - name: Test-darwin-arm64-ifacefuncval
+    - name: Test ifacefuncval
       run: |
         export GOROOT="$HOME/go1.27.1"
         export PATH="$GOROOT/bin:$PATH"

@@ -48,6 +48,18 @@ func (v versionData) read(name string) string {
 	return string(b)
 }
 
+func (v versionData) goSrc(name string) []byte {
+	s := v.read(name)
+	s = strings.TrimPrefix(s, "//go:build ignore\n\n")
+	return []byte(s)
+}
+
+func (v versionData) bytes(name string) []byte {
+	s := strings.ReplaceAll(v.read(name), "\r\n", "\n")
+	s = strings.TrimRight(s, "\n") + "\n"
+	return []byte(s)
+}
+
 func (v versionData) stmts(name string) []ast.Stmt {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, name, v.read(name), 0)

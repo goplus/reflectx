@@ -2,13 +2,10 @@
 
 package wasm
 
-import "cmd/internal/obj"
-
-// EnableIfaceFuncval enables unwrapping tagged MakeFunc funcvals at
-// indirect calls. cmd/go passes -ifacefuncval to compile and asm when
-// building wasm or arm64 with -tags goplus.ifacefuncval. Without it,
-// codegen matches unmodified Go.
-var EnableIfaceFuncval bool
+import (
+	"cmd/internal/obj"
+	"cmd/internal/objabi"
+)
 
 // IfaceFuncvalBit marks an itab.Fun / indirect-call target as a
 // MakeFunc funcval rather than a code PC. The stored value is
@@ -16,7 +13,7 @@ var EnableIfaceFuncval bool
 // PCs are both even, so the bit is free.
 //
 // Matches github.com/goplus/reflectx when built with
-// -tags goplus.ifacefuncval on wasm or arm64.
+// -tags goplus.ifacefuncval on wasm, arm64, or amd64.
 //
 // At an indirect call the target is unwrapped: CTXT is set to the
 // untagged pointer (the funcval) and the call uses the code pointer
@@ -26,7 +23,7 @@ var EnableIfaceFuncval bool
 const IfaceFuncvalBit = 1
 
 func unwrapIfaceFuncvalPC(p *obj.Prog, appendp func(*obj.Prog, obj.As, ...obj.Addr) *obj.Prog) *obj.Prog {
-	if !EnableIfaceFuncval {
+	if !objabi.EnableIfaceFuncval {
 		return p
 	}
 	// pc is on the wasm stack. Stash it in RET0 (not live at a call).

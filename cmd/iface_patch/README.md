@@ -1,51 +1,46 @@
 # iface_patch
 
-Patch a **Go 1.27.1 source tree** so wasm and **darwin/linux arm64** can use
-`-tags goplus.ifacefuncval`: interface method `ifn` is a tagged MakeFunc
-funcval instead of an icall stub.
+Patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval` can replace
+icall stubs with tagged MakeFunc funcvals (`itab.Fun = makeFuncImpl*|1`).
 
-The tag is **explicit**. It is not added as a ToolTag. Without the tag, the
-patched toolchain matches unmodified Go (icall path).
+Supported `GOARCH` values: **wasm**, **arm64**, **amd64** (any `GOOS` that
+uses that backend).
 
-## Rebuild after patching
+The tag is **explicit** (not a ToolTag). Without it, the patched compiler
+emits the same interface-call sequence as unmodified Go.
 
-`iface_patch` only edits Go source. You must rebuild **from that tree**:
+reflectx does not check whether the compiler can unwrap tagged ifn. An
+unpatched gc still compiles with the tag; interface method calls then trap
+at runtime (`uninitialized element` / invalid PC).
+
+## Patch and rebuild
+
+`iface_patch` only edits source. Rebuild with **`make.bash`** in that tree
+(`go install cmd/asm cmd/compile cmd/go` is not enough):
 
 ```shell
 go run ./cmd/iface_patch /path/to/go1.27.1
 go run ./cmd/iface_patch -check /path/to/go1.27.1
 cd /path/to/go1.27.1/src && ./make.bash   # Windows: make.bat
-```
-
-`go install cmd/asm cmd/compile cmd/go` is not enough: `cmd/go` and the
-compiler must come from this `make.bash`. Then use that tree as `GOROOT`:
-
-```shell
 export GOROOT=/path/to/go1.27.1
 export PATH="$GOROOT/bin:$PATH"
-go version   # should print go1.27.1 from $GOROOT
-```
-
-Re-running `iface_patch` on an already patched tree is a no-op. Supported
-Go versions are the directory names under `_data/` (`iface_patch -h` lists
-them).
-
-After `make.bash` (or after upgrading the patch), clear the Go build cache:
-
-```shell
+go version   # go1.27.1 from $GOROOT
 go clean -cache
 ```
 
-Otherwise a wasip1 `runtime` compiled **without** `-ifacefuncval` can be
-reused by a tagged test. That mismatch traps:
+Re-running on an already patched tree is a no-op. Supported versions are
+the directories under `_data/` (`iface_patch -h` lists them).
 
-```text
-wasm trap: uninitialized element
-```
+`go clean -cache` is required after `make.bash` or after upgrading the
+patch. `-ifacefuncval` is added to **`forcedGcflags` / `forcedAsmflags`**
+so it is part of the compile action ID. If a wasip1 or native `runtime`/`fmt`
+was built **without** the flag, a tagged test can reuse it and trap.
 
-## Run tests (darwin/arm64)
+Do not mix this `GOROOT` with another `go` on `PATH`.
 
-After `make.bash` on Apple Silicon, native tests do not need wasmtime:
+## Run tests
+
+### Native (linux/darwin amd64 or arm64)
 
 ```shell
 export GOROOT=/path/to/go1.27.1
@@ -54,11 +49,13 @@ go clean -cache
 go test -tags goplus.ifacefuncval -v .
 ```
 
-## Run tests (wasip1)
+`make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`
+must rebuild `fmt`/`runtime` into `GOCACHE` so their interface calls unwrap.
 
-`GOOS=wasip1` produces a wasm binary. The host cannot execute it, so
-`go test` **must** use `-exec wasmtime`. Install
-[Wasmtime](https://wasmtime.dev/) first.
+### wasip1
+
+The host cannot run a wasip1 binary. Install [Wasmtime](https://wasmtime.dev/)
+and pass `-exec wasmtime`:
 
 ```shell
 export GOROOT=/path/to/go1.27.1
@@ -67,18 +64,19 @@ go clean -cache
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
 ```
 
-This does **not** work (no runner):
+This does **not** run the tests:
 
 ```shell
 GOOS=wasip1 GOARCH=wasm go test -tags goplus.ifacefuncval .
 ```
 
-Same tag via `GOFLAGS` (still need `-exec wasmtime`):
+### GOFLAGS
 
 ```shell
 export GOFLAGS='-tags=goplus.ifacefuncval'
 go clean -cache
-GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .
+go test -v .                                          # native
+GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .    # wasip1
 ```
 
 If `GOFLAGS` already has `-tags`, merge them:
@@ -90,27 +88,45 @@ export GOFLAGS='-tags=netgo,goplus.ifacefuncval'
 Disable by omitting the tag. `GOFLAGS` cannot subtract a tag
 (`-tags=-goplus.ifacefuncval` is not supported).
 
-## What not to do
-
-- `-tags goplus.ifacefuncval` does not check whether the compiler can
-  unwrap tagged ifn. With an **official** gc, interface method calls trap
-  at runtime (`uninitialized element` / invalid PC). Use a patched
-  toolchain (wasm or arm64).
-- `GOFLAGS=-gcflags=-ifacefuncval` is not enough: that only unwraps calls.
-  Without the build tag, reflectx still compiles the icall path.
-- Do not mix the patched `GOROOT` with another `go` on `PATH`.
+`GOFLAGS=-gcflags=-ifacefuncval` is not enough: that only unwraps calls.
+Without the build tag, reflectx still compiles the icall path.
 
 ## What the patch changes
 
-* `cmd/internal/obj/wasm`: unwrap tagged `itab.Fun` (`makeFuncImpl*|1`) at
-  indirect calls when `-ifacefuncval` is set
-* `cmd/compile/internal/arm64`: same unwrap before `CALLinter` / `CALLtailinter`
-* `runtime/asm_arm64.s`: unwrap in `CALLFN` before `BL (R20)`
-* `cmd/compile` and `cmd/asm`: accept `-ifacefuncval` on wasm and arm64
-* `cmd/go`: when `GOARCH` is `wasm` or `arm64` and `-tags goplus.ifacefuncval`
-  is set (including via `GOFLAGS`), add `-ifacefuncval` to **`forcedGcflags`
-  and `forcedAsmflags`** so it is part of the compile action ID
+Unwrap runs **only** when `objabi.EnableIfaceFuncval` is set (`-ifacefuncval`).
+Untagged builds must match stock gc.
 
-Replacement sources are in `_data/<VERSION>/` (that directory list is the
-supported-version list). To add a Go version, copy `_data/go1.27.1/` to
-`_data/go1.xx.y/` and adjust the snippets.
+| Location | Change |
+|---|---|
+| `cmd/internal/objabi/ifacefuncval.go` | `EnableIfaceFuncval` (shared; not wasm-only) |
+| `cmd/compile`, `cmd/asm` | `-ifacefuncval` on wasm, arm64, amd64 |
+| `cmd/go` | if `GOARCH` is wasm/arm64/amd64 and the tag is set, add `-ifacefuncval` to `forcedGcflags`/`forcedAsmflags` |
+| `cmd/internal/obj/wasm` | unwrap tagged PC at indirect `CALL` |
+| `cmd/compile/internal/arm64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=R26) |
+| `cmd/compile/internal/amd64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=DX, call via R12) |
+| `runtime/asm_arm64.s` | unwrap in `CALLFN` before `BL (R20)` |
+| `runtime/asm_amd64.s` | unwrap in `CALLFN` before `CALL R12` |
+
+A tagged `itab.Fun` is `makeFuncImpl* | 1`. Code PCs and heap pointers are
+even, so bit 0 is free. The unwrap sets CTXT to the untagged pointer and
+calls the first word (`makeFuncStub`).
+
+## `_data/<VERSION>/`
+
+Snippets are embedded from `_data/go1.27.1/` (and later version dirs).
+Go fragments use `//go:build ignore`. Assembly CALLFN old/new pairs are
+plain `.s` files used as exact text replacements.
+
+| File | Role |
+|---|---|
+| `objabi_ifacefuncval.go` | written to `src/cmd/internal/objabi/ifacefuncval.go` |
+| `compile.go` / `asm.go` | set `objabi.EnableIfaceFuncval` |
+| `gc.go` / `gc_flags.go` | `ifaceFuncvalEnabled` + forced flags |
+| `wasmobj.go` / `unwrap.go` | wasm indirect-call unwrap |
+| `arm64_ssa.go`, `arm64_callinter.go`, `arm64_calltailinter.go` | arm64 compiler |
+| `amd64_ssa.go`, `amd64_callinter.go`, `amd64_calltailinter.go` | amd64 compiler |
+| `arm64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_arm64.s` |
+| `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
+
+To support another Go version, copy `_data/go1.27.1/` to `_data/go1.xx.y/`
+and adjust the snippets until `iface_patch` matches that tree.
