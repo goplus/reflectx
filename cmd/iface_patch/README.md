@@ -92,9 +92,10 @@ Disable by omitting the tag. `GOFLAGS` cannot subtract a tag
 
 ## What not to do
 
-- Do not use `-tags goplus.ifacefuncval` with an **official** gc. reflectx
-  would store tagged funcvals in `itab.Fun`, and stock wasm `call_indirect`
-  would not unwrap them (`uninitialized element`).
+- `-tags goplus.ifacefuncval` does not check whether the compiler can
+  unwrap tagged ifn. With an **official** gc, interface method calls trap
+  at runtime (`uninitialized element` / invalid PC). Use a patched
+  toolchain (wasm or arm64).
 - `GOFLAGS=-gcflags=-ifacefuncval` is not enough: that only unwraps calls.
   Without the build tag, reflectx still compiles the icall path.
 - Do not mix the patched `GOROOT` with another `go` on `PATH`.

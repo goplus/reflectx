@@ -4,23 +4,12 @@ package reflectx
 
 import (
 	"fmt"
-	"log"
 	"reflect"
-	"sort"
 	"strings"
 	"unsafe"
-
-	"github.com/goplus/reflectx/abi"
 )
 
-var globalMethodCache = make(map[int]*ifnValue)
-var globalIfnCached = 0
 var globalPtfnCache = make(map[ptfnKey]textOff)
-
-type ifnValue struct {
-	method  method
-	pmethod method
-}
 
 type ptfnKey struct {
 	ctyp     reflect.Type
@@ -28,100 +17,8 @@ type ptfnKey struct {
 	variadic bool
 }
 
-// icall stat
-func IcallStat() (capacity int, allocate int, available int) {
-	mps := abi.Default
-	return mps.Cap(), mps.Used(), mps.Available()
-}
-
-// icall global cached
-func IcallCached() int {
-	return globalIfnCached
-}
-
-func resetAll() {
-	abi.Default.Clear()
-	globalMethodCache = make(map[int]*ifnValue)
-	globalIfnCached = 0
-	globalPtfnCache = make(map[ptfnKey]textOff)
-	parserMethodTypeCache = make(map[reflect.Type]*parserMethodTypeResult)
-	inTypeSizeCache = make(map[reflect.Type]uintptr)
-	outTypeSizeCache = make(map[reflect.Type]uintptr)
-	clearIfaceFuncval()
-}
-
-func (ctx *Context) Reset() {
-	for i, list := range ctx.methodIndexList {
-		abi.Default.List()[i].Remove(list)
-	}
-	ctx.nAllocateError = 0
-	ctx.embedLookupCache = make(map[reflect.Type]reflect.Type)
-	ctx.structLookupCache = make(map[string][]reflect.Type)
-	ctx.interfceLookupCache = make(map[string]reflect.Type)
-	ctx.methodIndexList = make(map[int][]int)
-	ctx.fnHasImethod = nil
-}
-
-func (ctx *Context) IcallAlloc() int {
-	n := 0
-	for _, list := range ctx.methodIndexList {
-		n += len(list)
-	}
-	return n
-}
-
-// register method info
-func (ctx *Context) registerMethod(info *abi.MethodInfo, funcID int) (ifn unsafe.Pointer, allocated bool) {
-	if ifn = ifaceFuncval(info); ifn != nil {
-		return ifn, true
-	}
-	for i, mp := range abi.Default.List() {
-		if mp.Available() == 0 {
-			continue
-		}
-		ifn, mindex := mp.Insert(info)
-		if mindex == -1 {
-			continue
-		}
-		if funcID == 0 {
-			ctx.methodIndexList[i] = append(ctx.methodIndexList[i], mindex)
-		}
-		return ifn, true
-	}
-	ctx.nAllocateError++
-	return
-}
-
 func isMethod(typ reflect.Type) (ok bool) {
 	return totype(typ).TFlag&tflagUserMethod != 0
-}
-
-type MethodInfo struct {
-	Name     string
-	Func     reflect.Value
-	Type     reflect.Type
-	InTyp    reflect.Type
-	OutTyp   reflect.Type
-	InSize   uintptr
-	OutSize  uintptr
-	Pointer  bool
-	Indirect bool
-	Variadic bool
-	OnePtr   bool
-}
-
-func resizeMethod(typ reflect.Type, mcount int, xcount int) error {
-	rt := totype(typ)
-	ut := rt.Uncommon()
-	if ut == nil {
-		return fmt.Errorf("not found uncommonType of %v", typ)
-	}
-	if uint16(mcount) > ut.Mcount {
-		return fmt.Errorf("too many methods of %v", typ)
-	}
-	ut.Xcount = uint16(xcount)
-	ut.Mcount = uint16(mcount)
-	return nil
 }
 
 func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn reflect.Value, inTyp, outTyp reflect.Type, mtyp typeOff, tfn, ptfn textOff) {
@@ -180,149 +77,6 @@ var (
 	zeroIfn = reflect.ValueOf(func() {}).UnsafePointer()
 )
 
-func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods bool) error {
-	if sortMethods {
-		sort.Slice(methods, func(i, j int) bool {
-			n := strings.Compare(methods[i].Name, methods[j].Name)
-			if n == 0 && methods[i].PkgPath == methods[j].PkgPath {
-				panic(fmt.Sprintf("method redeclared: %v", methods[j].Name))
-			}
-			return n < 0
-		})
-	}
-	var mcount, pcount int
-	var xcount, pxcount int
-	pcount = len(methods)
-	for _, m := range methods {
-		isexport := methodIsExported(m.Name)
-		if isexport {
-			pxcount++
-		}
-		if !m.Pointer {
-			if isexport {
-				xcount++
-			}
-			mcount++
-		}
-	}
-	ptyp := PtrTo(typ)
-	if err := resizeMethod(typ, mcount, xcount); err != nil {
-		return err
-	}
-	if err := resizeMethod(ptyp, pcount, pxcount); err != nil {
-		return err
-	}
-	rt := totype(typ)
-	prt := totype(ptyp)
-
-	ms := rtypeMethods(rt)
-	pms := rtypeMethods(prt)
-
-	var onePtr bool
-	switch typ.Kind() {
-	case reflect.Func, reflect.Chan, reflect.Map:
-		onePtr = true
-	case reflect.Struct:
-		onePtr = typ.NumField() == 1 && typ.Field(0).Type.Kind() == reflect.Ptr
-	}
-	var index int
-	for i, m := range methods {
-		if m.FuncId > 0 {
-			if pv, ok := globalMethodCache[m.FuncId]; ok {
-				pms[i] = pv.pmethod
-				if !m.Pointer {
-					ms[index] = pv.method
-					index++
-				}
-				continue
-			}
-		}
-		isexport := methodIsExported(m.Name)
-		nm := newNameEx(m.Name, "", isexport, !isexport)
-		if !isexport {
-			setPkgPath(nm, m.PkgPath)
-		}
-		mname := resolveReflectName(nm)
-		mfn, inTyp, outTyp, mtyp, tfn, ptfn := createMethod(typ, ptyp, m, index)
-		isz := inTypeSize(inTyp)
-		osz := outTypeSize(outTyp)
-		pinfo := &abi.MethodInfo{
-			Type:     typ,
-			Func:     mfn,
-			Call:     m.Func,
-			InTyp:    inTyp,
-			OutTyp:   outTyp,
-			InSize:   isz,
-			OutSize:  osz,
-			Pointer:  true,
-			Indirect: !m.Pointer,
-			Variadic: m.Type.IsVariadic(),
-			OnePtr:   onePtr,
-		}
-		pms[i].Name = mname
-		pms[i].Mtyp = mtyp
-		pms[i].Tfn = ptfn
-		var pifn unsafe.Pointer = zeroIfn
-		hasIfn := ctx.hasImethod(typ, m)
-		var allocated bool
-		if hasIfn {
-			pifn, allocated = ctx.registerMethod(pinfo, m.FuncId)
-		}
-		pms[i].Ifn = resolveReflectText(pifn)
-		if m.FuncId > 0 {
-			if allocated {
-				globalIfnCached++
-			}
-			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
-		}
-		if !m.Pointer {
-			ifn := pifn
-			hasIfn = hasIfn && onePtr
-			if hasIfn {
-				info := &abi.MethodInfo{
-					Type:     typ,
-					Func:     mfn,
-					Call:     m.Func,
-					InTyp:    inTyp,
-					OutTyp:   outTyp,
-					InSize:   isz,
-					OutSize:  osz,
-					Variadic: m.Type.IsVariadic(),
-					OnePtr:   onePtr,
-				}
-				ifn, allocated = ctx.registerMethod(info, m.FuncId)
-				if m.FuncId > 0 && allocated {
-					globalIfnCached++
-				}
-			}
-			ms[index].Name = mname
-			ms[index].Mtyp = mtyp
-			ms[index].Tfn = tfn
-			ms[index].Ifn = resolveReflectText(ifn)
-			if m.FuncId > 0 {
-				globalMethodCache[m.FuncId].method = ms[index]
-			}
-			index++
-		}
-	}
-	rt.TFlag |= tflagUserMethod
-	prt.TFlag |= tflagUserMethod
-
-	if ctx.nAllocateError != 0 {
-		ncap := abi.Default.Cap()
-		err := &AllocError{
-			Typ: typ,
-			Cap: ncap,
-			Req: ncap + ctx.nAllocateError,
-		}
-		if !DisableAllocateWarning {
-			log.Printf("warning, %v, import _ %q\n", err, "github.com/goplus/reflectx/icall/icall[N]")
-		}
-		return err
-	}
-	return nil
-}
-
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
 	prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)
@@ -331,60 +85,6 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	setTypeName(rt, styp.PkgPath(), styp.Name())
 	prt.Uncommon().PkgPath = resolveReflectName(newName(styp.PkgPath(), "", false))
 	return toType(rt)
-}
-
-const (
-	uintptrAligin = unsafe.Sizeof(uintptr(0))
-)
-
-var (
-	inTypeSizeCache  = make(map[reflect.Type]uintptr)
-	outTypeSizeCache = make(map[reflect.Type]uintptr)
-)
-
-func inTypeSize(typ reflect.Type) uintptr {
-	sz, ok := inTypeSizeCache[typ]
-	if ok {
-		return sz
-	}
-	sz = argsTypeSize(typ, true)
-	inTypeSizeCache[typ] = sz
-	return sz
-}
-
-func outTypeSize(typ reflect.Type) uintptr {
-	sz, ok := outTypeSizeCache[typ]
-	if ok {
-		return sz
-	}
-	sz = argsTypeSize(typ, false)
-	outTypeSizeCache[typ] = sz
-	return sz
-}
-
-func argsTypeSize(typ reflect.Type, offset bool) (off uintptr) {
-	numIn := typ.NumField()
-	if numIn == 0 {
-		return 0
-	}
-	for i := 0; i < numIn; i++ {
-		t := typ.Field(i).Type
-		targ := totype(t)
-		a := uintptr(targ.Align_)
-		off = (off + a - 1) &^ (a - 1)
-		n := targ.Size_
-		if n == 0 {
-			continue
-		}
-		off += n
-	}
-	if offset {
-		off = (off + uintptrAligin - 1) &^ (uintptrAligin - 1)
-		if off == 0 {
-			return uintptrAligin
-		}
-	}
-	return
 }
 
 func setInterfaceMethods(st *interfaceType, unnamed bool, methods []reflect.Method) {

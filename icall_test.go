@@ -1,4 +1,4 @@
-//go:build !llgo && (!goplus.ifacefuncval || (!wasm && !arm64))
+//go:build !llgo && !goplus.ifacefuncval
 
 package reflectx_test
 
