@@ -1,8 +1,8 @@
 # iface_patch
 
-Optional: patch a Go **1.27.1** source tree so `-tags goplus.ifacefuncval`
-can replace icall stubs with tagged MakeFunc funcvals
-(`itab.Fun = makeFuncImpl*|1`).
+Optional: patch a Go **1.26.8** or **1.27.1** source tree so
+`-tags goplus.ifacefuncval` can replace icall stubs with tagged MakeFunc
+funcvals (`itab.Fun = makeFuncImpl*|1`).
 
 Supported `GOARCH` values: **wasm**, **arm64**, **amd64**, **386** (any `GOOS`
 that uses that backend).
@@ -26,12 +26,12 @@ go install github.com/goplus/reflectx/cmd/iface_patch@latest
 (`go install cmd/asm cmd/compile cmd/go` is not enough):
 
 ```shell
-iface_patch /path/to/go1.27.1
-iface_patch -check /path/to/go1.27.1
-cd /path/to/go1.27.1/src && ./make.bash   # Windows: make.bat
-export GOROOT=/path/to/go1.27.1
+iface_patch /path/to/go
+iface_patch -check /path/to/go
+cd /path/to/go/src && ./make.bash   # Windows: make.bat
+export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
-go version   # go1.27.1 from $GOROOT
+go version   # from $GOROOT
 ```
 
 Re-running on an already patched tree is a no-op. Supported versions are
@@ -46,9 +46,10 @@ Do not mix this `GOROOT` with another `go` on `PATH`.
 ### Native (linux/darwin amd64, arm64, or 386)
 
 ```shell
-export GOROOT=/path/to/go1.27.1
+export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
 go test -tags goplus.ifacefuncval -v .
+go test -tags goplus.ifacefuncval -v fmt sort
 ```
 
 `make.bash` installs stdlib **without** `-ifacefuncval`. The tagged `go test`
@@ -60,10 +61,15 @@ The host cannot run a wasip1 binary. Install [Wasmtime](https://wasmtime.dev/)
 and pass `-exec wasmtime`:
 
 ```shell
-export GOROOT=/path/to/go1.27.1
+export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
+GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v -run '^Test' fmt sort
 ```
+
+`-run '^Test'` skips Examples (they need a `/tmp` preopen that bare
+`wasmtime` does not provide). Or use
+`-exec 'wasmtime --dir=/tmp --dir=.'` and run the full packages.
 
 This does **not** run the tests:
 
@@ -76,6 +82,7 @@ GOOS=wasip1 GOARCH=wasm go test -tags goplus.ifacefuncval .
 ```shell
 export GOFLAGS='-tags=goplus.ifacefuncval'
 go test -v .                                          # native
+go test -v fmt sort
 GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .    # wasip1
 ```
 
@@ -115,7 +122,8 @@ calls the first word (`makeFuncStub`).
 
 ## `_data/<VERSION>/`
 
-Snippets are embedded from `_data/go1.27.1/` (and later version dirs).
+Snippets are embedded from `_data/<VERSION>/` (`go1.26.8`, `go1.27.1`, and
+later version dirs).
 Go fragments use `//go:build ignore`. Assembly CALLFN old/new pairs are
 plain `.s` files used as exact text replacements.
 
@@ -132,5 +140,6 @@ plain `.s` files used as exact text replacements.
 | `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
 | `386_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_386.s` |
 
-To support another Go version, copy `_data/go1.27.1/` to `_data/go1.xx.y/`
-and adjust the snippets until `iface_patch` matches that tree.
+To support another Go version, copy `_data/go1.27.1/` (or `_data/go1.26.8/`)
+to `_data/go1.xx.y/` and adjust the snippets until `iface_patch` matches
+that tree.

@@ -73,6 +73,9 @@ jobs:
       run: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v .
 
   Test-Wasm-IfaceFuncval:
+    strategy:
+      matrix:
+        go-tag: [go1.26.8, go1.27.1]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -90,27 +93,30 @@ jobs:
     - name: Test iface_patch
       run: go test -v ./cmd/iface_patch
 
-    - name: Clone Go 1.27.1
-      run: git clone --depth 1 --branch go1.27.1 https://github.com/golang/go.git "$HOME/go1.27.1"
+    - name: Clone Go ${{ matrix.go-tag }}
+      run: git clone --depth 1 --branch ${{ matrix.go-tag }} https://github.com/golang/go.git "$HOME/${{ matrix.go-tag }}"
 
     - name: Patch Go
       run: |
-        go run ./cmd/iface_patch "$HOME/go1.27.1"
-        go run ./cmd/iface_patch -check "$HOME/go1.27.1"
+        go run ./cmd/iface_patch "$HOME/${{ matrix.go-tag }}"
+        go run ./cmd/iface_patch -check "$HOME/${{ matrix.go-tag }}"
 
     - name: Rebuild Go
-      run: cd "$HOME/go1.27.1/src" && ./make.bash
+      run: cd "$HOME/${{ matrix.go-tag }}/src" && ./make.bash
 
     - name: Test-wasip1-ifacefuncval
       run: |
-        export GOROOT="$HOME/go1.27.1"
+        export GOROOT="$HOME/${{ matrix.go-tag }}"
         export PATH="$GOROOT/bin:$PATH"
         GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v -tags goplus.ifacefuncval .
+        # Skip Examples: bare wasmtime has no /tmp preopen (Example stdout files fail).
+        GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -v -tags goplus.ifacefuncval -run '^Test' fmt sort
 
   Test-Native-IfaceFuncval:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-14]
+        go-tag: [go1.26.8, go1.27.1]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
@@ -123,25 +129,27 @@ jobs:
     - name: Test iface_patch
       run: go test -v ./cmd/iface_patch
 
-    - name: Clone Go 1.27.1
-      run: git clone --depth 1 --branch go1.27.1 https://github.com/golang/go.git "$HOME/go1.27.1"
+    - name: Clone Go ${{ matrix.go-tag }}
+      run: git clone --depth 1 --branch ${{ matrix.go-tag }} https://github.com/golang/go.git "$HOME/${{ matrix.go-tag }}"
 
     - name: Patch Go
       run: |
-        go run ./cmd/iface_patch "$HOME/go1.27.1"
-        go run ./cmd/iface_patch -check "$HOME/go1.27.1"
+        go run ./cmd/iface_patch "$HOME/${{ matrix.go-tag }}"
+        go run ./cmd/iface_patch -check "$HOME/${{ matrix.go-tag }}"
 
     - name: Rebuild Go
-      run: cd "$HOME/go1.27.1/src" && ./make.bash
+      run: cd "$HOME/${{ matrix.go-tag }}/src" && ./make.bash
 
     - name: Test ifacefuncval
       run: |
-        export GOROOT="$HOME/go1.27.1"
+        export GOROOT="$HOME/${{ matrix.go-tag }}"
         export PATH="$GOROOT/bin:$PATH"
         go clean -cache
         go test -v -tags goplus.ifacefuncval .
+        go test -v -tags goplus.ifacefuncval fmt sort
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           GOARCH=386 go test -v -tags goplus.ifacefuncval .
+          GOARCH=386 go test -v -tags goplus.ifacefuncval fmt sort
         fi
 
   Test-Windows:

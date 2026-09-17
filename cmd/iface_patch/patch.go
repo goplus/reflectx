@@ -568,7 +568,7 @@ func patchAsmFlags(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	}
 	if !hasIdent(f, "IfaceFuncval") {
 		if !addVarBoolFlag(f, "IfaceFuncval", "ifacefuncval", ifaceFuncvalHelp) {
-			return false, fmt.Errorf("Std flag var not found")
+			return false, fmt.Errorf("Std/Spectre flag var not found")
 		}
 		changed = true
 	} else if updateVarBoolFlagHelp(f, "IfaceFuncval", ifaceFuncvalHelp) {
@@ -648,31 +648,42 @@ func addVarBoolFlag(f *ast.File, name, flagName, help string) bool {
 		if !ok || gen.Tok != token.VAR {
 			continue
 		}
-		for i, s := range gen.Specs {
-			vs := s.(*ast.ValueSpec)
-			if len(vs.Names) != 1 || vs.Names[0].Name != "Std" {
-				continue
+		idx := -1
+		for _, after := range []string{"Std", "Spectre"} {
+			for i, s := range gen.Specs {
+				vs, ok := s.(*ast.ValueSpec)
+				if !ok || len(vs.Names) != 1 || vs.Names[0].Name != after {
+					continue
+				}
+				idx = i
+				break
 			}
-			spec := &ast.ValueSpec{
-				Names: []*ast.Ident{ast.NewIdent(name)},
-				Values: []ast.Expr{
-					&ast.CallExpr{
-						Fun: &ast.SelectorExpr{X: ast.NewIdent("flag"), Sel: ast.NewIdent("Bool")},
-						Args: []ast.Expr{
-							&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(flagName)},
-							ast.NewIdent("false"),
-							&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(help)},
-						},
+			if idx >= 0 {
+				break
+			}
+		}
+		if idx < 0 {
+			continue
+		}
+		spec := &ast.ValueSpec{
+			Names: []*ast.Ident{ast.NewIdent(name)},
+			Values: []ast.Expr{
+				&ast.CallExpr{
+					Fun: &ast.SelectorExpr{X: ast.NewIdent("flag"), Sel: ast.NewIdent("Bool")},
+					Args: []ast.Expr{
+						&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(flagName)},
+						ast.NewIdent("false"),
+						&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(help)},
 					},
 				},
-			}
-			specs := make([]ast.Spec, 0, len(gen.Specs)+1)
-			specs = append(specs, gen.Specs[:i+1]...)
-			specs = append(specs, spec)
-			specs = append(specs, gen.Specs[i+1:]...)
-			gen.Specs = specs
-			return true
+			},
 		}
+		specs := make([]ast.Spec, 0, len(gen.Specs)+1)
+		specs = append(specs, gen.Specs[:idx+1]...)
+		specs = append(specs, spec)
+		specs = append(specs, gen.Specs[idx+1:]...)
+		gen.Specs = specs
+		return true
 	}
 	return false
 }
@@ -766,26 +777,17 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if splitCallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
 		changed = true
 	}
-	if splitCallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
-		changed = true
+	want := 1
+	if hasIdentExpr(f, "OpARM64CALLtailinter") {
+		if splitCallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
+			changed = true
+		}
+		want = 2
 	}
 	if addedHelper {
-		rewired := 0
-		ast.Inspect(f, func(n ast.Node) bool {
-			cc, ok := n.(*ast.CaseClause)
-			if !ok {
-				return true
-			}
-			if selectorInList(cc.List, "OpARM64CALLinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
-				rewired++
-			}
-			if selectorInList(cc.List, "OpARM64CALLtailinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
-				rewired++
-			}
-			return true
-		})
-		if rewired < 2 {
-			return false, fmt.Errorf("arm64 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
+		rewired := countCallRewired(f, [2]string{"OpARM64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpARM64CALLtailinter", "ssaGenIfaceFuncvalCall"})
+		if rewired < want {
+			return false, fmt.Errorf("arm64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 		}
 	}
 	return changed, nil
@@ -879,26 +881,17 @@ func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if splitCallCase(f, "OpAMD64CALLinter", "OpAMD64CALLclosure", v.stmts("amd64_callinter.go")) {
 		changed = true
 	}
-	if splitCallCase(f, "OpAMD64CALLtailinter", "OpAMD64CALLtail", v.stmts("amd64_calltailinter.go")) {
-		changed = true
+	want := 1
+	if hasIdentExpr(f, "OpAMD64CALLtailinter") {
+		if splitCallCase(f, "OpAMD64CALLtailinter", "OpAMD64CALLtail", v.stmts("amd64_calltailinter.go")) {
+			changed = true
+		}
+		want = 2
 	}
 	if addedHelper {
-		rewired := 0
-		ast.Inspect(f, func(n ast.Node) bool {
-			cc, ok := n.(*ast.CaseClause)
-			if !ok {
-				return true
-			}
-			if selectorInList(cc.List, "OpAMD64CALLinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
-				rewired++
-			}
-			if selectorInList(cc.List, "OpAMD64CALLtailinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalTailCall") {
-				rewired++
-			}
-			return true
-		})
-		if rewired < 2 {
-			return false, fmt.Errorf("amd64 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
+		rewired := countCallRewired(f, [2]string{"OpAMD64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpAMD64CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
+		if rewired < want {
+			return false, fmt.Errorf("amd64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 		}
 	}
 	return changed, nil
@@ -919,27 +912,35 @@ func patch386SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if splitCallCase(f, "Op386CALLinter", "Op386CALLstatic", v.stmts("x86_callinter.go")) {
 		changed = true
 	}
-	if splitCallCase(f, "Op386CALLtailinter", "Op386CALLtail", v.stmts("x86_calltailinter.go")) {
-		changed = true
+	want := 1
+	if hasIdentExpr(f, "Op386CALLtailinter") {
+		if splitCallCase(f, "Op386CALLtailinter", "Op386CALLtail", v.stmts("x86_calltailinter.go")) {
+			changed = true
+		}
+		want = 2
 	}
 	if addedHelper {
-		rewired := 0
-		ast.Inspect(f, func(n ast.Node) bool {
-			cc, ok := n.(*ast.CaseClause)
-			if !ok {
-				return true
-			}
-			if selectorInList(cc.List, "Op386CALLinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
-				rewired++
-			}
-			if selectorInList(cc.List, "Op386CALLtailinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalTailCall") {
-				rewired++
-			}
-			return true
-		})
-		if rewired < 2 {
-			return false, fmt.Errorf("386 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
+		rewired := countCallRewired(f, [2]string{"Op386CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"Op386CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
+		if rewired < want {
+			return false, fmt.Errorf("386 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 		}
 	}
 	return changed, nil
+}
+
+func countCallRewired(f *ast.File, pairs ...[2]string) int {
+	rewired := 0
+	ast.Inspect(f, func(n ast.Node) bool {
+		cc, ok := n.(*ast.CaseClause)
+		if !ok {
+			return true
+		}
+		for _, p := range pairs {
+			if selectorInList(cc.List, p[0]) && hasIdentExpr(cc, p[1]) {
+				rewired++
+			}
+		}
+		return true
+	})
+	return rewired
 }

@@ -77,7 +77,7 @@ icall_gen -o icall1024.go -pkg main -size 1024
 Optional alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
 (`makeFuncImpl*|1`). No stub table; methods share `makeFuncStub`.
 
-Needs a **patched Go 1.27.1** and an explicit tag.
+Needs a **patched Go 1.26.8 or 1.27.1** and an explicit tag.
 Supported `GOARCH`: wasm, arm64, amd64, 386.
 
 * install iface_patch
@@ -85,11 +85,12 @@ Supported `GOARCH`: wasm, arm64, amd64, 386.
 go install github.com/goplus/reflectx/cmd/iface_patch@latest
 ```
 ```shell
-iface_patch /path/to/go1.27.1
-cd /path/to/go1.27.1/src && ./make.bash
-export GOROOT=/path/to/go1.27.1
+iface_patch /path/to/go   # 1.26.8 or 1.27.1
+cd /path/to/go/src && ./make.bash
+export GOROOT=/path/to/go
 export PATH="$GOROOT/bin:$PATH"
 go test -tags goplus.ifacefuncval .
+go test -tags goplus.ifacefuncval fmt sort
 # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval .
 ```
 
