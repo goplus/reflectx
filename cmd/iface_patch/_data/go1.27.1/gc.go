@@ -2,9 +2,10 @@
 
 package work
 
-// wasmIfaceFuncval reports whether this build requested the
-// goplus.ifacefuncval extension (tagged MakeFunc funcval ifn).
-func wasmIfaceFuncval() bool {
+// ifaceFuncvalEnabled reports whether this build requested the
+// goplus.ifacefuncval extension (tagged MakeFunc funcval ifn)
+// on wasm or arm64.
+func ifaceFuncvalEnabled() bool {
 	switch cfg.Goarch {
 	case "wasm", "arm64":
 	default:

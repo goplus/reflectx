@@ -107,8 +107,8 @@ func (gcToolchain) gc() {}
 	if !changed {
 		t.Fatal("expected change")
 	}
-	if funcDecl(f, "wasmIfaceFuncval") == nil {
-		t.Fatal("missing wasmIfaceFuncval func")
+	if funcDecl(f, "ifaceFuncvalEnabled") == nil {
+		t.Fatal("missing ifaceFuncvalEnabled func")
 	}
 	changed, err = patchGoGc(fset, f, testVer())
 	if err != nil {
@@ -116,6 +116,31 @@ func (gcToolchain) gc() {}
 	}
 	if changed {
 		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchGoGcRenamesOld(t *testing.T) {
+	src := `package work
+
+func wasmIfaceFuncval() bool { return false }
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "gc.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchGoGc(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected rename")
+	}
+	if funcDecl(f, "wasmIfaceFuncval") != nil {
+		t.Fatal("old name still present")
+	}
+	if funcDecl(f, "ifaceFuncvalEnabled") == nil {
+		t.Fatal("missing ifaceFuncvalEnabled")
 	}
 }
 
@@ -150,6 +175,36 @@ func BuildInit() {
 	}
 	if changed {
 		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchGoInitRenamesOld(t *testing.T) {
+	src := `package work
+
+func BuildInit() {
+	buildModeInit()
+	if wasmIfaceFuncval() {
+		forcedGcflags = append(forcedGcflags, "-ifacefuncval")
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "init.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchGoInit(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected rename")
+	}
+	if hasIdentExpr(funcDecl(f, "BuildInit").Body, "wasmIfaceFuncval") {
+		t.Fatal("old name still present")
+	}
+	if !hasIdentExpr(funcDecl(f, "BuildInit").Body, "ifaceFuncvalEnabled") {
+		t.Fatal("missing ifaceFuncvalEnabled")
 	}
 }
 
@@ -205,6 +260,29 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 	}
 	if changed {
 		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchArm64SSAMissingLayout(t *testing.T) {
+	src := `package arm64
+
+import "cmd/internal/obj/arm64"
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.OpARM64CALLstatic:
+		s.Call(v)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = patchArm64SSA(fset, f, testVer())
+	if err == nil {
+		t.Fatal("expected error when CALL cases are missing")
 	}
 }
 

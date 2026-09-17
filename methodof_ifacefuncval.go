@@ -25,10 +25,10 @@ func clearIfaceFuncval() {
 	ifaceFuncvalFns = nil
 }
 
-// ifaceFuncval returns a wasm itab.Fun entry for info.
-// The patched Go wasm toolchain treats an odd function pointer as a
-// funcval: CTXT is the untagged pointer and the call target is the
-// first word (makeFuncStub).
+// ifaceFuncval returns an itab.Fun entry for info on wasm and arm64.
+// The patched toolchain treats an odd function pointer as a funcval:
+// CTXT is the untagged pointer and the call target is the first word
+// (makeFuncStub).
 func ifaceFuncval(info *abi.MethodInfo) unsafe.Pointer {
 	fn := info.Func
 	if (!info.Pointer && !info.OnePtr) || info.Indirect {

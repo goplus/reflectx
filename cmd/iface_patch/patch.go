@@ -351,7 +351,11 @@ func insertAfterCountFlags(f *ast.File, v versionData) bool {
 func replaceStmtWithIdent(body *ast.BlockStmt, ident string, extra []ast.Stmt) bool {
 	for i, stmt := range body.List {
 		if hasIdentExpr(stmt, ident) {
-			body.List = append(append(body.List[:i], extra...), body.List[i+1:]...)
+			out := make([]ast.Stmt, 0, len(body.List)-1+len(extra))
+			out = append(out, body.List[:i]...)
+			out = append(out, extra...)
+			out = append(out, body.List[i+1:]...)
+			body.List = out
 			return true
 		}
 	}
@@ -487,15 +491,25 @@ func patchGoGc(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if len(decls) == 0 {
 		return false, fmt.Errorf("gc.go snippet has no decls")
 	}
-	if fn := funcDecl(f, "wasmIfaceFuncval"); fn != nil {
-		if hasStringLit(fn, "arm64") {
-			return false, nil
-		}
+	if funcDecl(f, "ifaceFuncvalEnabled") != nil {
+		return false, nil
+	}
+	if funcDecl(f, "wasmIfaceFuncval") != nil {
 		replaceFuncDecl(f, "wasmIfaceFuncval", decls[0])
 		return true, nil
 	}
 	f.Decls = append(f.Decls, decls...)
 	return true, nil
+}
+
+func renameIdent(n ast.Node, old, new string) {
+	ast.Inspect(n, func(x ast.Node) bool {
+		id, ok := x.(*ast.Ident)
+		if ok && id.Name == old {
+			id.Name = new
+		}
+		return true
+	})
 }
 
 func replaceFuncDecl(f *ast.File, name string, d ast.Decl) {
@@ -513,8 +527,12 @@ func patchGoInit(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if fn == nil || fn.Body == nil {
 		return false, fmt.Errorf("BuildInit not found")
 	}
-	if hasIdentExpr(fn.Body, "wasmIfaceFuncval") {
+	if hasIdentExpr(fn.Body, "ifaceFuncvalEnabled") {
 		return false, nil
+	}
+	if hasIdentExpr(fn.Body, "wasmIfaceFuncval") {
+		renameIdent(fn.Body, "wasmIfaceFuncval", "ifaceFuncvalEnabled")
+		return true, nil
 	}
 	extra := v.stmts("gc_flags.go")
 	for i, stmt := range fn.Body.List {
@@ -538,8 +556,10 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addImportAfter(f, "cmd/internal/obj/arm64", "cmd/internal/obj/wasm")
 		changed = true
 	}
+	addedHelper := false
 	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
 		f.Decls = append(f.Decls, v.decls("arm64_ssa.go")...)
+		addedHelper = true
 		changed = true
 	}
 	if splitARM64CallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
@@ -547,6 +567,25 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	}
 	if splitARM64CallCase(f, "OpARM64CALLtailinter", "OpARM64CALLtail", v.stmts("arm64_calltailinter.go")) {
 		changed = true
+	}
+	if addedHelper {
+		rewired := 0
+		ast.Inspect(f, func(n ast.Node) bool {
+			cc, ok := n.(*ast.CaseClause)
+			if !ok {
+				return true
+			}
+			if selectorInList(cc.List, "OpARM64CALLinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
+				rewired++
+			}
+			if selectorInList(cc.List, "OpARM64CALLtailinter") && hasIdentExpr(cc, "ssaGenIfaceFuncvalCall") {
+				rewired++
+			}
+			return true
+		})
+		if rewired < 2 {
+			return false, fmt.Errorf("arm64 CALL sites not rewired (found %d, want 2); ssaGenValue switch layout may have changed", rewired)
+		}
 	}
 	return changed, nil
 }

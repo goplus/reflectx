@@ -3,7 +3,7 @@
 package p
 
 func _() {
-	if wasmIfaceFuncval() {
+	if ifaceFuncvalEnabled() {
 		forcedGcflags = append(forcedGcflags, "-ifacefuncval")
 		forcedAsmflags = append(forcedAsmflags, "-ifacefuncval")
 	}
