@@ -37,6 +37,8 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	case reflect.Struct:
 		st := (*structType)(unsafe.Pointer(rt))
 		ost := (*structType)(unsafe.Pointer(ort))
+		// Unnamed structs still need the package path of their unexported fields.
+		st.PkgPath = ost.PkgPath
 		st.Fields = ost.Fields
 	case reflect.Ptr:
 		st := (*ptrType)(unsafe.Pointer(rt))
@@ -60,6 +62,8 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	case reflect.Interface:
 		st := (*interfaceType)(unsafe.Pointer(rt))
 		ost := (*interfaceType)(unsafe.Pointer(ort))
+		// Unexported methods may use the interface's package path as a fallback.
+		st.PkgPath = ost.PkgPath
 		st.Methods = ost.Methods
 	case reflect.Map:
 		st := (*mapType)(unsafe.Pointer(rt))
