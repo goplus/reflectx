@@ -34,11 +34,10 @@ Golang reflect package hack tools
 * reflectx.FieldByNameFunc
 
 ### Named
-* reflectx.StructOf(fs)
+* reflectx.StructOf
 * reflectx.NamedTypeOf
-
-* SetUnderlying
-* SetTypeName
+* reflectx.SetUnderlying
+* reflectx.SetTypeName
 
 ### Method
 * reflectx.Method
@@ -56,7 +55,7 @@ Golang reflect package hack tools
 * reflectx.SetInterfaceType
 
 ### Context
-* reflectx.NewContext()
+* reflectx.NewContext
 
 ### Method allocs (icall)
 Default gc path: each installed method needs a unique ifn stub.
@@ -95,6 +94,9 @@ go test -tags goplus.ifacefuncval .
 
 Without the tag, a patched compiler matches official gc. An unpatched
 compiler still accepts the tag; interface method calls then trap.
+
+You can `export GOFLAGS='-tags=goplus.ifacefuncval'`, or prefix a command:
+`GOFLAGS='-tags=goplus.ifacefuncval' go build` (also `go run` / `go test`).
 
 See [cmd/iface_patch/README.md](cmd/iface_patch/README.md).
 
