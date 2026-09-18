@@ -64,7 +64,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		ost := (*interfaceType)(unsafe.Pointer(ort))
 		// Unexported methods may use the interface's package path as a fallback.
 		st.PkgPath = ost.PkgPath
-		st.Methods = ost.Methods
+		st.Methods = cloneInterfaceMethods(ort, ost)
 	case reflect.Map:
 		st := (*mapType)(unsafe.Pointer(rt))
 		ost := (*mapType)(unsafe.Pointer(ort))
@@ -102,6 +102,20 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 	}
 }
 
+func cloneInterfaceMethods(ort *rtype, ost *interfaceType) []imethod {
+	if len(ost.Methods) == 0 {
+		return nil
+	}
+	ms := make([]imethod, 0, len(ost.Methods))
+	for _, m := range ost.Methods {
+		ms = append(ms, imethod{
+			Name: resolveReflectName(rtype_nameOff(ort, m.Name)),
+			Typ:  resolveReflectType(rtype_typeOff(ort, m.Typ)),
+		})
+	}
+	return ms
+}
+
 func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int) (*rtype, []method) {
 	var rt *rtype
 	var fnoff uint32
@@ -137,12 +151,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		ost := (*interfaceType)(unsafe.Pointer(ort))
 		// Unexported methods may use the interface's package path as a fallback.
 		st.PkgPath = ost.PkgPath
-		for _, m := range ost.Methods {
-			st.Methods = append(st.Methods, imethod{
-				Name: resolveReflectName(rtype_nameOff(ort, m.Name)),
-				Typ:  resolveReflectType(rtype_typeOff(ort, m.Typ)),
-			})
-		}
+		st.Methods = cloneInterfaceMethods(ort, ost)
 	case reflect.Slice:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
 			{Name: "S", Type: reflect.TypeOf(sliceType{})},
