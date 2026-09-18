@@ -113,6 +113,8 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		}))
 		st := (*structType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		ost := (*structType)(unsafe.Pointer(ort))
+		// Unnamed structs still need the package path of their unexported fields.
+		st.PkgPath = ost.PkgPath
 		st.Fields = ost.Fields
 	case reflect.Ptr:
 		tt = reflect.New(reflect.StructOf([]reflect.StructField{
@@ -129,6 +131,8 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		}))
 		st := (*interfaceType)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
 		ost := (*interfaceType)(unsafe.Pointer(ort))
+		// Unexported methods may use the interface's package path as a fallback.
+		st.PkgPath = ost.PkgPath
 		for _, m := range ost.Methods {
 			st.Methods = append(st.Methods, imethod{
 				Name: resolveReflectName(rtype_nameOff(ort, m.Name)),
