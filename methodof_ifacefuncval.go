@@ -133,5 +133,10 @@ func taggedIfn(typ reflect.Type, m Method, mfn reflect.Value, deref bool) unsafe
 		})
 	}
 	ifaceFuncvalFns = append(ifaceFuncvalFns, fn)
-	return unsafe.Pointer(uintptr(tovalue(&fn).ptr) | ifaceFuncvalBit)
+	return tagIfaceFuncval(tovalue(&fn).ptr)
+}
+
+//go:nocheckptr
+func tagIfaceFuncval(p unsafe.Pointer) unsafe.Pointer {
+	return unsafe.Pointer(uintptr(p) | ifaceFuncvalBit)
 }
