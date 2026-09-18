@@ -145,8 +145,8 @@ jobs:
         export GOROOT="$HOME/${{ matrix.go-tag }}"
         export PATH="$GOROOT/bin:$PATH"
         go clean -cache
-        go test -v -tags goplus.ifacefuncval .
-        go test -v -tags goplus.ifacefuncval fmt sort
+        go test -race -v -tags goplus.ifacefuncval .
+        go test -race -v -tags goplus.ifacefuncval fmt sort
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           GOARCH=386 go test -v -tags goplus.ifacefuncval .
           GOARCH=386 go test -v -tags goplus.ifacefuncval fmt sort

@@ -133,5 +133,14 @@ func taggedIfn(typ reflect.Type, m Method, mfn reflect.Value, deref bool) unsafe
 		})
 	}
 	ifaceFuncvalFns = append(ifaceFuncvalFns, fn)
-	return unsafe.Pointer(uintptr(tovalue(&fn).ptr) | ifaceFuncvalBit)
+	return tagIfaceFuncval(tovalue(&fn).ptr)
+}
+
+// tagIfaceFuncval sets ifaceFuncvalBit in p to mark an itab.Fun entry as a
+// MakeFunc funcval. The result is not a valid pointer (its low bit is set), so
+// checkptr is disabled; the untagged funcval stays reachable via ifaceFuncvalFns.
+//
+//go:nocheckptr
+func tagIfaceFuncval(p unsafe.Pointer) unsafe.Pointer {
+	return unsafe.Pointer(uintptr(p) | ifaceFuncvalBit)
 }
