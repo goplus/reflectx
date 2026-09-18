@@ -549,3 +549,45 @@ func TestSetUnderlyingStructFieldPkgPath(t *testing.T) {
 		})
 	}
 }
+
+func TestSetUnderlyingInterfaceMethodPkgPath(t *testing.T) {
+	value := reflect.ValueOf(clonePrivateValue{})
+	types := []struct {
+		name string
+		typ  reflect.Type
+	}{
+		{"named", reflect.TypeOf((*clonePrivateInterface)(nil)).Elem()},
+		{"anonymous", reflect.TypeOf((*interface {
+			private() int
+			Public() int
+		})(nil)).Elem()},
+		{"dynamic", reflectx.NewContext().InterfaceOf(nil, []reflect.Method{
+			{Name: "private", PkgPath: value.Type().PkgPath(), Type: reflect.TypeOf(func() int { return 0 })},
+			{Name: "Public", Type: reflect.TypeOf(func() int { return 0 })},
+		})},
+		{"exported", reflect.TypeOf((*interface{ Public() int })(nil)).Elem()},
+	}
+	for _, source := range types {
+		t.Run(source.name, func(t *testing.T) {
+			dst := reflectx.NamedTypeOf("example.com/pkg", "I", reflect.TypeOf((*interface{})(nil)).Elem())
+			reflectx.SetUnderlying(dst, source.typ)
+			if dst.NumMethod() != source.typ.NumMethod() {
+				t.Fatal("SetUnderlying changed the method count")
+			}
+			for i := 0; i < source.typ.NumMethod(); i++ {
+				want, got := source.typ.Method(i), dst.Method(i)
+				if got != want {
+					t.Errorf("method %d: got %+v, want %+v", i, got, want)
+				}
+			}
+			if !value.Type().Implements(dst) {
+				t.Fatal("concrete value no longer implements the underlying interface")
+			}
+			v := reflect.New(dst).Elem()
+			v.Set(value)
+			if got := v.MethodByName("Public").Call(nil)[0].Int(); got != 7 {
+				t.Fatalf("Public() = %d, want 7", got)
+			}
+		})
+	}
+}
