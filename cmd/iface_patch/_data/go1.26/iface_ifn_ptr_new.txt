@@ -1,0 +1,7 @@
+					ifn := rtyp.textOff(t.Ifn)
+					fn := itabFuncval(ifn, uint8(typ.TFlag))
+					if k == 0 {
+						fun0 = fn // we'll set m.Fun[0] at the end
+					} else if firstTime {
+						methods[k] = unsafe.Pointer(fn)
+					}

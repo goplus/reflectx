@@ -1,0 +1,6 @@
+		ifn := textOffFor(v.typ(), m.Ifn)
+		fnWord := uintptr(ifn)
+		if v.typ().TFlag&(1<<6) != 0 { // reflectx tflagIfaceFuncval
+			fnWord |= 1
+		}
+		fn = unsafe.Pointer(&fnWord)

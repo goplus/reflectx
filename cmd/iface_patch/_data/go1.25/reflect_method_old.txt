@@ -1,0 +1,2 @@
+		ifn := textOffFor(v.typ(), m.Ifn)
+		fn = unsafe.Pointer(&ifn)
