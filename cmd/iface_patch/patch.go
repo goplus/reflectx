@@ -83,6 +83,9 @@ func restorePatchFiles(backups []fileBackup) error {
 		var err error
 		if backup.exists {
 			err = os.WriteFile(backup.path, backup.data, backup.mode.Perm())
+			if err == nil {
+				err = os.Chmod(backup.path, backup.mode.Perm())
+			}
 		} else if removeErr := os.Remove(backup.path); removeErr != nil && !os.IsNotExist(removeErr) {
 			err = removeErr
 		}

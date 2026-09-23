@@ -852,8 +852,12 @@ func TestRestorePatchFiles(t *testing.T) {
 	if err := os.WriteFile(existing, []byte("original\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	originalInfo, err := os.Stat(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
 	backups := []fileBackup{
-		{path: existing, data: []byte("original\n"), mode: 0o600, exists: true},
+		{path: existing, data: []byte("original\n"), mode: originalInfo.Mode(), exists: true},
 		{path: created},
 	}
 	if err := os.WriteFile(existing, []byte("patched\n"), 0o644); err != nil {
@@ -876,8 +880,8 @@ func TestRestorePatchFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("restored mode = %v, want 0600", info.Mode().Perm())
+	if info.Mode().Perm() != originalInfo.Mode().Perm() {
+		t.Fatalf("restored mode = %v, want %v", info.Mode().Perm(), originalInfo.Mode().Perm())
 	}
 	if _, err := os.Stat(created); !os.IsNotExist(err) {
 		t.Fatalf("generated file still exists or stat failed: %v", err)
