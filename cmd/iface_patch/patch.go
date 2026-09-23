@@ -13,26 +13,25 @@ import (
 	"strings"
 )
 
-type changeReporter func(string)
-
 type patchFunc func(*token.FileSet, *ast.File, versionData) (bool, error)
 
 func applyAll(root string, v versionData, check bool) (int, error) {
+	operations := patchOperations(v)
 	if check {
-		return applyAllFiles(root, v, true, nil)
+		return applyPatchOperations(root, operations, true, nil)
 	}
 
-	backups, err := snapshotPatchFiles(root)
+	backups, err := snapshotPatchFiles(root, operations)
 	if err != nil {
 		return 0, fmt.Errorf("prepare rollback: %w", err)
 	}
 	var changedFiles []string
-	n, err := applyAllFiles(root, v, false, func(path string) {
+	n, err := applyPatchOperations(root, operations, false, func(path string) {
 		changedFiles = append(changedFiles, path)
 	})
 	if err == nil {
 		var remaining int
-		remaining, err = applyAllFiles(root, v, true, nil)
+		remaining, err = applyPatchOperations(root, operations, true, nil)
 		if err == nil && remaining != 0 {
 			err = fmt.Errorf("post-patch validation failed: %d changes still required", remaining)
 		}
@@ -56,9 +55,15 @@ type fileBackup struct {
 	exists bool
 }
 
-func snapshotPatchFiles(root string) ([]fileBackup, error) {
-	backups := make([]fileBackup, 0, len(patchFilePaths))
-	for _, rel := range patchFilePaths {
+func snapshotPatchFiles(root string, operations []patchOperation) ([]fileBackup, error) {
+	backups := make([]fileBackup, 0, len(operations))
+	seen := make(map[string]bool)
+	for _, operation := range operations {
+		rel := operation.rel
+		if seen[rel] {
+			continue
+		}
+		seen[rel] = true
 		path := filepath.Join(root, rel)
 		info, err := os.Stat(path)
 		if os.IsNotExist(err) {
@@ -99,127 +104,75 @@ func restorePatchFiles(backups []fileBackup) error {
 	return nil
 }
 
-var patchFilePaths = []string{
-	"src/cmd/internal/objabi/ifacefuncval.go",
-	"src/runtime/iface_funcval.go",
-	"src/cmd/internal/obj/wasm/wasmobj.go",
-	"src/cmd/compile/internal/base/flag.go",
-	"src/cmd/asm/internal/flags/flags.go",
-	"src/cmd/go/internal/work/gc.go",
-	"src/cmd/go/internal/work/init.go",
-	"src/cmd/compile/internal/arm64/ssa.go",
-	"src/cmd/compile/internal/amd64/ssa.go",
-	"src/cmd/compile/internal/x86/ssa.go",
-	"src/runtime/iface.go",
-	"src/reflect/value.go",
-	"src/runtime/asm_arm64.s",
-	"src/runtime/asm_amd64.s",
-	"src/runtime/asm_386.s",
+type patchOperation struct {
+	rel   string
+	apply func(path string, check bool) (bool, error)
 }
 
-func applyAllFiles(root string, v versionData, check bool, report changeReporter) (int, error) {
-	patches := []struct {
-		rel string
-		fn  patchFunc
-	}{
-		{"src/cmd/internal/obj/wasm/wasmobj.go", patchWasmobj},
-		{"src/cmd/compile/internal/base/flag.go", patchCompileFlag},
-		{"src/cmd/asm/internal/flags/flags.go", patchAsmFlags},
-		{"src/cmd/go/internal/work/gc.go", patchGoGc},
-		{"src/cmd/go/internal/work/init.go", patchGoInit},
-		{"src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA},
-		{"src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA},
-		{"src/cmd/compile/internal/x86/ssa.go", patch386SSA},
+func patchOperations(v versionData) []patchOperation {
+	operations := []patchOperation{
+		goSourceOperation("src/cmd/internal/objabi/ifacefuncval.go", v.goSrc("objabi_ifacefuncval.go")),
+		goSourceOperation("src/runtime/iface_funcval.go", v.goSrc("iface_funcval.go")),
+		astOperation("src/cmd/internal/obj/wasm/wasmobj.go", patchWasmobj, v),
+		astOperation("src/cmd/compile/internal/base/flag.go", patchCompileFlag, v),
+		astOperation("src/cmd/asm/internal/flags/flags.go", patchAsmFlags, v),
+		astOperation("src/cmd/go/internal/work/gc.go", patchGoGc, v),
+		astOperation("src/cmd/go/internal/work/init.go", patchGoInit, v),
+		astOperation("src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA, v),
+		astOperation("src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA, v),
+		astOperation("src/cmd/compile/internal/x86/ssa.go", patch386SSA, v),
+		textOperation("src/runtime/iface.go", v.bytes("iface_fun0_old.txt"), v.bytes("iface_fun0_new.txt")),
+		textOperation("src/runtime/iface.go", v.bytes("iface_fun0store_old.txt"), v.bytes("iface_fun0store_new.txt")),
+		{
+			rel: "src/runtime/iface.go",
+			apply: func(path string, check bool) (bool, error) {
+				return patchAsmReplaceAny(path, [][2][]byte{
+					{v.bytes("iface_ifn_old.txt"), v.bytes("iface_ifn_new.txt")},
+					{v.bytes("iface_ifn_ptr_old.txt"), v.bytes("iface_ifn_ptr_new.txt")},
+				}, check)
+			},
+		},
+		textOperation("src/reflect/value.go", v.bytes("reflect_method_old.txt"), v.bytes("reflect_method_new.txt")),
 	}
+	for _, arch := range []string{"arm64", "amd64", "386"} {
+		operations = append(operations, textOperation(
+			"src/runtime/asm_"+arch+".s",
+			v.bytes(arch+"_callfn_old.s"),
+			v.bytes(arch+"_callfn_new.s"),
+		))
+	}
+	return operations
+}
+
+func goSourceOperation(rel string, src []byte) patchOperation {
+	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
+		return writeGoSrc(path, src, check)
+	}}
+}
+
+func astOperation(rel string, fn patchFunc, v versionData) patchOperation {
+	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
+		return patchFile(path, fn, v, check)
+	}}
+}
+
+func textOperation(rel string, old, new []byte) patchOperation {
+	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
+		return patchAsmReplace(path, old, new, check)
+	}}
+}
+
+func applyPatchOperations(root string, operations []patchOperation, check bool, report func(string)) (int, error) {
 	n := 0
-	for _, file := range []struct {
-		rel  string
-		name string
-	}{
-		{rel: "src/cmd/internal/objabi/ifacefuncval.go", name: "objabi_ifacefuncval.go"},
-		{rel: "src/runtime/iface_funcval.go", name: "iface_funcval.go"},
-	} {
-		changed, err := writeGoSrc(filepath.Join(root, file.rel), v.goSrc(file.name), check)
+	for _, operation := range operations {
+		changed, err := operation.apply(filepath.Join(root, operation.rel), check)
 		if err != nil {
-			return n, fmt.Errorf("%s: %w", file.rel, err)
+			return n, fmt.Errorf("%s: %w", operation.rel, err)
 		}
 		if changed {
 			n++
 			if report != nil {
-				report(file.rel)
-			}
-		}
-	}
-	for _, p := range patches {
-		path := filepath.Join(root, p.rel)
-		changed, err := patchFile(path, p.fn, v, check)
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", p.rel, err)
-		}
-		if changed {
-			n++
-			if report != nil {
-				report(p.rel)
-			}
-		}
-	}
-	ifaceGo := filepath.Join(root, "src/runtime/iface.go")
-	for _, pair := range [][2]string{
-		{"iface_fun0_old.txt", "iface_fun0_new.txt"},
-		{"iface_fun0store_old.txt", "iface_fun0store_new.txt"},
-	} {
-		changed, err := patchAsmReplace(ifaceGo, v.bytes(pair[0]), v.bytes(pair[1]), check)
-		if err != nil {
-			return n, fmt.Errorf("src/runtime/iface.go: %w", err)
-		}
-		if changed {
-			n++
-			if report != nil {
-				report("src/runtime/iface.go")
-			}
-		}
-	}
-	changed, err := patchAsmReplaceAny(ifaceGo, [][2][]byte{
-		{v.bytes("iface_ifn_old.txt"), v.bytes("iface_ifn_new.txt")},
-		{v.bytes("iface_ifn_ptr_old.txt"), v.bytes("iface_ifn_ptr_new.txt")},
-	}, check)
-	if err != nil {
-		return n, fmt.Errorf("src/runtime/iface.go: %w", err)
-	}
-	if changed {
-		n++
-		if report != nil {
-			report("src/runtime/iface.go")
-		}
-	}
-	changed, err = patchAsmReplace(filepath.Join(root, "src/reflect/value.go"), v.bytes("reflect_method_old.txt"), v.bytes("reflect_method_new.txt"), check)
-	if err != nil {
-		return n, fmt.Errorf("src/reflect/value.go: %w", err)
-	}
-	if changed {
-		n++
-		if report != nil {
-			report("src/reflect/value.go")
-		}
-	}
-	for _, rel := range []string{"src/runtime/asm_arm64.s", "src/runtime/asm_amd64.s", "src/runtime/asm_386.s"} {
-		var changed bool
-		var err error
-		switch rel {
-		case "src/runtime/asm_arm64.s":
-			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("arm64_callfn_old.s"), v.bytes("arm64_callfn_new.s"), check)
-		case "src/runtime/asm_amd64.s":
-			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("amd64_callfn_old.s"), v.bytes("amd64_callfn_new.s"), check)
-		default:
-			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("386_callfn_old.s"), v.bytes("386_callfn_new.s"), check)
-		}
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", rel, err)
-		}
-		if changed {
-			n++
-			if report != nil {
-				report(rel)
+				report(operation.rel)
 			}
 		}
 	}
