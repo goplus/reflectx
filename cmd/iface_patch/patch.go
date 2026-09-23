@@ -29,16 +29,21 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 		{"src/cmd/compile/internal/x86/ssa.go", patch386SSA},
 	}
 	n := 0
-	{
-		rel := "src/cmd/internal/objabi/ifacefuncval.go"
-		changed, err := writeGoSrc(filepath.Join(root, rel), v.goSrc("objabi_ifacefuncval.go"), check)
+	for _, file := range []struct {
+		rel  string
+		name string
+	}{
+		{rel: "src/cmd/internal/objabi/ifacefuncval.go", name: "objabi_ifacefuncval.go"},
+		{rel: "src/runtime/iface_funcval.go", name: "iface_funcval.go"},
+	} {
+		changed, err := writeGoSrc(filepath.Join(root, file.rel), v.goSrc(file.name), check)
 		if err != nil {
-			return n, fmt.Errorf("%s: %w", rel, err)
+			return n, fmt.Errorf("%s: %w", file.rel, err)
 		}
 		if changed {
 			n++
 			if !check {
-				fmt.Println(rel)
+				fmt.Println(file.rel)
 			}
 		}
 	}
@@ -53,6 +58,45 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 			if !check {
 				fmt.Println(p.rel)
 			}
+		}
+	}
+	ifaceGo := filepath.Join(root, "src/runtime/iface.go")
+	for _, pair := range [][2]string{
+		{"iface_fun0_old.txt", "iface_fun0_new.txt"},
+		{"iface_fun0store_old.txt", "iface_fun0store_new.txt"},
+	} {
+		changed, err := patchAsmReplace(ifaceGo, v.bytes(pair[0]), v.bytes(pair[1]), check)
+		if err != nil {
+			return n, fmt.Errorf("src/runtime/iface.go: %w", err)
+		}
+		if changed {
+			n++
+			if !check {
+				fmt.Println("src/runtime/iface.go")
+			}
+		}
+	}
+	changed, err := patchAsmReplaceAny(ifaceGo, [][2][]byte{
+		{v.bytes("iface_ifn_old.txt"), v.bytes("iface_ifn_new.txt")},
+		{v.bytes("iface_ifn_ptr_old.txt"), v.bytes("iface_ifn_ptr_new.txt")},
+	}, check)
+	if err != nil {
+		return n, fmt.Errorf("src/runtime/iface.go: %w", err)
+	}
+	if changed {
+		n++
+		if !check {
+			fmt.Println("src/runtime/iface.go")
+		}
+	}
+	changed, err = patchAsmReplace(filepath.Join(root, "src/reflect/value.go"), v.bytes("reflect_method_old.txt"), v.bytes("reflect_method_new.txt"), check)
+	if err != nil {
+		return n, fmt.Errorf("src/reflect/value.go: %w", err)
+	}
+	if changed {
+		n++
+		if !check {
+			fmt.Println("src/reflect/value.go")
 		}
 	}
 	for _, rel := range []string{"src/runtime/asm_arm64.s", "src/runtime/asm_amd64.s", "src/runtime/asm_386.s"} {
@@ -852,13 +896,28 @@ func patchAsmReplace(path string, old, new []byte, check bool) (bool, error) {
 		return false, nil
 	}
 	if !bytes.Contains(src, old) {
-		return false, fmt.Errorf("CALLFN /* call function */ sequence not found")
+		return false, fmt.Errorf("patch sequence not found")
 	}
 	if check {
 		return true, nil
 	}
 	out := bytes.Replace(src, old, new, 1)
 	return true, os.WriteFile(path, out, 0644)
+}
+
+func patchAsmReplaceAny(path string, pairs [][2][]byte, check bool) (bool, error) {
+	var last error
+	for _, pair := range pairs {
+		changed, err := patchAsmReplace(path, pair[0], pair[1], check)
+		if err == nil {
+			return changed, nil
+		}
+		last = err
+	}
+	if last == nil {
+		return false, fmt.Errorf("patch sequence not found")
+	}
+	return false, last
 }
 
 func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {

@@ -40,11 +40,19 @@ type funcType = abi.FuncType
 type mapType = abi.MapType
 
 const (
-	tflagUncommon            = abi.TFlagUncommon
-	tflagExtraStar           = abi.TFlagExtraStar
-	tflagNamed               = abi.TFlagNamed
-	tflagRegularMemory       = abi.TFlagRegularMemory
-	tflagUserMethod    tflag = 1 << 7
+	tflagUncommon      = abi.TFlagUncommon
+	tflagExtraStar     = abi.TFlagExtraStar
+	tflagNamed         = abi.TFlagNamed
+	tflagRegularMemory = abi.TFlagRegularMemory
+	// tflagIfaceFuncval marks uncommon method Ifn values as MakeFunc
+	// funcvals (*makeFuncImpl). Bit 6 is unused by Go's abi.TFlag
+	// (1<<5 is TFlagDirectIface on Go 1.26+) and by llgo (1<<4/1<<5/1<<7).
+	tflagIfaceFuncval tflag = 1 << 6
+	// tflagUserMethod marks types whose method set was installed by
+	// reflectx (SetMethodSet). Type.Method then sets flagIndir so
+	// MakeFunc funcvals are called correctly. Bit 7 is unused by Go's
+	// abi.TFlag.
+	tflagUserMethod tflag = 1 << 7
 )
 
 // add returns p+x.

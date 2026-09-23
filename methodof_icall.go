@@ -20,7 +20,10 @@ type ifnValue struct {
 	pmethod method
 }
 
-var globalIfnCached = 0
+var (
+	globalIfnCached = 0
+	zeroIfn         = reflect.ValueOf(func() {}).UnsafePointer()
+)
 
 func IcallStat() (capacity int, allocate int, available int) {
 	mps := abi.Default

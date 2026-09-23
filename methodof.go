@@ -73,10 +73,6 @@ func (ctx *Context) hasImethod(typ reflect.Type, method Method) bool {
 	return true
 }
 
-var (
-	zeroIfn = reflect.ValueOf(func() {}).UnsafePointer()
-)
-
 func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt, _ := newType("", "", styp, maxmfunc, 0)
 	prt, _ := newType("", "", PtrTo(styp), maxpfunc, 0)

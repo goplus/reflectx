@@ -1471,6 +1471,189 @@ func TestMethodWrongReturnCount(t *testing.T) {
 	reflect.New(typ).MethodByName("Bad").Call(nil)
 }
 
+func forceGC() {
+	junk := make([][]byte, 64)
+	for i := range junk {
+		junk[i] = make([]byte, 32<<10)
+	}
+	runtime.KeepAlive(junk)
+	for i := 0; i < 5; i++ {
+		runtime.GC()
+	}
+}
+
+func makeGCStringerType(name string) reflect.Type {
+	styp := reflectx.NamedTypeOf("main", name, tyInt)
+	typ := reflectx.NewMethodSet(styp, 1, 2)
+	mString := reflectx.MakeMethod(
+		"String",
+		"main",
+		false,
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
+		func(args []reflect.Value) []reflect.Value {
+			info := fmt.Sprintf("(%d)", args[0].Int())
+			return []reflect.Value{reflect.ValueOf(info)}
+		},
+	)
+	mSet := reflectx.MakeMethod(
+		"Set",
+		"main",
+		true,
+		reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
+		func(args []reflect.Value) []reflect.Value {
+			args[0].Elem().SetInt(args[1].Int())
+			return nil
+		},
+	)
+	if err := reflectx.SetMethodSet(typ, []reflectx.Method{mString, mSet}, true); err != nil {
+		panic(err)
+	}
+	return typ
+}
+
+func TestIfaceFuncvalGC(t *testing.T) {
+	typ := makeGCStringerType("GCInt")
+	const n = 64
+	values := make([]fmt.Stringer, n)
+	raw := make([]reflect.Value, n)
+	for i := 0; i < n; i++ {
+		p := reflect.New(typ)
+		p.Elem().SetInt(int64(i + 1))
+		raw[i] = p
+		values[i] = p.Interface().(fmt.Stringer)
+	}
+	forceGC()
+	for i, s := range values {
+		want := fmt.Sprintf("(%d)", i+1)
+		if got := s.String(); got != want {
+			t.Fatalf("interface String values[%d] = %q, want %q", i, got, want)
+		}
+		if got := fmt.Sprint(s); got != want {
+			t.Fatalf("fmt.Sprint(values[%d]) = %q, want %q", i, got, want)
+		}
+		if got := raw[i].MethodByName("String").Call(nil)[0].String(); got != want {
+			t.Fatalf("MethodByName String values[%d] = %q, want %q", i, got, want)
+		}
+	}
+	forceGC()
+	raw[0].MethodByName("Set").Call([]reflect.Value{reflect.ValueOf(99)})
+	if got := values[0].String(); got != "(99)" {
+		t.Fatalf("after Set: String = %q, want (99)", got)
+	}
+}
+
+func TestIfaceFuncvalGCManyTypes(t *testing.T) {
+	var stringers []fmt.Stringer
+	for i := 0; i < 16; i++ {
+		typ := makeGCStringerType(fmt.Sprintf("GCMany%d", i))
+		for j := 0; j < 8; j++ {
+			x := reflect.New(typ).Elem()
+			x.SetInt(int64(i*100 + j))
+			stringers = append(stringers, x.Interface().(fmt.Stringer))
+		}
+	}
+	forceGC()
+	for i, s := range stringers {
+		ti, j := i/8, i%8
+		want := fmt.Sprintf("(%d)", ti*100+j)
+		if got := s.String(); got != want {
+			t.Fatalf("stringers[%d] = %q, want %q", i, got, want)
+		}
+	}
+}
+
+func TestIfaceFuncvalGCEmbed(t *testing.T) {
+	testEmbedGC := func(t *testing.T, tyPoint reflect.Type) {
+		t.Helper()
+		fs := []reflect.StructField{{
+			Name:      "Point",
+			Type:      tyPoint,
+			Anonymous: true,
+		}}
+		typ := reflectx.NamedStructOf("main", "GCEmbed", fs)
+		typ = reflectx.StructToMethodSet(typ)
+		const n = 32
+		values := make([]fmt.Stringer, n)
+		raw := make([]reflect.Value, n)
+		for i := 0; i < n; i++ {
+			m := reflect.New(typ).Elem()
+			m.Addr().MethodByName("Set").Call([]reflect.Value{
+				reflect.ValueOf(i), reflect.ValueOf(i * 10),
+			})
+			raw[i] = m
+			values[i] = m.Interface().(fmt.Stringer)
+		}
+		forceGC()
+		for i, s := range values {
+			want := fmt.Sprintf("(%d,%d)", i, i*10)
+			if got := s.String(); got != want {
+				t.Fatalf("embed String values[%d] = %q, want %q", i, got, want)
+			}
+			if got := raw[i].MethodByName("String").Call(nil)[0].String(); got != want {
+				t.Fatalf("embed MethodByName values[%d] = %q, want %q", i, got, want)
+			}
+			if got := fmt.Sprint(raw[i].Field(0)); got != want {
+				t.Fatalf("embed field String values[%d] = %q, want %q", i, got, want)
+			}
+		}
+	}
+
+	t.Run("compiler", func(t *testing.T) {
+		testEmbedGC(t, reflect.TypeOf((*Point)(nil)).Elem())
+	})
+	t.Run("dynamic", func(t *testing.T) {
+		testEmbedGC(t, makeDynamicPointType())
+	})
+}
+
+func TestIfaceFuncvalGCZeroIfn(t *testing.T) {
+	ctx := reflectx.NewContext()
+	ctx.SetHasImethod(func(_ reflect.Type, m reflectx.Method) bool {
+		return m.Name == "String"
+	})
+	styp := reflectx.NamedTypeOf("main", "GCZeroIfn", tyInt)
+	typ := ctx.NewMethodSet(styp, 1, 2)
+	mString := reflectx.MakeMethod(
+		"String",
+		"main",
+		false,
+		reflect.FuncOf(nil, []reflect.Type{tyString}, false),
+		func(args []reflect.Value) []reflect.Value {
+			return []reflect.Value{reflect.ValueOf(fmt.Sprintf("(%d)", args[0].Int()))}
+		},
+	)
+	mSet := reflectx.MakeMethod(
+		"Set",
+		"main",
+		true,
+		reflect.FuncOf([]reflect.Type{tyInt}, nil, false),
+		func(args []reflect.Value) []reflect.Value {
+			args[0].Elem().SetInt(args[1].Int())
+			return nil
+		},
+	)
+	if err := ctx.SetMethodSet(typ, []reflectx.Method{mString, mSet}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	p := reflect.New(typ)
+	p.Elem().SetInt(7)
+	s := p.Interface().(fmt.Stringer)
+	forceGC()
+	if got := s.String(); got != "(7)" {
+		t.Fatalf("String = %q, want (7)", got)
+	}
+	forceGC()
+	set, ok := reflectx.MethodByName(reflect.PtrTo(typ), "Set")
+	if !ok {
+		t.Fatal("MethodByName Set")
+	}
+	set.Func.Call([]reflect.Value{p, reflect.ValueOf(8)})
+	if got := s.String(); got != "(8)" {
+		t.Fatalf("after Set: String = %q, want (8)", got)
+	}
+}
+
 func BenchmarkDynamicCallPtr(b *testing.B) {
 	b.StopTimer()
 	typ := makeDynamicEmptyCall()

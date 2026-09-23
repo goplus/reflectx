@@ -1,8 +1,10 @@
 # iface_patch
 
 Optional: patch a Go **1.25.x**, **1.26.x**, or **1.27.x** source tree so
-`-tags goplus.ifacefuncval` can replace icall stubs with tagged MakeFunc
-funcvals (`itab.Fun = makeFuncImpl*|1`).
+`-tags goplus.ifacefuncval` can replace icall stubs with MakeFunc
+funcvals. reflectx stores an untagged `*makeFuncImpl` (GC-scannable) and
+sets `tflagIfaceFuncval` (`1<<6`). The patched runtime tags `itab.Fun`
+(`makeFuncImpl*|1`) at `itabInit` / `methodReceiver`.
 
 Supported `GOARCH` values: **wasm**, **arm64**, **amd64**, **386** (any `GOOS`
 that uses that backend).
@@ -10,7 +12,7 @@ that uses that backend).
 The tag is **explicit** (not a ToolTag). Without it, the patched compiler
 emits the same interface-call sequence as unmodified Go.
 
-reflectx does not check whether the compiler can unwrap tagged ifn. An
+reflectx does not check whether the compiler can unwrap tagged Fun. An
 unpatched gc still compiles with the tag; interface method calls then trap
 at runtime (`uninitialized element` / invalid PC).
 
@@ -108,6 +110,9 @@ Untagged builds must match stock gc.
 | `runtime/asm_arm64.s` | unwrap in `CALLFN` before `BL (R20)` |
 | `runtime/asm_amd64.s` | unwrap in `CALLFN` before `CALL R12` |
 | `runtime/asm_386.s` | unwrap in `CALLFN` before `CALL AX` |
+| `runtime/iface.go` | `itabInit` tags `Fun` when type tflag bit 6 (`tflagIfaceFuncval`) is set |
+| `runtime/iface_funcval.go` | `itabFuncval` helper |
+| `reflect/value.go` | `methodReceiver` tags Ifn when tflag bit 6 is set |
 
 A tagged `itab.Fun` is `makeFuncImpl* | 1`. Code PCs and heap pointers are
 even, so bit 0 is free. The unwrap sets CTXT to the untagged pointer and
@@ -140,6 +145,9 @@ plain `.s` files used as exact text replacements.
 | `arm64_ssa.go`, `arm64_callinter.go`, `arm64_calltailinter.go` | arm64 compiler |
 | `amd64_ssa.go`, `amd64_callinter.go`, `amd64_calltailinter.go` | amd64 compiler |
 | `x86_ssa.go`, `x86_callinter.go`, `x86_calltailinter.go` | 386 compiler |
+| `iface_funcval.go` | written to `src/runtime/iface_funcval.go` |
+| `iface_fun0_*.txt` / `iface_ifn_*.txt` / `iface_ifn_ptr_*.txt` / `iface_fun0store_*.txt` | `runtime/iface.go` `itabInit` |
+| `reflect_method_*.txt` | `reflect/value.go` `methodReceiver` |
 | `arm64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_arm64.s` |
 | `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
 | `386_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_386.s` |

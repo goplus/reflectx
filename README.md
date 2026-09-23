@@ -73,8 +73,10 @@ icall_gen -o icall1024.go -pkg main -size 1024
 ```
 
 ### ifacefuncval (optional)
-Alternative to icall: `itab.Fun` is a tagged MakeFunc funcval
-(`makeFuncImpl*|1`). No stub table; methods share `makeFuncStub`.
+Alternative to icall: methods share `makeFuncStub` instead of an icall
+stub table. reflectx stores an untagged `*makeFuncImpl` in `addReflectOff`
+and sets `tflagIfaceFuncval` (`1<<6`). A patched runtime tags `itab.Fun`
+(`makeFuncImpl*|1`) so interface calls unwrap.
 
 Needs a **patched Go 1.25.x, 1.26.x, or 1.27.x** and an explicit tag.
 Supported `GOARCH`: wasm, arm64, amd64, 386.
