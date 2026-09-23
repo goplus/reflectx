@@ -7,15 +7,18 @@ import (
 	"unsafe"
 )
 
-// ifaceFuncvalBit marks an itab.Fun entry as a MakeFunc funcval.
-// Must match cmd/internal/obj/wasm.IfaceFuncvalBit in a patched Go
-// toolchain (-tags goplus.ifacefuncval → compile -ifacefuncval).
-// An unpatched compiler will trap at runtime on interface method calls.
-const ifaceFuncvalBit = 1
-
-// ifaceFuncvalFns keeps MakeFunc funcvals reachable. itab.Fun stores the
-// tagged pointer as a uintptr, so the GC will not scan it.
+// ifaceFuncvalFns keeps MakeFunc funcvals reachable.
 var ifaceFuncvalFns []reflect.Value
+
+//go:linkname registerTaggedTextOff runtime.reflect_registerTaggedTextOff
+func registerTaggedTextOff(id int32, tagged uintptr)
+
+func resolveIfaceFuncvalText(impl unsafe.Pointer) textOff {
+	key := new(byte)
+	id := int32(addReflectOff(unsafe.Pointer(key)))
+	registerTaggedTextOff(id, uintptr(impl)|1)
+	return textOff(id)
+}
 
 // globalMethodCache reuses method table entries (ifn/tfn) for the same
 // Method.FuncId so tagged MakeFunc ifn values are shared.
@@ -81,21 +84,27 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 		pifn := zeroIfn
 		hasIfn := ctx.hasImethod(typ, m)
 		if hasIfn {
-			pifn = taggedIfn(typ, m, mfn, !m.Pointer)
+			pifn = ifaceFuncvalIfn(typ, m, mfn, !m.Pointer)
 		}
-		pms[i].Ifn = resolveReflectText(pifn)
+		if hasIfn {
+			pms[i].Ifn = resolveIfaceFuncvalText(pifn)
+		} else {
+			pms[i].Ifn = resolveReflectText(pifn)
+		}
 		if m.FuncId > 0 {
 			globalMethodCache[m.FuncId] = &ifnValue{pmethod: pms[i]}
 		}
 		if !m.Pointer {
-			ifn := pifn
-			if hasIfn && onePtr {
-				ifn = taggedIfn(typ, m, mfn, false)
-			}
 			ms[index].Name = mname
 			ms[index].Mtyp = mtyp
 			ms[index].Tfn = tfn
-			ms[index].Ifn = resolveReflectText(ifn)
+			if hasIfn && onePtr {
+				ms[index].Ifn = resolveIfaceFuncvalText(ifaceFuncvalIfn(typ, m, mfn, false))
+			} else if hasIfn {
+				ms[index].Ifn = pms[i].Ifn
+			} else {
+				ms[index].Ifn = resolveReflectText(pifn)
+			}
 			if m.FuncId > 0 {
 				globalMethodCache[m.FuncId].method = ms[index]
 			}
@@ -107,11 +116,11 @@ func (ctx *Context) setMethodSet(typ reflect.Type, methods []Method, sortMethods
 	return nil
 }
 
-// taggedIfn returns an itab.Fun entry. A patched toolchain treats an odd
-// function pointer as a funcval: CTXT is the untagged pointer and the
-// call target is the first word (makeFuncStub). deref wraps a value
-// method so the interface receiver (*T) is loaded before m.Func.
-func taggedIfn(typ reflect.Type, m Method, mfn reflect.Value, deref bool) unsafe.Pointer {
+// ifaceFuncvalIfn returns an untagged MakeFunc funcval. resolveIfaceFuncvalText
+// records it under a unique addReflectOff ID so Tfn can keep the untagged
+// impl while Ifn textOff returns impl*|1 for itab.Fun and Value.Method. deref
+// wraps a value method so the interface receiver (*T) is loaded before m.Func.
+func ifaceFuncvalIfn(typ reflect.Type, m Method, mfn reflect.Value, deref bool) unsafe.Pointer {
 	fn := mfn
 	if deref {
 		ftyp := mfn.Type()
@@ -133,14 +142,5 @@ func taggedIfn(typ reflect.Type, m Method, mfn reflect.Value, deref bool) unsafe
 		})
 	}
 	ifaceFuncvalFns = append(ifaceFuncvalFns, fn)
-	return tagIfaceFuncval(tovalue(&fn).ptr)
-}
-
-// tagIfaceFuncval sets ifaceFuncvalBit in p to mark an itab.Fun entry as a
-// MakeFunc funcval. The result is not a valid pointer (its low bit is set), so
-// checkptr is disabled; the untagged funcval stays reachable via ifaceFuncvalFns.
-//
-//go:nocheckptr
-func tagIfaceFuncval(p unsafe.Pointer) unsafe.Pointer {
-	return unsafe.Pointer(uintptr(p) | ifaceFuncvalBit)
+	return tovalue(&fn).ptr
 }

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -778,5 +780,46 @@ func f() { x := base.Tool("asm") }
 	}
 	if strings.Contains(src, "ifacefuncval") {
 		t.Fatal("fixture should be unpatched")
+	}
+}
+
+func TestPatchRuntimeIfaceSnippets(t *testing.T) {
+	v := mustVer("go1.25")
+	src := bytes.Join([][]byte{
+		[]byte("package runtime\n"),
+		v.bytes("iface_fun0_old.txt"),
+		v.bytes("iface_ifn_old.txt"),
+		v.bytes("iface_fun0store_old.txt"),
+	}, nil)
+	path := filepath.Join(t.TempDir(), "iface.go")
+	if err := os.WriteFile(path, src, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range [][2]string{
+		{"iface_fun0_old.txt", "iface_fun0_new.txt"},
+		{"iface_ifn_old.txt", "iface_ifn_new.txt"},
+		{"iface_fun0store_old.txt", "iface_fun0store_new.txt"},
+	} {
+		changed, err := patchAsmReplace(path, v.bytes(pair[0]), v.bytes(pair[1]), false)
+		if err != nil {
+			t.Fatalf("%s: %v", pair[0], err)
+		}
+		if !changed {
+			t.Fatalf("expected %s to change", pair[0])
+		}
+	}
+	out, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(out, v.bytes("iface_ifn_new.txt")) {
+		t.Fatalf("patched iface.go missing ifn rewrite:\n%s", out)
+	}
+	changed, err := patchAsmReplace(path, v.bytes("iface_ifn_old.txt"), v.bytes("iface_ifn_new.txt"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected ifn rewrite to be idempotent")
 	}
 }

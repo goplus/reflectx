@@ -108,6 +108,9 @@ Untagged builds must match stock gc.
 | `runtime/asm_arm64.s` | unwrap in `CALLFN` before `BL (R20)` |
 | `runtime/asm_amd64.s` | unwrap in `CALLFN` before `CALL R12` |
 | `runtime/asm_386.s` | unwrap in `CALLFN` before `CALL AX` |
+| `runtime/iface.go` | `itabInit` keeps `Fun` as `uintptr` |
+| `runtime/iface_funcval.go` | `taggedTextOffs` holds `makeFuncImpl*\|1`; `addReflectOff` keeps a unique untagged key |
+| `runtime/type.go` | `textOff` returns the tagged Ifn for those IDs |
 
 A tagged `itab.Fun` is `makeFuncImpl* | 1`. Code PCs and heap pointers are
 even, so bit 0 is free. The unwrap sets CTXT to the untagged pointer and
@@ -140,6 +143,9 @@ plain `.s` files used as exact text replacements.
 | `arm64_ssa.go`, `arm64_callinter.go`, `arm64_calltailinter.go` | arm64 compiler |
 | `amd64_ssa.go`, `amd64_callinter.go`, `amd64_calltailinter.go` | amd64 compiler |
 | `x86_ssa.go`, `x86_callinter.go`, `x86_calltailinter.go` | 386 compiler |
+| `iface_funcval.go` | written to `src/runtime/iface_funcval.go` |
+| `iface_fun0_*.txt` / `iface_ifn_*.txt` / `iface_fun0store_*.txt` | `runtime/iface.go` `itabInit` |
+| `iface_textoff_*.txt` | `runtime/type.go` `textOff` |
 | `arm64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_arm64.s` |
 | `amd64_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_amd64.s` |
 | `386_callfn_{old,new}.s` | `CALLFN` in `runtime/asm_386.s` |

@@ -1,0 +1,3 @@
+		return taggedTextOff(int32(off), res)
+	}
+	res := md.textAddr(uint32(off))
