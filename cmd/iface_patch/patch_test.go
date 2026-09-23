@@ -818,3 +818,72 @@ func TestPatchTFlagSnippets(t *testing.T) {
 		}
 	}
 }
+
+func TestPatchAsmReplaceRejectsAmbiguousState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ambiguous.s")
+	old := []byte("old sequence\n")
+	new := []byte("new sequence\n")
+	for _, src := range [][]byte{
+		append(append([]byte{}, old...), old...),
+		append(append([]byte{}, old...), new...),
+		append(append([]byte{}, new...), new...),
+		[]byte("neither sequence\n"),
+	} {
+		if err := os.WriteFile(path, src, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := patchAsmReplace(path, old, new, false); err == nil {
+			t.Fatalf("expected ambiguous state error for %q", src)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, src) {
+			t.Fatalf("file changed after rejected patch: got %q, want %q", got, src)
+		}
+	}
+}
+
+func TestRestorePatchFiles(t *testing.T) {
+	dir := t.TempDir()
+	existing := filepath.Join(dir, "existing.go")
+	created := filepath.Join(dir, "created.go")
+	if err := os.WriteFile(existing, []byte("original\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	originalInfo, err := os.Stat(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backups := []fileBackup{
+		{path: existing, data: []byte("original\n"), mode: originalInfo.Mode(), exists: true},
+		{path: created},
+	}
+	if err := os.WriteFile(existing, []byte("patched\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(created, []byte("generated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := restorePatchFiles(backups); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "original\n" {
+		t.Fatalf("restored content = %q", got)
+	}
+	info, err := os.Stat(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != originalInfo.Mode().Perm() {
+		t.Fatalf("restored mode = %v, want %v", info.Mode().Perm(), originalInfo.Mode().Perm())
+	}
+	if _, err := os.Stat(created); !os.IsNotExist(err) {
+		t.Fatalf("generated file still exists or stat failed: %v", err)
+	}
+}

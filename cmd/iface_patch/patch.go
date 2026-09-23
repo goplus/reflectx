@@ -10,12 +10,117 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type patchFunc func(*token.FileSet, *ast.File, versionData) (bool, error)
 
 func applyAll(root string, v versionData, check bool) (int, error) {
-	patches := []struct {
+	operations := patchOperations(v)
+	if check {
+		return applyPatchOperations(root, operations, true, nil)
+	}
+
+	backups, err := snapshotPatchFiles(root, operations)
+	if err != nil {
+		return 0, fmt.Errorf("prepare rollback: %w", err)
+	}
+	var changedFiles []string
+	n, err := applyPatchOperations(root, operations, false, func(path string) {
+		changedFiles = append(changedFiles, path)
+	})
+	if err == nil {
+		var remaining int
+		remaining, err = applyPatchOperations(root, operations, true, nil)
+		if err == nil && remaining != 0 {
+			err = fmt.Errorf("post-patch validation failed: %d changes still required", remaining)
+		}
+	}
+	if err == nil {
+		for _, path := range changedFiles {
+			fmt.Println(path)
+		}
+		return n, nil
+	}
+	if rollbackErr := restorePatchFiles(backups); rollbackErr != nil {
+		return n, fmt.Errorf("%w; rollback failed: %v", err, rollbackErr)
+	}
+	return n, fmt.Errorf("%w (all changes rolled back)", err)
+}
+
+type fileBackup struct {
+	path   string
+	data   []byte
+	mode   os.FileMode
+	exists bool
+}
+
+func snapshotPatchFiles(root string, operations []patchOperation) ([]fileBackup, error) {
+	backups := make([]fileBackup, 0, len(operations))
+	seen := make(map[string]bool)
+	for _, operation := range operations {
+		rel := operation.rel
+		if seen[rel] {
+			continue
+		}
+		seen[rel] = true
+		path := filepath.Join(root, rel)
+		info, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			backups = append(backups, fileBackup{path: path})
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", rel, err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", rel, err)
+		}
+		backups = append(backups, fileBackup{path: path, data: data, mode: info.Mode(), exists: true})
+	}
+	return backups, nil
+}
+
+func restorePatchFiles(backups []fileBackup) error {
+	var errs []string
+	for _, backup := range backups {
+		var err error
+		if backup.exists {
+			err = os.WriteFile(backup.path, backup.data, backup.mode.Perm())
+			if err == nil {
+				err = os.Chmod(backup.path, backup.mode.Perm())
+			}
+		} else if removeErr := os.Remove(backup.path); removeErr != nil && !os.IsNotExist(removeErr) {
+			err = removeErr
+		}
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", backup.path, err))
+		}
+	}
+	if len(errs) != 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+type patchOperation struct {
+	rel   string
+	apply func(path string, check bool) (bool, error)
+}
+
+func patchOperations(v versionData) []patchOperation {
+	type textPatch struct {
+		rel   string
+		pairs [][2]string
+	}
+	sourcePatches := []struct {
+		rel, data string
+	}{
+		{"src/cmd/internal/objabi/ifacefuncval.go", "objabi_ifacefuncval.go"},
+		{"src/runtime/iface_funcval.go", "iface_funcval.go"},
+	}
+	astPatches := []struct {
 		rel string
 		fn  patchFunc
 	}{
@@ -28,95 +133,68 @@ func applyAll(root string, v versionData, check bool) (int, error) {
 		{"src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA},
 		{"src/cmd/compile/internal/x86/ssa.go", patch386SSA},
 	}
+	textPatches := []textPatch{
+		{"src/runtime/iface.go", [][2]string{{"iface_fun0_old.txt", "iface_fun0_new.txt"}}},
+		{"src/runtime/iface.go", [][2]string{{"iface_fun0store_old.txt", "iface_fun0store_new.txt"}}},
+		{"src/runtime/iface.go", [][2]string{
+			{"iface_ifn_old.txt", "iface_ifn_new.txt"},
+			{"iface_ifn_ptr_old.txt", "iface_ifn_ptr_new.txt"},
+		}},
+		{"src/reflect/value.go", [][2]string{{"reflect_method_old.txt", "reflect_method_new.txt"}}},
+	}
+	for _, arch := range []string{"arm64", "amd64", "386"} {
+		textPatches = append(textPatches, textPatch{
+			"src/runtime/asm_" + arch + ".s",
+			[][2]string{{arch + "_callfn_old.s", arch + "_callfn_new.s"}},
+		})
+	}
+
+	operations := make([]patchOperation, 0, len(sourcePatches)+len(astPatches)+len(textPatches))
+	for _, patch := range sourcePatches {
+		operations = append(operations, goSourceOperation(patch.rel, v.goSrc(patch.data)))
+	}
+	for _, patch := range astPatches {
+		operations = append(operations, astOperation(patch.rel, patch.fn, v))
+	}
+	for _, patch := range textPatches {
+		pairs := make([][2][]byte, len(patch.pairs))
+		for i, pair := range patch.pairs {
+			pairs[i] = [2][]byte{v.bytes(pair[0]), v.bytes(pair[1])}
+		}
+		operations = append(operations, textOperation(patch.rel, pairs))
+	}
+	return operations
+}
+
+func goSourceOperation(rel string, src []byte) patchOperation {
+	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
+		return writeGoSrc(path, src, check)
+	}}
+}
+
+func astOperation(rel string, fn patchFunc, v versionData) patchOperation {
+	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
+		return patchFile(path, fn, v, check)
+	}}
+}
+
+func textOperation(rel string, pairs [][2][]byte) patchOperation {
+	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
+		return patchAsmReplaceAny(path, pairs, check)
+	}}
+}
+
+func applyPatchOperations(root string, operations []patchOperation, check bool, report func(string)) (int, error) {
 	n := 0
-	for _, file := range []struct {
-		rel  string
-		name string
-	}{
-		{rel: "src/cmd/internal/objabi/ifacefuncval.go", name: "objabi_ifacefuncval.go"},
-		{rel: "src/runtime/iface_funcval.go", name: "iface_funcval.go"},
-	} {
-		changed, err := writeGoSrc(filepath.Join(root, file.rel), v.goSrc(file.name), check)
+	for _, operation := range operations {
+		changed, err := operation.apply(filepath.Join(root, operation.rel), check)
 		if err != nil {
-			return n, fmt.Errorf("%s: %w", file.rel, err)
+			return n, fmt.Errorf("%s: %w", operation.rel, err)
 		}
 		if changed {
 			n++
-			if !check {
-				fmt.Println(file.rel)
-			}
-		}
-	}
-	for _, p := range patches {
-		path := filepath.Join(root, p.rel)
-		changed, err := patchFile(path, p.fn, v, check)
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", p.rel, err)
-		}
-		if changed {
-			n++
-			if !check {
-				fmt.Println(p.rel)
-			}
-		}
-	}
-	ifaceGo := filepath.Join(root, "src/runtime/iface.go")
-	for _, pair := range [][2]string{
-		{"iface_fun0_old.txt", "iface_fun0_new.txt"},
-		{"iface_fun0store_old.txt", "iface_fun0store_new.txt"},
-	} {
-		changed, err := patchAsmReplace(ifaceGo, v.bytes(pair[0]), v.bytes(pair[1]), check)
-		if err != nil {
-			return n, fmt.Errorf("src/runtime/iface.go: %w", err)
-		}
-		if changed {
-			n++
-			if !check {
-				fmt.Println("src/runtime/iface.go")
-			}
-		}
-	}
-	changed, err := patchAsmReplaceAny(ifaceGo, [][2][]byte{
-		{v.bytes("iface_ifn_old.txt"), v.bytes("iface_ifn_new.txt")},
-		{v.bytes("iface_ifn_ptr_old.txt"), v.bytes("iface_ifn_ptr_new.txt")},
-	}, check)
-	if err != nil {
-		return n, fmt.Errorf("src/runtime/iface.go: %w", err)
-	}
-	if changed {
-		n++
-		if !check {
-			fmt.Println("src/runtime/iface.go")
-		}
-	}
-	changed, err = patchAsmReplace(filepath.Join(root, "src/reflect/value.go"), v.bytes("reflect_method_old.txt"), v.bytes("reflect_method_new.txt"), check)
-	if err != nil {
-		return n, fmt.Errorf("src/reflect/value.go: %w", err)
-	}
-	if changed {
-		n++
-		if !check {
-			fmt.Println("src/reflect/value.go")
-		}
-	}
-	for _, rel := range []string{"src/runtime/asm_arm64.s", "src/runtime/asm_amd64.s", "src/runtime/asm_386.s"} {
-		var changed bool
-		var err error
-		switch rel {
-		case "src/runtime/asm_arm64.s":
-			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("arm64_callfn_old.s"), v.bytes("arm64_callfn_new.s"), check)
-		case "src/runtime/asm_amd64.s":
-			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("amd64_callfn_old.s"), v.bytes("amd64_callfn_new.s"), check)
-		default:
-			changed, err = patchAsmReplace(filepath.Join(root, rel), v.bytes("386_callfn_old.s"), v.bytes("386_callfn_new.s"), check)
-		}
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", rel, err)
-		}
-		if changed {
-			n++
-			if !check {
-				fmt.Println(rel)
+			if report != nil {
+				report(operation.rel)
 			}
 		}
 	}
@@ -323,12 +401,14 @@ func isAppendpAI64Const(stmt ast.Stmt) bool {
 
 func patchWasmobj(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	changed := false
+	callSites := 0
 	ast.Inspect(f, func(n ast.Node) bool {
 		cc, ok := n.(*ast.CaseClause)
 		if !ok || !isTYPE_NONE(cc) || len(cc.Body) == 0 {
 			return true
 		}
 		if isUnwrapAssign(cc.Body[0]) {
+			callSites++
 			return true
 		}
 		if !isAppendpAI64Const(cc.Body[0]) {
@@ -336,9 +416,13 @@ func patchWasmobj(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		}
 		unwrap := v.stmts("unwrap.go")[0]
 		cc.Body = insertStmts(cc.Body, 0, unwrap)
+		callSites++
 		changed = true
 		return true
 	})
+	if callSites == 0 {
+		return false, fmt.Errorf("wasm indirect CALL sites not found")
+	}
 	if !hasImport(f, "cmd/internal/objabi") {
 		addImportAfter(f, "cmd/internal/obj", "cmd/internal/objabi")
 		changed = true
@@ -492,6 +576,8 @@ func patchCompileFlag(_ *token.FileSet, f *ast.File, v versionData) (bool, error
 	}
 	if insertAfterCountFlags(f, v) {
 		changed = true
+	} else if fn := funcDecl(f, "ParseFlags"); fn == nil || fn.Body == nil || stmtWithIdent(fn.Body, "EnableIfaceFuncval") == nil {
+		return false, fmt.Errorf("CountFlags call not found in ParseFlags")
 	}
 	return changed, nil
 }
@@ -812,10 +898,8 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addImportAfter(f, "cmd/internal/obj/arm64", "cmd/internal/objabi")
 		changed = true
 	}
-	addedHelper := false
 	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
 		f.Decls = append(f.Decls, v.decls("arm64_ssa.go")...)
-		addedHelper = true
 		changed = true
 	}
 	if splitCallCase(f, "OpARM64CALLinter", "OpARM64CALLstatic", v.stmts("arm64_callinter.go")) {
@@ -828,11 +912,9 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		}
 		want = 2
 	}
-	if addedHelper {
-		rewired := countCallRewired(f, [2]string{"OpARM64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpARM64CALLtailinter", "ssaGenIfaceFuncvalCall"})
-		if rewired < want {
-			return false, fmt.Errorf("arm64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
-		}
+	rewired := countCallRewired(f, [2]string{"OpARM64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpARM64CALLtailinter", "ssaGenIfaceFuncvalCall"})
+	if rewired < want {
+		return false, fmt.Errorf("arm64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 	}
 	return changed, nil
 }
@@ -892,11 +974,13 @@ func patchAsmReplace(path string, old, new []byte, check bool) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if bytes.Contains(src, new) {
+	oldCount := bytes.Count(src, old)
+	newCount := bytes.Count(src, new)
+	if oldCount == 0 && newCount == 1 {
 		return false, nil
 	}
-	if !bytes.Contains(src, old) {
-		return false, fmt.Errorf("patch sequence not found")
+	if oldCount != 1 || newCount != 0 {
+		return false, fmt.Errorf("ambiguous patch state: old sequence occurs %d times, new sequence occurs %d times", oldCount, newCount)
 	}
 	if check {
 		return true, nil
@@ -931,10 +1015,8 @@ func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addImportAfter(f, "cmd/internal/obj/x86", "cmd/internal/objabi")
 		changed = true
 	}
-	addedHelper := false
 	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
 		f.Decls = append(f.Decls, v.decls("amd64_ssa.go")...)
-		addedHelper = true
 		changed = true
 	}
 	if splitCallCase(f, "OpAMD64CALLinter", "OpAMD64CALLclosure", v.stmts("amd64_callinter.go")) {
@@ -947,11 +1029,9 @@ func patchAmd64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		}
 		want = 2
 	}
-	if addedHelper {
-		rewired := countCallRewired(f, [2]string{"OpAMD64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpAMD64CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
-		if rewired < want {
-			return false, fmt.Errorf("amd64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
-		}
+	rewired := countCallRewired(f, [2]string{"OpAMD64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpAMD64CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
+	if rewired < want {
+		return false, fmt.Errorf("amd64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 	}
 	return changed, nil
 }
@@ -962,10 +1042,8 @@ func patch386SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addImportAfter(f, "cmd/internal/obj/x86", "cmd/internal/objabi")
 		changed = true
 	}
-	addedHelper := false
 	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
 		f.Decls = append(f.Decls, v.decls("x86_ssa.go")...)
-		addedHelper = true
 		changed = true
 	}
 	if splitCallCase(f, "Op386CALLinter", "Op386CALLstatic", v.stmts("x86_callinter.go")) {
@@ -978,11 +1056,9 @@ func patch386SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		}
 		want = 2
 	}
-	if addedHelper {
-		rewired := countCallRewired(f, [2]string{"Op386CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"Op386CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
-		if rewired < want {
-			return false, fmt.Errorf("386 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
-		}
+	rewired := countCallRewired(f, [2]string{"Op386CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"Op386CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
+	if rewired < want {
+		return false, fmt.Errorf("386 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 	}
 	return changed, nil
 }

@@ -39,6 +39,12 @@ go version   # from $GOROOT
 Re-running on an already patched tree is a no-op. Supported versions are
 the directories under `_data/` (`iface_patch -h` lists them).
 
+Patching is transactional. Before writing, `iface_patch` snapshots every
+target file. If any patch step fails, it restores all files changed by that
+run. After writing, it runs a complete check pass; validation failure also
+triggers rollback. A separate `rollback failed` message reports any file that
+could not be restored and requires manual inspection.
+
 `go clean -cache` can clear the build cache; it is not required.
 
 Do not mix this `GOROOT` with another `go` on `PATH`.
