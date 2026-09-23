@@ -110,36 +110,58 @@ type patchOperation struct {
 }
 
 func patchOperations(v versionData) []patchOperation {
-	operations := []patchOperation{
-		goSourceOperation("src/cmd/internal/objabi/ifacefuncval.go", v.goSrc("objabi_ifacefuncval.go")),
-		goSourceOperation("src/runtime/iface_funcval.go", v.goSrc("iface_funcval.go")),
-		astOperation("src/cmd/internal/obj/wasm/wasmobj.go", patchWasmobj, v),
-		astOperation("src/cmd/compile/internal/base/flag.go", patchCompileFlag, v),
-		astOperation("src/cmd/asm/internal/flags/flags.go", patchAsmFlags, v),
-		astOperation("src/cmd/go/internal/work/gc.go", patchGoGc, v),
-		astOperation("src/cmd/go/internal/work/init.go", patchGoInit, v),
-		astOperation("src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA, v),
-		astOperation("src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA, v),
-		astOperation("src/cmd/compile/internal/x86/ssa.go", patch386SSA, v),
-		textOperation("src/runtime/iface.go", v.bytes("iface_fun0_old.txt"), v.bytes("iface_fun0_new.txt")),
-		textOperation("src/runtime/iface.go", v.bytes("iface_fun0store_old.txt"), v.bytes("iface_fun0store_new.txt")),
-		{
-			rel: "src/runtime/iface.go",
-			apply: func(path string, check bool) (bool, error) {
-				return patchAsmReplaceAny(path, [][2][]byte{
-					{v.bytes("iface_ifn_old.txt"), v.bytes("iface_ifn_new.txt")},
-					{v.bytes("iface_ifn_ptr_old.txt"), v.bytes("iface_ifn_ptr_new.txt")},
-				}, check)
-			},
-		},
-		textOperation("src/reflect/value.go", v.bytes("reflect_method_old.txt"), v.bytes("reflect_method_new.txt")),
+	type textPatch struct {
+		rel   string
+		pairs [][2]string
+	}
+	sourcePatches := []struct {
+		rel, data string
+	}{
+		{"src/cmd/internal/objabi/ifacefuncval.go", "objabi_ifacefuncval.go"},
+		{"src/runtime/iface_funcval.go", "iface_funcval.go"},
+	}
+	astPatches := []struct {
+		rel string
+		fn  patchFunc
+	}{
+		{"src/cmd/internal/obj/wasm/wasmobj.go", patchWasmobj},
+		{"src/cmd/compile/internal/base/flag.go", patchCompileFlag},
+		{"src/cmd/asm/internal/flags/flags.go", patchAsmFlags},
+		{"src/cmd/go/internal/work/gc.go", patchGoGc},
+		{"src/cmd/go/internal/work/init.go", patchGoInit},
+		{"src/cmd/compile/internal/arm64/ssa.go", patchArm64SSA},
+		{"src/cmd/compile/internal/amd64/ssa.go", patchAmd64SSA},
+		{"src/cmd/compile/internal/x86/ssa.go", patch386SSA},
+	}
+	textPatches := []textPatch{
+		{"src/runtime/iface.go", [][2]string{{"iface_fun0_old.txt", "iface_fun0_new.txt"}}},
+		{"src/runtime/iface.go", [][2]string{{"iface_fun0store_old.txt", "iface_fun0store_new.txt"}}},
+		{"src/runtime/iface.go", [][2]string{
+			{"iface_ifn_old.txt", "iface_ifn_new.txt"},
+			{"iface_ifn_ptr_old.txt", "iface_ifn_ptr_new.txt"},
+		}},
+		{"src/reflect/value.go", [][2]string{{"reflect_method_old.txt", "reflect_method_new.txt"}}},
 	}
 	for _, arch := range []string{"arm64", "amd64", "386"} {
-		operations = append(operations, textOperation(
-			"src/runtime/asm_"+arch+".s",
-			v.bytes(arch+"_callfn_old.s"),
-			v.bytes(arch+"_callfn_new.s"),
-		))
+		textPatches = append(textPatches, textPatch{
+			"src/runtime/asm_" + arch + ".s",
+			[][2]string{{arch + "_callfn_old.s", arch + "_callfn_new.s"}},
+		})
+	}
+
+	operations := make([]patchOperation, 0, len(sourcePatches)+len(astPatches)+len(textPatches))
+	for _, patch := range sourcePatches {
+		operations = append(operations, goSourceOperation(patch.rel, v.goSrc(patch.data)))
+	}
+	for _, patch := range astPatches {
+		operations = append(operations, astOperation(patch.rel, patch.fn, v))
+	}
+	for _, patch := range textPatches {
+		pairs := make([][2][]byte, len(patch.pairs))
+		for i, pair := range patch.pairs {
+			pairs[i] = [2][]byte{v.bytes(pair[0]), v.bytes(pair[1])}
+		}
+		operations = append(operations, textOperation(patch.rel, pairs))
 	}
 	return operations
 }
@@ -156,9 +178,9 @@ func astOperation(rel string, fn patchFunc, v versionData) patchOperation {
 	}}
 }
 
-func textOperation(rel string, old, new []byte) patchOperation {
+func textOperation(rel string, pairs [][2][]byte) patchOperation {
 	return patchOperation{rel: rel, apply: func(path string, check bool) (bool, error) {
-		return patchAsmReplace(path, old, new, check)
+		return patchAsmReplaceAny(path, pairs, check)
 	}}
 }
 
