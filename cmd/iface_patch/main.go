@@ -54,9 +54,19 @@ Supported versions: %s
 	}
 	if n == 0 {
 		fmt.Println("already patched")
+		printRebuildHint(root)
 		return
 	}
 	fmt.Printf("patched %d files\n", n)
+	printRebuildHint(root)
+}
+
+func printRebuildHint(root string) {
+	src := filepath.Join(root, "src")
+	fmt.Fprintf(os.Stderr, `rebuild required:
+  cd %s && ./make.bash   # Windows: make.bat
+  export GOROOT=%s PATH=$GOROOT/bin:$PATH
+`, src, root)
 }
 
 func goVersion(root string) (string, error) {
