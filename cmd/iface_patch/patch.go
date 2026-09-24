@@ -420,6 +420,7 @@ func patchWasmobj(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 		return true
 	})
+	// wasmobj.go has two TYPE_NONE indirect sites (CALL and JMP/tail).
 	if callSites != 2 {
 		return false, fmt.Errorf("wasm indirect CALL sites: found %d, want 2", callSites)
 	}
@@ -933,7 +934,7 @@ func removeFuncDecls(f *ast.File, names ...string) {
 	for _, name := range names {
 		drop[name] = true
 	}
-	out := f.Decls[:0]
+	out := f.Decls[:0:0]
 	for _, d := range f.Decls {
 		fn, ok := d.(*ast.FuncDecl)
 		if ok && drop[fn.Name.Name] {
@@ -952,7 +953,7 @@ func syncCallCaseBody(f *ast.File, op string, body []ast.Stmt) bool {
 		if !ok || len(cc.List) != 1 || !selectorInList(cc.List, op) {
 			return true
 		}
-		if helper != "" && hasIdentExpr(cc, helper) && !hasIdentExpr(cc, "Call") && !hasIdentExpr(cc, "TailCall") {
+		if helper != "" && hasIdentExpr(cc, helper) && !hasSelectorExpr(cc, "s", "Call") && !hasSelectorExpr(cc, "s", "TailCall") {
 			return true
 		}
 		cc.Body = body

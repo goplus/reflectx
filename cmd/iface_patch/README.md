@@ -110,7 +110,7 @@ Untagged builds must match stock gc.
 | `cmd/compile`, `cmd/asm` | `-ifacefuncval` on wasm, arm64, amd64, 386 |
 | `cmd/go` | if `GOARCH` is wasm/arm64/amd64/386 and the tag is set, add `-ifacefuncval` to `forcedGcflags`/`forcedAsmflags` |
 | `cmd/internal/obj/wasm` | unwrap tagged PC at indirect `CALL` |
-| `cmd/compile/internal/arm64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=R26, call via R20 when target is R26) |
+| `cmd/compile/internal/arm64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=R26, call via R20 when funcval reg is R26) |
 | `cmd/compile/internal/amd64` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=DX, call via R12) |
 | `cmd/compile/internal/x86` | unwrap before `CALLinter` / `CALLtailinter` (CTXT=DX, 32-bit) |
 | `runtime/asm_arm64.s` | unwrap in `CALLFN` before `BL (R20)` |

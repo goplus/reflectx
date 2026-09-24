@@ -106,7 +106,7 @@ unwrap **仅在** `objabi.EnableIfaceFuncval` 为真时执行（`-ifacefuncval`�
 | `cmd/compile`、`cmd/asm` | wasm/arm64/amd64/386 上接受 `-ifacefuncval` |
 | `cmd/go` | `GOARCH` 为 wasm/arm64/amd64/386 且带 tag 时，把 `-ifacefuncval` 加进 `forcedGcflags`/`forcedAsmflags` |
 | `cmd/internal/obj/wasm` | 间接 `CALL` 时 unwrap 打标 PC |
-| `cmd/compile/internal/arm64` | `CALLinter` / `CALLtailinter` 前 unwrap（CTXT=R26，目标为 R26 时经 R20 调用） |
+| `cmd/compile/internal/arm64` | `CALLinter` / `CALLtailinter` 前 unwrap（CTXT=R26，funcval 寄存器为 R26 时经 R20 调用） |
 | `cmd/compile/internal/amd64` | `CALLinter` / `CALLtailinter` 前 unwrap（CTXT=DX，经 R12 调用） |
 | `cmd/compile/internal/x86` | `CALLinter` / `CALLtailinter` 前 unwrap（CTXT=DX，32 位） |
 | `runtime/asm_arm64.s` | `CALLFN` 里 `BL (R20)` 前 unwrap |

@@ -494,6 +494,19 @@ func TestArm64SSAHandlesREGCTXT(t *testing.T) {
 	}
 }
 
+func TestArm64SnippetsIdenticalAcrossVersions(t *testing.T) {
+	base := mustVer("go1.25")
+	for _, name := range []string{"arm64_ssa.go", "arm64_callinter.go", "arm64_calltailinter.go"} {
+		want := base.read(name)
+		for _, ver := range []string{"go1.26", "go1.27"} {
+			got := mustVer(ver).read(name)
+			if got != want {
+				t.Errorf("%s/%s differs from go1.25", ver, name)
+			}
+		}
+	}
+}
+
 func TestPatchArm64SSAMissingLayout(t *testing.T) {
 	src := `package arm64
 
