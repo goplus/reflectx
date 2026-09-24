@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -48,6 +49,29 @@ func f(p *obj.Prog, appendp func(*obj.Prog, obj.As, ...obj.Addr) *obj.Prog) {
 	}
 	if changed {
 		t.Fatal("expected second patch to be idempotent")
+	}
+}
+
+func TestPatchWasmobjWrongSiteCount(t *testing.T) {
+	src := `package wasm
+
+import "cmd/internal/obj"
+
+func f(p *obj.Prog, appendp func(*obj.Prog, obj.As, ...obj.Addr) *obj.Prog) {
+	switch call.To.Type {
+	case obj.TYPE_NONE:
+		p = appendp(p, AI64Const, constAddr(16))
+		p = appendp(p, ACallIndirect)
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "wasmobj.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := patchWasmobj(fset, f, testVer()); err == nil {
+		t.Fatal("expected error when only one CALL site is present")
 	}
 }
 
@@ -226,6 +250,9 @@ func BuildInit() {
 	if !hasIdentExpr(funcDecl(f, "BuildInit").Body, "forcedGcflags") {
 		t.Fatal("missing forcedGcflags")
 	}
+	if !hasIdentExpr(funcDecl(f, "BuildInit").Body, "forcedAsmflags") {
+		t.Fatal("missing forcedAsmflags")
+	}
 	changed, err = patchGoInit(fset, f, testVer())
 	if err != nil {
 		t.Fatal(err)
@@ -262,6 +289,50 @@ func BuildInit() {
 	}
 	if !hasIdentExpr(funcDecl(f, "BuildInit").Body, "ifaceFuncvalEnabled") {
 		t.Fatal("missing ifaceFuncvalEnabled")
+	}
+	if !hasIdentExpr(funcDecl(f, "BuildInit").Body, "forcedAsmflags") {
+		t.Fatal("missing forcedAsmflags after upgrade")
+	}
+	changed, err = patchGoInit(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent after upgrade")
+	}
+}
+
+func TestPatchGoInitAddsAsmflags(t *testing.T) {
+	src := `package work
+
+func BuildInit() {
+	buildModeInit()
+	if ifaceFuncvalEnabled() {
+		forcedGcflags = append(forcedGcflags, "-ifacefuncval")
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "init.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchGoInit(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected asmflags upgrade")
+	}
+	if !hasIdentExpr(funcDecl(f, "BuildInit").Body, "forcedAsmflags") {
+		t.Fatal("missing forcedAsmflags")
+	}
+	changed, err = patchGoInit(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent after asmflags upgrade")
 	}
 }
 
@@ -307,12 +378,132 @@ func ssaGenValue(s *ssagen.State, v *ssa.Value) {
 	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
 		t.Fatal("missing ssaGenIfaceFuncvalCall")
 	}
+	if funcDecl(f, "ssaGenIfaceFuncvalCallReg") == nil {
+		t.Fatal("missing ssaGenIfaceFuncvalCallReg")
+	}
+	if funcDecl(f, "ssaGenIfaceFuncvalTailCall") == nil {
+		t.Fatal("missing ssaGenIfaceFuncvalTailCall")
+	}
+	if dedicatedCaseHasIdent(f, "OpARM64CALLinter", "Call") {
+		t.Fatal("CALLinter still uses stock s.Call")
+	}
+	if dedicatedCaseHasIdent(f, "OpARM64CALLtailinter", "TailCall") {
+		t.Fatal("CALLtailinter still uses stock s.TailCall")
+	}
+	if !dedicatedCaseHasIdent(f, "OpARM64CALLtailinter", "ssaGenIfaceFuncvalTailCall") {
+		t.Fatal("CALLtailinter missing ssaGenIfaceFuncvalTailCall")
+	}
 	changed, err = patchArm64SSA(fset, f, testVer())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if changed {
 		t.Fatal("expected idempotent")
+	}
+}
+
+func TestPatchArm64SSAUpgradeOld(t *testing.T) {
+	src := `package arm64
+
+import (
+	"cmd/internal/obj/arm64"
+	"cmd/internal/objabi"
+)
+
+func ssaGenValue(s *ssagen.State, v *ssa.Value) {
+	switch v.Op {
+	case ssa.OpARM64CALLstatic, ssa.OpARM64CALLclosure:
+		s.Call(v)
+	case ssa.OpARM64CALLinter:
+		ssaGenIfaceFuncvalCall(s, v)
+		s.Call(v)
+	case ssa.OpARM64CALLtail:
+		s.TailCall(v)
+	case ssa.OpARM64CALLtailinter:
+		ssaGenIfaceFuncvalCall(s, v)
+		s.TailCall(v)
+	}
+}
+
+func ssaGenIfaceFuncvalCall(s *ssagen.State, v *ssa.Value) {
+	if !objabi.EnableIfaceFuncval {
+		return
+	}
+}
+`
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "ssa.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchArm64SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected upgrade")
+	}
+	if funcDecl(f, "ssaGenIfaceFuncvalCallReg") == nil {
+		t.Fatal("missing ssaGenIfaceFuncvalCallReg after upgrade")
+	}
+	if dedicatedCaseHasIdent(f, "OpARM64CALLinter", "Call") {
+		t.Fatal("upgraded CALLinter still uses stock s.Call")
+	}
+	if dedicatedCaseHasIdent(f, "OpARM64CALLtailinter", "TailCall") {
+		t.Fatal("upgraded CALLtailinter still uses stock s.TailCall")
+	}
+	if !dedicatedCaseHasIdent(f, "OpARM64CALLtailinter", "ssaGenIfaceFuncvalTailCall") {
+		t.Fatal("upgraded CALLtailinter missing ssaGenIfaceFuncvalTailCall")
+	}
+	fn := funcDecl(f, "ssaGenIfaceFuncvalCallReg")
+	if fn == nil || !hasIdentExpr(fn, "REG_R20") {
+		t.Fatal("helper missing R20 path for REGCTXT")
+	}
+	changed, err = patchArm64SSA(fset, f, testVer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed {
+		t.Fatal("expected idempotent after upgrade")
+	}
+}
+
+func dedicatedCaseHasIdent(f *ast.File, op, ident string) bool {
+	found := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		cc, ok := n.(*ast.CaseClause)
+		if !ok || len(cc.List) != 1 || !selectorInList(cc.List, op) {
+			return true
+		}
+		if hasIdentExpr(cc, ident) {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
+func TestArm64SSAHandlesREGCTXT(t *testing.T) {
+	for _, ver := range []string{"go1.25", "go1.26", "go1.27"} {
+		src := mustVer(ver).read("arm64_ssa.go")
+		for _, want := range []string{"ssaGenIfaceFuncvalCallReg", "REGCTXT", "REG_R20"} {
+			if !strings.Contains(src, want) {
+				t.Errorf("%s missing %s", ver, want)
+			}
+		}
+	}
+}
+
+func TestArm64SnippetsIdenticalAcrossVersions(t *testing.T) {
+	base := mustVer("go1.25")
+	for _, name := range []string{"arm64_ssa.go", "arm64_callinter.go", "arm64_calltailinter.go"} {
+		want := base.read(name)
+		for _, ver := range []string{"go1.26", "go1.27"} {
+			got := mustVer(ver).read(name)
+			if got != want {
+				t.Errorf("%s/%s differs from go1.25", ver, name)
+			}
+		}
 	}
 }
 

@@ -13,7 +13,7 @@ var zeroIfn = reflect.MakeFunc(reflect.TypeOf((func())(nil)), func([]reflect.Val
 }).UnsafePointer()
 
 // globalMethodCache reuses method table entries (ifn/tfn) for the same
-// Method.FuncId so tagged MakeFunc ifn values are shared.
+// Method.FuncId so MakeFunc ifn values are shared.
 var globalMethodCache = make(map[int]*ifnValue)
 
 type ifnValue struct {

@@ -4,5 +4,4 @@ package p
 
 func _() {
 	ssaGenIfaceFuncvalCall(s, v)
-	s.Call(v)
 }
