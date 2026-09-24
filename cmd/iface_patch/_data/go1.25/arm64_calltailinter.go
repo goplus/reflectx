@@ -3,6 +3,5 @@
 package p
 
 func _() {
-	ssaGenIfaceFuncvalCall(s, v)
-	s.TailCall(v)
+	ssaGenIfaceFuncvalTailCall(s, v)
 }

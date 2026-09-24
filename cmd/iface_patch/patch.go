@@ -420,8 +420,8 @@ func patchWasmobj(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		changed = true
 		return true
 	})
-	if callSites == 0 {
-		return false, fmt.Errorf("wasm indirect CALL sites not found")
+	if callSites != 2 {
+		return false, fmt.Errorf("wasm indirect CALL sites: found %d, want 2", callSites)
 	}
 	if !hasImport(f, "cmd/internal/objabi") {
 		addImportAfter(f, "cmd/internal/obj", "cmd/internal/objabi")
@@ -839,16 +839,6 @@ func patchGoGc(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	return changed, nil
 }
 
-func renameIdent(n ast.Node, old, new string) {
-	ast.Inspect(n, func(x ast.Node) bool {
-		id, ok := x.(*ast.Ident)
-		if ok && id.Name == old {
-			id.Name = new
-		}
-		return true
-	})
-}
-
 func replaceFuncDecl(f *ast.File, name string, d ast.Decl) {
 	for i, old := range f.Decls {
 		fn, ok := old.(*ast.FuncDecl)
@@ -864,14 +854,22 @@ func patchGoInit(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 	if fn == nil || fn.Body == nil {
 		return false, fmt.Errorf("BuildInit not found")
 	}
+	extra := v.stmts("gc_flags.go")
 	if hasIdentExpr(fn.Body, "ifaceFuncvalEnabled") {
-		return false, nil
-	}
-	if hasIdentExpr(fn.Body, "wasmIfaceFuncval") {
-		renameIdent(fn.Body, "wasmIfaceFuncval", "ifaceFuncvalEnabled")
+		if hasIdentExpr(fn.Body, "forcedAsmflags") {
+			return false, nil
+		}
+		if !replaceStmtWithIdent(fn.Body, "ifaceFuncvalEnabled", extra) {
+			return false, fmt.Errorf("ifaceFuncvalEnabled block not replaced")
+		}
 		return true, nil
 	}
-	extra := v.stmts("gc_flags.go")
+	if hasIdentExpr(fn.Body, "wasmIfaceFuncval") {
+		if !replaceStmtWithIdent(fn.Body, "wasmIfaceFuncval", extra) {
+			return false, fmt.Errorf("wasmIfaceFuncval block not replaced")
+		}
+		return true, nil
+	}
 	for i, stmt := range fn.Body.List {
 		es, ok := stmt.(*ast.ExprStmt)
 		if !ok {
@@ -898,7 +896,8 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		addImportAfter(f, "cmd/internal/obj/arm64", "cmd/internal/objabi")
 		changed = true
 	}
-	if funcDecl(f, "ssaGenIfaceFuncvalCall") == nil {
+	if !arm64HelperCurrent(f) {
+		removeFuncDecls(f, "ssaGenIfaceFuncvalCall", "ssaGenIfaceFuncvalTailCall", "ssaGenIfaceFuncvalCallReg", "callOrTail")
 		f.Decls = append(f.Decls, v.decls("arm64_ssa.go")...)
 		changed = true
 	}
@@ -912,11 +911,70 @@ func patchArm64SSA(_ *token.FileSet, f *ast.File, v versionData) (bool, error) {
 		}
 		want = 2
 	}
-	rewired := countCallRewired(f, [2]string{"OpARM64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpARM64CALLtailinter", "ssaGenIfaceFuncvalCall"})
+	if syncCallCaseBody(f, "OpARM64CALLinter", v.stmts("arm64_callinter.go")) {
+		changed = true
+	}
+	if want == 2 && syncCallCaseBody(f, "OpARM64CALLtailinter", v.stmts("arm64_calltailinter.go")) {
+		changed = true
+	}
+	rewired := countCallRewired(f, [2]string{"OpARM64CALLinter", "ssaGenIfaceFuncvalCall"}, [2]string{"OpARM64CALLtailinter", "ssaGenIfaceFuncvalTailCall"})
 	if rewired < want {
 		return false, fmt.Errorf("arm64 CALL sites not rewired (found %d, want %d); ssaGenValue switch layout may have changed", rewired, want)
 	}
 	return changed, nil
+}
+
+func arm64HelperCurrent(f *ast.File) bool {
+	return funcDecl(f, "ssaGenIfaceFuncvalCallReg") != nil
+}
+
+func removeFuncDecls(f *ast.File, names ...string) {
+	drop := make(map[string]bool, len(names))
+	for _, name := range names {
+		drop[name] = true
+	}
+	out := f.Decls[:0]
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if ok && drop[fn.Name.Name] {
+			continue
+		}
+		out = append(out, d)
+	}
+	f.Decls = out
+}
+
+func syncCallCaseBody(f *ast.File, op string, body []ast.Stmt) bool {
+	helper := firstCallName(body)
+	did := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		cc, ok := n.(*ast.CaseClause)
+		if !ok || len(cc.List) != 1 || !selectorInList(cc.List, op) {
+			return true
+		}
+		if helper != "" && hasIdentExpr(cc, helper) && !hasIdentExpr(cc, "Call") && !hasIdentExpr(cc, "TailCall") {
+			return true
+		}
+		cc.Body = body
+		did = true
+		return true
+	})
+	return did
+}
+
+func firstCallName(body []ast.Stmt) string {
+	if len(body) == 0 {
+		return ""
+	}
+	es, ok := body[0].(*ast.ExprStmt)
+	if !ok {
+		return ""
+	}
+	call, ok := es.X.(*ast.CallExpr)
+	if !ok {
+		return ""
+	}
+	return callName(call.Fun)
 }
 
 func splitCallCase(f *ast.File, remove, keep string, body []ast.Stmt) bool {

@@ -44,6 +44,16 @@ func stringerTail(s fmt.Stringer) string {
 	return s.String()
 }
 
+//go:noinline
+func stringerManyLive(s fmt.Stringer, xs [16]int) string {
+	a0, a1, a2, a3 := xs[0], xs[1], xs[2], xs[3]
+	a4, a5, a6, a7 := xs[4], xs[5], xs[6], xs[7]
+	a8, a9, a10, a11 := xs[8], xs[9], xs[10], xs[11]
+	a12, a13, a14, a15 := xs[12], xs[13], xs[14], xs[15]
+	r := s.String()
+	return fmt.Sprintf("%s %d", r, a0+a1+a2+a3+a4+a5+a6+a7+a8+a9+a10+a11+a12+a13+a14+a15)
+}
+
 func TestIntMethodOf(t *testing.T) {
 	// Int type
 	var i Int
@@ -118,6 +128,9 @@ func TestIntMethodOf(t *testing.T) {
 	}
 	if v := stringerTail(x.Interface().(fmt.Stringer)); v != "(100)" {
 		t.Fatalf("stringerTail: have %v, want (100)", v)
+	}
+	if v := stringerManyLive(x.Interface().(fmt.Stringer), [16]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}); v != "(100) 136" {
+		t.Fatalf("stringerManyLive: have %v, want (100) 136", v)
 	}
 
 	// Append

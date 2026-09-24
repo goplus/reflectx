@@ -17,9 +17,7 @@ Patch a Go 1.25.x, 1.26.x, or 1.27.x source tree for goplus.ifacefuncval (wasm, 
 Then: cd <goroot>/src && ./make.bash
       export GOROOT=<goroot> PATH=$GOROOT/bin:$PATH
       go test -tags goplus.ifacefuncval -v .
-      go test -tags goplus.ifacefuncval -v fmt sort
       # wasip1: GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -v .
-      #         GOOS=wasip1 GOARCH=wasm go test -exec wasmtime -tags goplus.ifacefuncval -run '^Test' fmt sort
 See cmd/iface_patch/README.md.
 Supported versions: %s
 `, strings.Join(supportedVersions(), ", "))
