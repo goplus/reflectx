@@ -1709,15 +1709,23 @@ func TestStructToMethodSetAndRawMethods(t *testing.T) {
 		{Name: "Point", Anonymous: true, Type: reflect.TypeOf(Point{})},
 	})
 	typ := reflectx.StructToMethodSet(styp)
-	if typ == styp && typ.NumMethod() == 0 {
-		// embed methods may be pointer-only
+	if typ == styp {
+		t.Fatal("expected new method-set type")
+	}
+	if typ.NumMethod() != 4 {
+		t.Fatalf("NumMethod = %d, want 4", typ.NumMethod())
+	}
+	if reflect.PtrTo(typ).NumMethod() != 5 {
+		t.Fatalf("pointer NumMethod = %d, want 5", reflect.PtrTo(typ).NumMethod())
 	}
 	typ2 := reflectx.StructToMethodSet(styp)
 	if typ != typ2 {
 		t.Fatal("embed cache")
 	}
 	ms := reflectx.NewMethodSet(styp, 0, 0)
-	_ = ms
+	if ms != typ {
+		t.Fatal("NewMethodSet(0,0) should reuse StructToMethodSet")
+	}
 
 	base := reflectx.NamedStructOf("main", "RawT", []reflect.StructField{{Name: "X", Type: reflect.TypeOf(0)}})
 	mtyp := reflectx.NewMethodSet(base, 1, 1)
@@ -1734,10 +1742,10 @@ func TestStructToMethodSetAndRawMethods(t *testing.T) {
 }
 
 func TestInterfaceOfErrors(t *testing.T) {
-	mustPanicMethod(t, func() {
+	mustPanic(t, func() {
 		reflectx.InterfaceOf([]reflect.Type{reflect.TypeOf(0)}, nil)
 	})
-	mustPanicMethod(t, func() {
+	mustPanic(t, func() {
 		ms := []reflect.Method{
 			{Name: "Dup", Type: reflect.FuncOf(nil, []reflect.Type{tyBool}, false)},
 			{Name: "Dup", Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false)},
@@ -1796,8 +1804,9 @@ func TestEmbedPtrMethodsAndAllocError(t *testing.T) {
 	reflectx.DisableAllocateWarning = true
 	defer func() { reflectx.DisableAllocateWarning = false }()
 	ctx := reflectx.NewContext()
+	defer ctx.Reset()
 	var saw error
-	for i := 0; i < 600; i++ {
+	for i := 0; i < cap*2+1; i++ {
 		styp := ctx.NamedStructOf("main", "Huge"+strconv.Itoa(i), []reflect.StructField{
 			{Name: "X", Type: reflect.TypeOf(0)},
 		})
@@ -1815,7 +1824,6 @@ func TestEmbedPtrMethodsAndAllocError(t *testing.T) {
 	if _, ok := saw.(*reflectx.AllocError); !ok {
 		t.Fatalf("got %T %v", saw, saw)
 	}
-	ctx.Reset()
 }
 
 func TestResetAll(t *testing.T) {
@@ -1827,14 +1835,4 @@ func TestResetAll(t *testing.T) {
 	if styp.NumField() != 1 {
 		t.Fatal(styp)
 	}
-}
-
-func mustPanicMethod(t *testing.T, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	fn()
 }
