@@ -1,0 +1,5 @@
+coverage:
+  ignore:
+    - "icall"
+    - "internal/icall512"
+    - "cmd"

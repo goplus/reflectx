@@ -1,7 +1,8 @@
 # reflectx
 Golang reflect package hack tools
 
-[![Build Status](https://github.com/goplus/reflectx/workflows/Go/badge.svg)](https://github.com/goplus/reflectx/workflows/Go/badge.svg)
+[![Build Status](https://github.com/goplus/reflectx/workflows/Go/badge.svg)](https://github.com/goplus/reflectx/actions/workflows/go.yml)
+[![Coverage Status](https://codecov.io/gh/goplus/reflectx/branch/main/graph/badge.svg)](https://codecov.io/gh/goplus/reflectx)
 
 ### Go Version
 
