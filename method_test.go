@@ -1699,3 +1699,140 @@ func BenchmarkDynamicCallIndirect(b *testing.B) {
 		set(100, 200)
 	}
 }
+
+func TestStructToMethodSetAndRawMethods(t *testing.T) {
+	if reflectx.StructToMethodSet(reflect.TypeOf(0)) != reflect.TypeOf(0) {
+		t.Fatal("non-struct")
+	}
+	styp := reflectx.NamedStructOf("main", "EmbedT", []reflect.StructField{
+		{Name: "X", Type: reflect.TypeOf(0)},
+		{Name: "Point", Anonymous: true, Type: reflect.TypeOf(Point{})},
+	})
+	typ := reflectx.StructToMethodSet(styp)
+	if typ == styp {
+		t.Fatal("expected new method-set type")
+	}
+	if typ.NumMethod() != 4 {
+		t.Fatalf("NumMethod = %d, want 4", typ.NumMethod())
+	}
+	if reflect.PtrTo(typ).NumMethod() != 5 {
+		t.Fatalf("pointer NumMethod = %d, want 5", reflect.PtrTo(typ).NumMethod())
+	}
+	typ2 := reflectx.StructToMethodSet(styp)
+	if typ != typ2 {
+		t.Fatal("embed cache")
+	}
+	ms := reflectx.NewMethodSet(styp, 0, 0)
+	if ms != typ {
+		t.Fatal("NewMethodSet(0,0) should reuse StructToMethodSet")
+	}
+
+	base := reflectx.NamedStructOf("main", "RawT", []reflect.StructField{{Name: "X", Type: reflect.TypeOf(0)}})
+	mtyp := reflectx.NewMethodSet(base, 1, 1)
+	m := reflectx.MakeMethod("Raw", "main", false, reflect.TypeOf(func() int { return 0 }),
+		func(args []reflect.Value) []reflect.Value {
+			return []reflect.Value{reflect.ValueOf(1)}
+		})
+	if err := reflectx.Default.SetRawMethods(mtyp, []reflectx.Method{m}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reflectx.SetMethodSet(mtyp, []reflectx.Method{m, m}, false); err == nil {
+		t.Fatal("expected redeclared")
+	}
+}
+
+func TestInterfaceOfErrors(t *testing.T) {
+	mustPanic(t, func() {
+		reflectx.InterfaceOf([]reflect.Type{reflect.TypeOf(0)}, nil)
+	})
+	mustPanic(t, func() {
+		ms := []reflect.Method{
+			{Name: "Dup", Type: reflect.FuncOf(nil, []reflect.Type{tyBool}, false)},
+			{Name: "Dup", Type: reflect.FuncOf(nil, []reflect.Type{tyString}, false)},
+		}
+		reflectx.InterfaceOf(nil, ms)
+	})
+	same := reflect.FuncOf(nil, []reflect.Type{tyString}, false)
+	typ2 := reflectx.InterfaceOf(nil, []reflect.Method{
+		{Name: "String", Type: same},
+		{Name: "String", Type: same},
+		{Name: "private", PkgPath: "main", Type: reflect.FuncOf(nil, []reflect.Type{tyBool}, false)},
+	})
+	if typ2.NumMethod() == 0 {
+		t.Fatal("unexported+dup")
+	}
+	emb := reflectx.InterfaceOf([]reflect.Type{reflect.TypeOf((*fmt.Stringer)(nil)).Elem()}, []reflect.Method{
+		{Name: "Extra", Type: reflect.FuncOf(nil, []reflect.Type{tyBool}, false)},
+	})
+	if emb.NumMethod() < 1 {
+		t.Fatal("embed interface")
+	}
+	ctx := reflectx.NewContext()
+	ctx.SetHasImethod(func(reflect.Type, reflectx.Method) bool { return false })
+	styp := ctx.NamedStructOf("main", "NoIfn", []reflect.StructField{{Name: "X", Type: reflect.TypeOf(0)}})
+	mtyp := ctx.NewMethodSet(styp, 1, 1)
+	m := reflectx.MakeMethod("M", "main", false, reflect.TypeOf(func() {}),
+		func([]reflect.Value) []reflect.Value { return nil })
+	if err := ctx.SetMethodSet(mtyp, []reflectx.Method{m}, false); err != nil {
+		t.Fatal(err)
+	}
+	typ := reflectx.MakeEmptyInterface("main", "EmptyI")
+	if typ.Kind() != reflect.Interface {
+		t.Fatal(typ)
+	}
+	if err := reflectx.SetInterfaceType(typ, []reflect.Type{reflect.TypeOf(0)}, nil); err == nil {
+		t.Fatal("expected non-interface embed error")
+	}
+	if err := reflectx.SetInterfaceType(typ, []reflect.Type{reflect.TypeOf((*fmt.Stringer)(nil)).Elem()}, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEmbedPtrMethodsAndAllocError(t *testing.T) {
+	fs := []reflect.StructField{
+		{Name: "Point", Anonymous: true, Type: reflect.PtrTo(reflect.TypeOf(Point{}))},
+	}
+	typ := reflectx.NamedStructOf("main", "EmbPtr", fs)
+	typ = reflectx.StructToMethodSet(typ)
+	_ = typ.NumMethod()
+
+	cap, _, _ := reflectx.IcallStat()
+	if cap == 0 {
+		return
+	}
+
+	reflectx.DisableAllocateWarning = true
+	defer func() { reflectx.DisableAllocateWarning = false }()
+	ctx := reflectx.NewContext()
+	defer ctx.Reset()
+	var saw error
+	for i := 0; i < cap*2+1; i++ {
+		styp := ctx.NamedStructOf("main", "Huge"+strconv.Itoa(i), []reflect.StructField{
+			{Name: "X", Type: reflect.TypeOf(0)},
+		})
+		mtyp := ctx.NewMethodSet(styp, 1, 1)
+		m := reflectx.MakeMethod("M", "main", false, reflect.TypeOf(func() {}),
+			func([]reflect.Value) []reflect.Value { return nil })
+		if err := ctx.SetMethodSet(mtyp, []reflectx.Method{m}, false); err != nil {
+			saw = err
+			break
+		}
+	}
+	if saw == nil {
+		t.Fatal("expected AllocError after exhausting icalls")
+	}
+	if _, ok := saw.(*reflectx.AllocError); !ok {
+		t.Fatalf("got %T %v", saw, saw)
+	}
+}
+
+func TestResetAll(t *testing.T) {
+	reflectx.Reset()
+	reflectx.ResetAll()
+	styp := reflectx.NamedStructOf("main", "AfterReset", []reflect.StructField{
+		{Name: "X", Type: reflect.TypeOf(0)},
+	})
+	if styp.NumField() != 1 {
+		t.Fatal(styp)
+	}
+}

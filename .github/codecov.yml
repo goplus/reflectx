@@ -2,4 +2,7 @@ coverage:
   ignore:
     - "icall"
     - "internal/icall512"
+    - "internal/abi"
     - "cmd"
+    - "abi"
+    - "x/reflect"
