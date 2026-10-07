@@ -591,3 +591,291 @@ func TestSetUnderlyingInterfaceMethodPkgPath(t *testing.T) {
 		})
 	}
 }
+
+func TestTypeLinksAndTypesByString(t *testing.T) {
+	links := reflectx.TypeLinks()
+	if len(links) == 0 {
+		t.Fatal("TypeLinks empty")
+	}
+	_ = reflectx.TypesByString("int")
+	_ = reflectx.TypesByString("this.type.does.not.exist.zzz")
+	var buf bytes.Buffer
+	reflectx.DumpType(&buf, reflect.TypeOf(nPoint{}))
+	if buf.Len() == 0 {
+		t.Fatal("DumpType empty")
+	}
+	reflectx.DumpType(&buf, reflect.TypeOf((*fmt.Stringer)(nil)).Elem())
+}
+
+func TestSetUnderlyingKinds(t *testing.T) {
+	dstPtr := reflectx.NamedTypeOf("main", "P", reflect.TypeOf((*int)(nil)))
+	reflectx.SetUnderlying(dstPtr, reflect.TypeOf((*string)(nil)))
+	if dstPtr.Elem().Kind() != reflect.String {
+		t.Fatal("ptr elem")
+	}
+	dstSlice := reflectx.NamedTypeOf("main", "S", reflect.TypeOf([]int(nil)))
+	reflectx.SetUnderlying(dstSlice, reflect.TypeOf([]string(nil)))
+	if dstSlice.Elem().Kind() != reflect.String {
+		t.Fatal("slice elem")
+	}
+	dstArr := reflectx.NamedTypeOf("main", "A", reflect.TypeOf([2]int{}))
+	reflectx.SetUnderlying(dstArr, reflect.TypeOf([3]byte{}))
+	if dstArr.Len() != 3 || dstArr.Elem().Kind() != reflect.Uint8 {
+		t.Fatal("array")
+	}
+	dstChan := reflectx.NamedTypeOf("main", "C", reflect.TypeOf((chan int)(nil)))
+	reflectx.SetUnderlying(dstChan, reflect.TypeOf((chan string)(nil)))
+	if dstChan.Elem().Kind() != reflect.String {
+		t.Fatal("chan")
+	}
+	dstMap := reflectx.NamedTypeOf("main", "M", reflect.TypeOf(map[int]int{}))
+	reflectx.SetUnderlying(dstMap, reflect.TypeOf(map[string]bool{}))
+	if dstMap.Key().Kind() != reflect.String || dstMap.Elem().Kind() != reflect.Bool {
+		t.Fatal("map")
+	}
+	dstFn0 := reflectx.NamedTypeOf("main", "F0", reflect.TypeOf(func() {}))
+	reflectx.SetUnderlying(dstFn0, reflect.TypeOf(func() {}))
+	for i, from := range []reflect.Type{
+		reflect.TypeOf(""),
+		reflect.TypeOf(float32(0)),
+		reflect.TypeOf(complex64(0)),
+		reflect.TypeOf([0]string{}),
+		reflect.TypeOf([1]func(){}),
+		reflect.TypeOf((*error)(nil)).Elem(),
+	} {
+		dst := reflectx.NamedTypeOf("main", "K"+string(rune('A'+i)), from)
+		reflectx.SetUnderlying(dst, from)
+	}
+}
+
+func TestSetElemKinds(t *testing.T) {
+	ptr := reflectx.NamedTypeOf("main", "EP", reflect.TypeOf((*int)(nil)))
+	reflectx.SetElem(ptr, reflect.TypeOf(""))
+	if ptr.Elem().Kind() != reflect.String {
+		t.Fatal("ptr")
+	}
+	arr := reflectx.NamedTypeOf("main", "EA", reflect.TypeOf([1]int{}))
+	reflectx.SetElem(arr, reflect.TypeOf(true))
+	if arr.Elem().Kind() != reflect.Bool {
+		t.Fatal("array")
+	}
+	mp := reflectx.NamedTypeOf("main", "EM", reflect.TypeOf(map[int]int{}))
+	reflectx.SetElem(mp, reflect.TypeOf(""))
+	if mp.Elem().Kind() != reflect.String {
+		t.Fatal("map")
+	}
+	ch := reflectx.NamedTypeOf("main", "EC", reflect.TypeOf((chan int)(nil)))
+	reflectx.SetElem(ch, reflect.TypeOf(true))
+	if ch.Elem().Kind() != reflect.Bool {
+		t.Fatal("chan")
+	}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	reflectx.SetElem(reflect.TypeOf(0), reflect.TypeOf(0))
+}
+
+func TestSetValueKinds(t *testing.T) {
+	set := func(dst, src interface{}) {
+		dv := reflect.New(reflect.TypeOf(dst)).Elem()
+		reflectx.SetValue(dv, reflect.ValueOf(src))
+		if !reflect.DeepEqual(dv.Interface(), src) {
+			t.Fatalf("SetValue %T: got %v want %v", src, dv.Interface(), src)
+		}
+	}
+	set(false, true)
+	set(int8(0), int8(3))
+	set(uint(0), uint(7))
+	set(uintptr(0), uintptr(9))
+	set(float32(0), float32(1.5))
+	set(complex64(0), complex64(1+2i))
+	set("", "hi")
+	p := unsafe.Pointer(&struct{}{})
+	dv := reflect.New(reflect.TypeOf(unsafe.Pointer(nil))).Elem()
+	reflectx.SetValue(dv, reflect.ValueOf(p))
+	if dv.Pointer() != uintptr(p) {
+		t.Fatal("unsafe.Pointer")
+	}
+	s := []int{1}
+	dv = reflect.New(reflect.TypeOf(s)).Elem()
+	reflectx.SetValue(dv, reflect.ValueOf([]int{2, 3}))
+	if dv.Len() != 2 {
+		t.Fatal("slice set")
+	}
+}
+
+func TestSetTypeNameAndMethodX(t *testing.T) {
+	typ := reflectx.NamedTypeOf("main", "Old", reflect.TypeOf(0))
+	reflectx.SetTypeName(typ, "example.com/pkg", "NewName")
+	if typ.Name() != "NewName" {
+		t.Fatalf("name %s", typ.Name())
+	}
+	m := reflectx.MethodX(reflect.TypeOf((*point)(nil)), 0)
+	if m.Name == "" {
+		t.Fatal("MethodX")
+	}
+	mustPanic(t, func() { reflectx.MethodX(reflect.TypeOf((*point)(nil)), 99) })
+	mustPanic(t, func() { reflectx.MethodByIndex(reflect.TypeOf((*point)(nil)), -1) })
+	if _, ok := reflectx.MethodByName(reflect.TypeOf((*fmt.Stringer)(nil)).Elem(), "String"); !ok {
+		t.Fatal("interface MethodByName")
+	}
+	if _, ok := reflectx.MethodByName(reflect.TypeOf((*point)(nil)), "missing"); ok {
+		t.Fatal("missing method")
+	}
+	_ = reflectx.MethodByIndex(reflect.TypeOf((*fmt.Stringer)(nil)).Elem(), 0)
+}
+
+func TestFieldXErrorsAndEmbed(t *testing.T) {
+	type Inner struct{ X int }
+	type Outer struct{ *Inner }
+	v := reflect.ValueOf(&Outer{&Inner{7}}).Elem()
+	got := reflectx.FieldByIndexX(v, []int{0, 0})
+	if got.Int() != 7 {
+		t.Fatal(got)
+	}
+	if reflectx.FieldByNameX(v, "missing").IsValid() {
+		t.Fatal("missing field")
+	}
+	if reflectx.FieldByNameFuncX(v, func(string) bool { return false }).IsValid() {
+		t.Fatal("missing match")
+	}
+	mustPanic(t, func() { reflectx.FieldX(reflect.ValueOf(1), 0) })
+	mustPanic(t, func() { reflectx.FieldByNameX(reflect.ValueOf(1), "X") })
+	mustPanic(t, func() { reflectx.FieldByIndexX(reflect.ValueOf(&Outer{}).Elem(), []int{0, 0}) })
+	mustPanic(t, func() { reflectx.FieldX(v, 99) })
+}
+
+func TestUpdateFieldReplaceType(t *testing.T) {
+	src := reflect.TypeOf(nPoint{})
+	nt := reflectx.NamedTypeOf("main", "NP", src)
+	st := reflectx.StructOf([]reflect.StructField{
+		{Name: "P", Type: reflect.PtrTo(src)},
+		{Name: "S", Type: reflect.SliceOf(src)},
+		{Name: "A", Type: reflect.ArrayOf(2, src)},
+		{Name: "M", Type: reflect.MapOf(src, src)},
+		{Name: "E", Type: src},
+	})
+	if !reflectx.UpdateField(st, map[reflect.Type]reflect.Type{src: nt}) {
+		t.Fatal("UpdateField")
+	}
+	if reflectx.UpdateField(st, nil) {
+		t.Fatal("nil rmap")
+	}
+	if reflectx.UpdateField(reflect.TypeOf(0), map[reflect.Type]reflect.Type{src: nt}) {
+		t.Fatal("non-struct")
+	}
+	st2 := reflectx.StructOf([]reflect.StructField{
+		{Name: "M", Type: reflect.MapOf(src, tyInt)},
+	})
+	if !reflectx.UpdateField(st2, map[reflect.Type]reflect.Type{src: nt}) {
+		t.Fatal("map key replace")
+	}
+}
+
+func TestContextResetAndAllocError(t *testing.T) {
+	ctx := reflectx.NewContext()
+	if ctx.IcallAlloc() != 0 {
+		t.Fatal("empty alloc")
+	}
+	styp := reflectx.NamedStructOf("main", "CtxT", []reflect.StructField{
+		{Name: "X", Type: tyInt},
+	})
+	typ := ctx.NewMethodSet(styp, 1, 1)
+	m := reflectx.MakeMethod("M", "main", false, reflect.TypeOf(func() {}), func([]reflect.Value) []reflect.Value { return nil })
+	if err := ctx.SetMethodSet(typ, []reflectx.Method{m}, false); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.IcallAlloc() == 0 {
+		t.Fatal("expected icall alloc")
+	}
+	ctx.Reset()
+	if ctx.IcallAlloc() != 0 {
+		t.Fatal("reset alloc")
+	}
+	err := &reflectx.AllocError{Typ: tyInt, Cap: 1, Req: 2}
+	if err.Error() == "" {
+		t.Fatal("AllocError")
+	}
+	reflectx.DisableAllocateWarning = true
+	defer func() { reflectx.DisableAllocateWarning = false }()
+	_ = reflectx.DisableAllocateWarning
+}
+
+func TestStructOfAnonymousAndCache(t *testing.T) {
+	fs := []reflect.StructField{
+		{Name: "", Anonymous: true, Type: reflect.TypeOf(Point{})},
+		{Name: "_", PkgPath: "main", Type: tyInt, Tag: "a"},
+		{Name: "_", PkgPath: "main", Type: tyInt, Tag: "b"},
+	}
+	t1 := reflectx.StructOf(fs)
+	t2 := reflectx.StructOf(fs)
+	if t1.NumField() != 3 || !t1.Field(0).Anonymous {
+		t.Fatal("anonymous")
+	}
+	if t2.NumField() != 3 {
+		t.Fatal("struct of")
+	}
+	ptrAnon := reflectx.StructOf([]reflect.StructField{
+		{Name: "", Anonymous: true, Type: reflect.PtrTo(reflect.TypeOf(Point{}))},
+	})
+	if ptrAnon.NumField() != 1 {
+		t.Fatal("ptr anonymous")
+	}
+	if reflectx.NumMethodX(tyInt) != 0 {
+		t.Fatal("int methods")
+	}
+	long := string(make([]byte, 200))
+	_ = reflectx.StructOf([]reflect.StructField{
+		{Name: "T", Type: tyInt, Tag: reflect.StructTag(long)},
+	})
+}
+
+func TestRegularMemoryTypes(t *testing.T) {
+	empty := reflectx.NamedStructOf("main", "Empty", nil)
+	_ = reflect.New(empty).Elem().Interface()
+	one := reflectx.NamedStructOf("main", "One", []reflect.StructField{
+		{Name: "X", Type: tyInt},
+	})
+	_ = reflect.New(one).Elem().Interface()
+	pad := reflectx.NamedStructOf("main", "Pad", []reflect.StructField{
+		{Name: "A", Type: reflect.TypeOf(int8(0))},
+		{Name: "B", Type: tyInt},
+	})
+	_ = reflect.New(pad).Elem().Interface()
+	arr0 := reflectx.NamedTypeOf("main", "Arr0", reflect.TypeOf([0]int{}))
+	_ = reflect.New(arr0).Elem().Interface()
+	arrFn := reflectx.NamedTypeOf("main", "ArrFn", reflect.TypeOf([1]func(){}))
+	_ = reflect.New(arrFn).Elem().Interface()
+	blank1 := reflectx.NamedStructOf("main", "Blank1", []reflect.StructField{
+		{Name: "_", PkgPath: "main", Type: tyInt},
+	})
+	_ = reflect.New(blank1).Elem().Interface()
+	arrStr := reflectx.NamedTypeOf("main", "ArrStr", reflect.TypeOf([2]string{}))
+	_ = reflect.New(arrStr).Elem().Interface()
+	arr0fn := reflectx.NamedTypeOf("main", "Arr0Fn", reflect.TypeOf([0]func(){}))
+	_ = reflect.New(arr0fn).Elem().Interface()
+}
+
+func TestStructOfCacheHit(t *testing.T) {
+	fs := []reflect.StructField{
+		{Name: "X", Type: tyInt},
+		{Name: "Y", Type: tyInt},
+	}
+	t1 := reflectx.StructOf(fs)
+	t2 := reflectx.StructOf(fs)
+	if t1 != t2 {
+		t.Fatal("expected cached struct type")
+	}
+}
+
+func mustPanic(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	fn()
+}
