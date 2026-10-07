@@ -1788,6 +1788,11 @@ func TestEmbedPtrMethodsAndAllocError(t *testing.T) {
 	typ = reflectx.StructToMethodSet(typ)
 	_ = typ.NumMethod()
 
+	cap, _, _ := reflectx.IcallStat()
+	if cap == 0 {
+		return
+	}
+
 	reflectx.DisableAllocateWarning = true
 	defer func() { reflectx.DisableAllocateWarning = false }()
 	ctx := reflectx.NewContext()

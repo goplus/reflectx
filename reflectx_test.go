@@ -787,12 +787,16 @@ func TestContextResetAndAllocError(t *testing.T) {
 	if err := ctx.SetMethodSet(typ, []reflectx.Method{m}, false); err != nil {
 		t.Fatal(err)
 	}
-	if ctx.IcallAlloc() == 0 {
-		t.Fatal("expected icall alloc")
-	}
-	ctx.Reset()
-	if ctx.IcallAlloc() != 0 {
-		t.Fatal("reset alloc")
+	if cap, _, _ := reflectx.IcallStat(); cap > 0 {
+		if ctx.IcallAlloc() == 0 {
+			t.Fatal("expected icall alloc")
+		}
+		ctx.Reset()
+		if ctx.IcallAlloc() != 0 {
+			t.Fatal("reset alloc")
+		}
+	} else {
+		ctx.Reset()
 	}
 	err := &reflectx.AllocError{Typ: tyInt, Cap: 1, Req: 2}
 	if err.Error() == "" {
