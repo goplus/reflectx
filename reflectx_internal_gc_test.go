@@ -1,3 +1,4 @@
+// Tests here exercise functions defined only in !llgo-tagged source files (name.go, methodof.go).
 //go:build !llgo
 
 package reflectx
@@ -7,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestNameAndIsMethodHelpers(t *testing.T) {
+func TestNewNameExAndIsMethod(t *testing.T) {
 	t1 := reflect.TypeOf(struct {
 		A int
 		B string

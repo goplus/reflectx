@@ -1,3 +1,4 @@
+// Tests here exercise functions defined only in !llgo-tagged source files (rtype.go).
 //go:build !llgo
 
 package reflectx_test
