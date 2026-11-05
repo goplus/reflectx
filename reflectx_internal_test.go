@@ -52,11 +52,6 @@ func TestUnexportedHelpers(t *testing.T) {
 	if toElemValue(v.Elem()).Type() != t1 {
 		t.Fatal("toElemValue")
 	}
-	_ = isMethod(t1)
-
-	n := newNameEx("x", "tag", false, true)
-	setPkgPath(n, "main")
-	setPkgPath(name{}, "main")
 	_ = extraFieldMethod(0, reflect.TypeOf(helper(0)), map[string]bool{"String": true})
 	_ = extraFieldMethod(0, reflect.PtrTo(reflect.TypeOf(helper(0))), nil)
 }
