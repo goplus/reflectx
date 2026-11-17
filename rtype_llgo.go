@@ -307,6 +307,9 @@ func (ctx *Context) Reset() {
 
 func resetAll() {
 	globalMethodCache = make(map[int]*ifnValue)
+	methodSignatures.Lock()
+	methodSignatures.entries = make(map[reflect.Type]*methodSignature)
+	methodSignatures.Unlock()
 }
 
 func PtrTo(t reflect.Type) reflect.Type {
@@ -338,12 +341,41 @@ type ifnValue struct {
 	pmethod method
 }
 
+type methodSignature struct {
+	in  []reflect.Type
+	out []reflect.Type
+}
+
+var methodSignatures = struct {
+	sync.Mutex
+	entries map[reflect.Type]*methodSignature
+}{entries: make(map[reflect.Type]*methodSignature)}
+
+// llgo wrappers need the signature slices but not ABI argument structs.
+func parseMethodSignature(typ reflect.Type) *methodSignature {
+	methodSignatures.Lock()
+	defer methodSignatures.Unlock()
+	if sig := methodSignatures.entries[typ]; sig != nil {
+		return sig
+	}
+	sig := &methodSignature{
+		in:  make([]reflect.Type, typ.NumIn()),
+		out: make([]reflect.Type, typ.NumOut()),
+	}
+	for i := range sig.in {
+		sig.in[i] = typ.In(i)
+	}
+	for i := range sig.out {
+		sig.out[i] = typ.Out(i)
+	}
+	methodSignatures.entries[typ] = sig
+	return sig
+}
+
 func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, hasIfn bool) (mtyp *abi.Type, tfn, ptfn, ifn, pifn unsafe.Pointer) {
-	var in []reflect.Type
-	var out []reflect.Type
-	var ntyp reflect.Type
-	in, out, ntyp, _, _ = parserMethodType(m.Type, nil)
-	mtyp = totype(ntyp)
+	sig := parseMethodSignature(m.Type)
+	in, out := sig.in, sig.out
+	mtyp = totype(m.Type)
 	var ftyp reflect.Type
 	if m.Pointer {
 		ftyp = reflect.FuncOf(append([]reflect.Type{ptyp}, in...), out, m.Type.IsVariadic())

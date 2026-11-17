@@ -234,3 +234,66 @@ func TestGoDynamicTypeHashes(t *testing.T) {
 		t.Fatal("underlying update or rename changed hash")
 	}
 }
+
+func TestMethodSignatureBinding(t *testing.T) {
+	cases := []struct {
+		name string
+		fn   interface{}
+		args []reflect.Value
+		want []interface{}
+	}{
+		{"Empty", func() {}, nil, nil},
+		{"Single", func(v int) string { return fmt.Sprint(v) }, []reflect.Value{reflect.ValueOf(42)}, []interface{}{"42"}},
+		{"Multiple", func(v int, s string) (int, string) { return v + 1, s + "!" }, []reflect.Value{reflect.ValueOf(41), reflect.ValueOf("ok")}, []interface{}{42, "ok!"}},
+		{"Variadic", func(v ...int) int {
+			n := 0
+			for _, x := range v {
+				n += x
+			}
+			return n
+		}, []reflect.Value{reflect.ValueOf([]int{20, 22})}, []interface{}{42}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fn := reflect.ValueOf(tc.fn)
+			before := len(parserMethodTypeCache)
+			for repeat := 0; repeat < 3; repeat++ {
+				if repeat == 2 {
+					resetAll()
+				}
+				base := NamedTypeOf("signaturetest", tc.name, reflect.TypeOf(0))
+				typ := NewMethodSet(base, 0, 1)
+				m := MakeMethod("Invoke", "signaturetest", true, fn.Type(), func(args []reflect.Value) []reflect.Value {
+					if fn.Type().IsVariadic() {
+						return fn.CallSlice(args[1:])
+					}
+					return fn.Call(args[1:])
+				})
+				if err := SetMethodSet(typ, []Method{m}, true); err != nil {
+					t.Fatal(err)
+				}
+				method := reflect.New(typ).MethodByName("Invoke")
+				if method.Type() != fn.Type() {
+					t.Fatalf("method type %v, want %v", method.Type(), fn.Type())
+				}
+				var results []reflect.Value
+				if fn.Type().IsVariadic() {
+					results = method.CallSlice(tc.args)
+				} else {
+					results = method.Call(tc.args)
+				}
+				if len(results) != len(tc.want) {
+					t.Fatal("result count")
+				}
+				for i, v := range results {
+					if !reflect.DeepEqual(v.Interface(), tc.want[i]) {
+						t.Fatalf("result %d = %v, want %v", i, v.Interface(), tc.want[i])
+					}
+				}
+			}
+			if runtime.Compiler == "llgo" && len(parserMethodTypeCache) != before {
+				t.Fatal("Go ABI signature cache was populated")
+			}
+		})
+	}
+}
