@@ -224,6 +224,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 		}))
 	}
 	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+	rt.Hash = ort.Hash
 	rt.Size_ = ort.Size_
 	rt.TFlag = ort.TFlag | tflagUncommon
 	rt.Kind_ = ort.Kind_
@@ -249,6 +250,9 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	rt, _ := newType(pkgpath, name, from, 0, 0)
 	setTypeName(rt, pkgpath, name)
+	if pkgpath != "" || name != "" {
+		rt.Hash = dynamicNamedTypeHash(pkgpath, name)
+	}
 	return toType(rt)
 }
 

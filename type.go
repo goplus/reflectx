@@ -161,3 +161,17 @@ func toValue(v Value) reflect.Value {
 
 //go:linkname toType reflect.toType
 func toType(t *rtype) reflect.Type
+
+// Dynamic descriptors have their own identity. Use FNV-1, as runtime reflection
+// does for derived types, and preserve this hash when cloning method storage.
+func dynamicNamedTypeHash(pkgpath, name string) uint32 {
+	h := uint32(2166136261)
+	for i := 0; i < len(pkgpath); i++ {
+		h = h*16777619 ^ uint32(pkgpath[i])
+	}
+	h = h * 16777619 // Separate the package path from the type name with a zero byte.
+	for i := 0; i < len(name); i++ {
+		h = h*16777619 ^ uint32(name[i])
+	}
+	return h
+}
