@@ -1836,3 +1836,32 @@ func TestResetAll(t *testing.T) {
 		t.Fatal(styp)
 	}
 }
+
+func TestPointerMethodInterfaceAndReflect(t *testing.T) {
+	styp := reflectx.NamedTypeOf("reflectx_test", "PointerMethodWrapper", tyInt)
+	typ := reflectx.NewMethodSet(styp, 0, 1)
+	method := reflectx.MakeMethod("Add", "reflectx_test", true,
+		reflect.FuncOf([]reflect.Type{tyInt}, []reflect.Type{tyInt}, false),
+		func(args []reflect.Value) []reflect.Value {
+			v := args[0].Elem()
+			v.SetInt(v.Int() + args[1].Int())
+			return []reflect.Value{reflect.ValueOf(int(v.Int()))}
+		})
+	reflectx.SetMethodSet(typ, []reflectx.Method{method}, true)
+	v := reflect.New(typ)
+	v.Elem().SetInt(1)
+	iface := v.Interface().(interface{ Add(int) int })
+	if got := iface.Add(2); got != 3 {
+		t.Fatalf("interface Add = %d, want 3", got)
+	}
+	if got := v.MethodByName("Add").Call([]reflect.Value{reflect.ValueOf(4)})[0].Int(); got != 7 {
+		t.Fatalf("reflection Add = %d, want 7", got)
+	}
+	runtime.GC()
+	if got := iface.Add(5); got != 12 {
+		t.Fatalf("interface Add after GC = %d, want 12", got)
+	}
+	if got := v.Elem().Int(); got != 12 {
+		t.Fatalf("receiver = %d, want 12", got)
+	}
+}

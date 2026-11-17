@@ -346,7 +346,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, hasIfn bool) (m
 	if m.Pointer {
 		ptfn = reflect.MakeFunc(ftyp, m.Func).UnsafePointer()
 		if hasIfn {
-			pifn = reflect.MakeFunc(ftyp, m.Func).UnsafePointer()
+			pifn = ptfn
 		} else {
 			pifn = zeroIfn
 		}
