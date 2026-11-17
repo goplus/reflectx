@@ -1,8 +1,6 @@
 package reflectx
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -72,23 +70,22 @@ func TestLLGoDynamicTypeHashes(t *testing.T) {
 	if runtime.Compiler != "llgo" {
 		t.Skip("llgo ABI hashes")
 	}
-	expected := func(pkg, name string) uint32 {
-		input := "_llgo_" + name
-		if pkg != "" {
-			input = "_llgo_" + pkg + "." + name
-		}
-		sum := sha256.Sum256([]byte(input))
-		return binary.LittleEndian.Uint32(sum[:4])
-	}
 	static := reflect.TypeOf(dynamicHashStatic(0))
-	if got, want := totype(static).Hash, expected(static.PkgPath(), static.Name()); got != want {
-		t.Fatalf("static hash %x, want %x", got, want)
+	staticClone := NewMethodSet(static, 0, 0)
+	if totype(staticClone).Hash != totype(static).Hash || totype(reflect.PointerTo(staticClone)).Hash != totype(reflect.PointerTo(static)).Hash {
+		t.Fatal("static method-set clone changed hash")
 	}
 	hashes := map[uint32]bool{}
 	for _, pkg := range []string{"main", "example.org/a/shared", "example.org/b/shared"} {
 		for _, name := range []string{"T", "Box[int]", "T$1"} {
 			typ := NamedTypeOf(pkg, name, reflect.TypeOf(int(0)))
-			if got, want := totype(typ).Hash, expected(pkg, name); got != want {
+			if got, want := totype(typ).Hash, func() uint32 {
+				h := uint32(2166136261)
+				for _, v := range []byte(pkg + "\x00" + name) {
+					h = h*16777619 ^ uint32(v)
+				}
+				return h
+			}(); got != want {
 				t.Fatalf("%s.%s: hash %x, want %x", pkg, name, got, want)
 			}
 			hashes[totype(typ).Hash] = true

@@ -3,8 +3,6 @@
 package reflectx
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"fmt"
 	"path"
 	"reflect"
@@ -22,6 +20,9 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	}
 	rt, _ := newType(pkgpath, name, from, 0, 0)
 	setTypeName(rt, pkgpath, name)
+	if pkgpath != "" || name != "" {
+		rt.Hash = dynamicNamedTypeHash(pkgpath, name)
+	}
 	if rt.IsClosure() {
 		ft := toFuncType(rt.StructType())
 		rt = &ft.Type
@@ -33,14 +34,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
 	}
-	// Match llgo's ABI hash for a package-level named type. The supplied
-	// name also distinguishes instantiated and caller-disambiguated local types.
-	abiName := "_llgo_" + name
-	if pkgpath != "" {
-		abiName = "_llgo_" + pkgpath + "." + name
-	}
-	sum := sha256.Sum256([]byte(abiName))
-	t.Hash = binary.LittleEndian.Uint32(sum[:4])
+
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
@@ -593,4 +587,18 @@ func IcallCached() int {
 
 func (ctx *Context) IcallAlloc() int {
 	return 0
+}
+
+// Dynamic descriptors have their own identity. Use FNV-1, as runtime reflection
+// does for derived types, and preserve this hash when cloning method storage.
+func dynamicNamedTypeHash(pkgpath, name string) uint32 {
+	h := uint32(2166136261)
+	for i := 0; i < len(pkgpath); i++ {
+		h = h*16777619 ^ uint32(pkgpath[i])
+	}
+	h = h * 16777619 // Separate the package path from the type name with a zero byte.
+	for i := 0; i < len(name); i++ {
+		h = h*16777619 ^ uint32(name[i])
+	}
+	return h
 }
