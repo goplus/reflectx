@@ -133,3 +133,43 @@ func TestLLGoDynamicTypeHashes(t *testing.T) {
 		}
 	}
 }
+
+func TestLLGoSetUnderlyingPreservesHash(t *testing.T) {
+	if runtime.Compiler != "llgo" {
+		t.Skip("llgo ABI hashes")
+	}
+	realType := reflect.TypeOf(struct{ Value int }{})
+	hashes := make(map[uint32]bool)
+	for _, name := range []string{"PlaceholderA", "PlaceholderB"} {
+		typ := NamedTypeOf("hashprobe", name, reflect.TypeOf(struct{}{}))
+		hash := totype(typ).Hash
+		ptr := reflect.PointerTo(typ)
+		pointerHash := totype(ptr).Hash
+		function := reflect.FuncOf([]reflect.Type{ptr}, nil, false)
+		SetUnderlying(typ, realType)
+		if got := totype(typ).Hash; got != hash {
+			t.Fatalf("%s: underlying update changed hash from %x to %x", name, hash, got)
+		}
+		if got := totype(ptr).Hash; got != pointerHash || got != hash*16777619^uint32('*') {
+			t.Fatalf("%s: pointer hash changed or is inconsistent", name)
+		}
+		if reflect.PointerTo(typ) != ptr || reflect.FuncOf([]reflect.Type{ptr}, nil, false) != function {
+			t.Fatal("underlying update changed cached type identity")
+		}
+		v := reflect.New(typ).Elem()
+		v.Field(0).SetInt(42)
+		key := v.Interface()
+		m := map[interface{}]int{key: 7}
+		if m[key] != 7 {
+			t.Fatal("map lookup after underlying update")
+		}
+		SetTypeName(typ, "hashprobe/renamed", name)
+		if totype(typ).Hash != hash || totype(ptr).Hash != pointerHash {
+			t.Fatal("renaming changed published hashes")
+		}
+		hashes[hash] = true
+	}
+	if len(hashes) != 2 {
+		t.Fatal("different names over the same underlying type have equal hashes")
+	}
+}

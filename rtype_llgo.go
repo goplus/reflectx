@@ -550,7 +550,6 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		}
 		namedFuncTypes.Unlock()
 	}
-	rt.Hash = ort.Hash
 	rt.Size_ = ort.Size_
 	rt.TFlag |= tflagUncommon | tflagNamed
 	rt.Kind_ = ort.Kind_
