@@ -3,6 +3,8 @@
 package reflectx
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"path"
 	"reflect"
@@ -31,6 +33,14 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
 	}
+	// Match llgo's ABI hash for a package-level named type. The supplied
+	// name also distinguishes instantiated and caller-disambiguated local types.
+	abiName := "_llgo_" + name
+	if pkgpath != "" {
+		abiName = "_llgo_" + pkgpath + "." + name
+	}
+	sum := sha256.Sum256([]byte(abiName))
+	t.Hash = binary.LittleEndian.Uint32(sum[:4])
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
@@ -277,6 +287,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	}
 
 	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+	rt.Hash = ort.Hash
 	rt.Size_ = ort.Size_
 	rt.TFlag = ort.TFlag | tflagUncommon
 	rt.Kind_ = ort.Kind_
@@ -317,6 +328,9 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt.PtrToThis_ = prt
 	(*ptrType)(unsafe.Pointer(prt)).Elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())
+	// Adding method storage preserves type identity, including hashes already
+	// derived for named functions and their pointer descriptors.
+	rt.Hash = totype(styp).Hash
 	prt.Uncommon().PkgPath_ = styp.PkgPath()
 	return toType(rt)
 }
@@ -542,6 +556,7 @@ func SetUnderlying(typ reflect.Type, styp reflect.Type) {
 		}
 		namedFuncTypes.Unlock()
 	}
+	rt.Hash = ort.Hash
 	rt.Size_ = ort.Size_
 	rt.TFlag |= tflagUncommon | tflagNamed
 	rt.Kind_ = ort.Kind_

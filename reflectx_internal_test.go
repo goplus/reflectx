@@ -1,7 +1,11 @@
 package reflectx
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -61,3 +65,74 @@ type helper int
 func (helper) String() string { return "" }
 
 func (h *helper) Set(v int) { *h = helper(v) }
+
+type dynamicHashStatic int
+
+func TestLLGoDynamicTypeHashes(t *testing.T) {
+	if runtime.Compiler != "llgo" {
+		t.Skip("llgo ABI hashes")
+	}
+	expected := func(pkg, name string) uint32 {
+		input := "_llgo_" + name
+		if pkg != "" {
+			input = "_llgo_" + pkg + "." + name
+		}
+		sum := sha256.Sum256([]byte(input))
+		return binary.LittleEndian.Uint32(sum[:4])
+	}
+	static := reflect.TypeOf(dynamicHashStatic(0))
+	if got, want := totype(static).Hash, expected(static.PkgPath(), static.Name()); got != want {
+		t.Fatalf("static hash %x, want %x", got, want)
+	}
+	hashes := map[uint32]bool{}
+	for _, pkg := range []string{"main", "example.org/a/shared", "example.org/b/shared"} {
+		for _, name := range []string{"T", "Box[int]", "T$1"} {
+			typ := NamedTypeOf(pkg, name, reflect.TypeOf(int(0)))
+			if got, want := totype(typ).Hash, expected(pkg, name); got != want {
+				t.Fatalf("%s.%s: hash %x, want %x", pkg, name, got, want)
+			}
+			hashes[totype(typ).Hash] = true
+			ptr := reflect.PointerTo(typ)
+			if got, want := totype(ptr).Hash, totype(typ).Hash*16777619^uint32('*'); got != want {
+				t.Fatalf("pointer hash %x, want %x", got, want)
+			}
+			cloned := NewMethodSet(typ, 0, 0)
+			if totype(cloned).Hash != totype(typ).Hash || totype(reflect.PointerTo(cloned)).Hash != totype(ptr).Hash {
+				t.Fatal("method-set clone changed hash")
+			}
+			f := reflect.FuncOf([]reflect.Type{ptr}, []reflect.Type{typ}, false)
+			if reflect.FuncOf([]reflect.Type{ptr}, []reflect.Type{typ}, false) != f {
+				t.Fatal("unstable FuncOf")
+			}
+			v := reflect.New(typ).Elem()
+			v.SetInt(42)
+			m := map[interface{}]int{v.Interface(): 7}
+			if m[v.Interface()] != 7 {
+				t.Fatal("dynamic map key lookup")
+			}
+		}
+	}
+	if len(hashes) != 9 {
+		t.Fatalf("unexpected hash collisions: %d", len(hashes))
+	}
+	for i, from := range []reflect.Type{reflect.TypeOf(struct{ N int }{}), reflect.TypeOf([]int{}), reflect.TypeOf(map[string]int{}), reflect.TypeOf((chan int)(nil)), reflect.TypeOf((func(int) int)(nil))} {
+		typ := NamedTypeOf("hashprobe", fmt.Sprintf("Kind%d", i), from)
+		clone := NewMethodSet(typ, 0, 0)
+		if totype(typ).Hash == 0 || totype(clone).Hash != totype(typ).Hash {
+			t.Fatalf("%v: invalid cloned hash", typ)
+		}
+		if typ.Kind() == reflect.Func {
+			if typ.NumIn() != 1 || typ.In(0) != reflect.TypeOf(0) || typ.NumOut() != 1 || typ.Out(0) != reflect.TypeOf(0) {
+				t.Fatal("named function signature changed")
+			}
+			fn := reflect.ValueOf(func(v int) int { return v + 1 }).Convert(typ)
+			if got := fn.Call([]reflect.Value{reflect.ValueOf(41)})[0].Int(); got != 42 {
+				t.Fatalf("named function call = %d", got)
+			}
+			clonedFn := fn.Convert(clone)
+			if got := clonedFn.Call([]reflect.Value{reflect.ValueOf(42)})[0].Int(); got != 43 {
+				t.Fatalf("cloned function call = %d", got)
+			}
+		}
+	}
+}
