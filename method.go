@@ -289,6 +289,9 @@ func NamedInterfaceOf(pkgpath string, name string, embedded []reflect.Type, meth
 func NewInterfaceType(pkgpath string, name string) reflect.Type {
 	rt, _ := newType("", "", tyEmptyInterface, 0, 0)
 	setTypeName(rt, pkgpath, name)
+	if pkgpath != "" || name != "" {
+		rt.Hash = dynamicNamedTypeHash(pkgpath, name)
+	}
 	return toType(rt)
 }
 

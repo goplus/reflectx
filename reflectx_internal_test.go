@@ -173,3 +173,64 @@ func TestLLGoSetUnderlyingPreservesHash(t *testing.T) {
 		t.Fatal("different names over the same underlying type have equal hashes")
 	}
 }
+
+func TestGoDynamicTypeHashes(t *testing.T) {
+	if runtime.Compiler == "llgo" {
+		t.Skip("Go ABI hashes")
+	}
+	static := reflect.TypeOf(dynamicHashStatic(0))
+	clone := NewMethodSet(static, 0, 1)
+	if totype(clone).Hash != totype(static).Hash || totype(reflect.PointerTo(clone)).Hash != totype(reflect.PointerTo(static)).Hash {
+		t.Fatal("static clone hash changed")
+	}
+	hashes := map[uint32]bool{}
+	for _, pkg := range []string{"main", "example/a/shared", "example/b/shared"} {
+		for _, name := range []string{"T", "Box[int]", "T$1"} {
+			typ := NamedTypeOf(pkg, name, reflect.TypeOf(0))
+			if got, want := totype(typ).Hash, dynamicNamedTypeHash(pkg, name); got != want {
+				t.Fatalf("%s.%s hash=%x, want %x", pkg, name, got, want)
+			}
+			hashes[totype(typ).Hash] = true
+			ptr := reflect.PointerTo(typ)
+			if totype(ptr).Hash != totype(typ).Hash*16777619^uint32('*') {
+				t.Fatal("pointer hash")
+			}
+			clone := NewMethodSet(typ, 0, 1)
+			if totype(clone).Hash != totype(typ).Hash || totype(reflect.PointerTo(clone)).Hash != totype(ptr).Hash {
+				t.Fatal("dynamic clone hash changed")
+			}
+			f := reflect.FuncOf([]reflect.Type{ptr}, nil, false)
+			if reflect.FuncOf([]reflect.Type{ptr}, nil, false) != f {
+				t.Fatal("unstable FuncOf")
+			}
+			v := reflect.New(clone).Elem()
+			v.SetInt(42)
+			key := v.Interface()
+			if map[interface{}]int{key: 7}[key] != 7 {
+				t.Fatal("dynamic map key")
+			}
+		}
+	}
+	if len(hashes) != 9 {
+		t.Fatal("unexpected hash collisions")
+	}
+	iface := NewInterfaceType("hashprobe", "Interface")
+	if totype(iface).Hash != dynamicNamedTypeHash("hashprobe", "Interface") {
+		t.Fatal("interface hash")
+	}
+	if err := SetInterfaceType(iface, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if totype(iface).Hash != dynamicNamedTypeHash("hashprobe", "Interface") {
+		t.Fatal("interface update changed hash")
+	}
+	typ := NamedTypeOf("hashprobe", "Placeholder", reflect.TypeOf(struct{}{}))
+	hash := totype(typ).Hash
+	ptr := reflect.PointerTo(typ)
+	phash := totype(ptr).Hash
+	SetUnderlying(typ, reflect.TypeOf(struct{ Value int }{}))
+	SetTypeName(typ, "hashprobe/renamed", "Renamed")
+	if totype(typ).Hash != hash || totype(ptr).Hash != phash {
+		t.Fatal("underlying update or rename changed hash")
+	}
+}
