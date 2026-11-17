@@ -25,7 +25,7 @@ func createMethod(typ reflect.Type, ptyp reflect.Type, m Method, index int) (mfn
 	var in []reflect.Type
 	var out []reflect.Type
 	var ntyp reflect.Type
-	in, out, ntyp, inTyp, outTyp = parserMethodType(m.Type, nil)
+	in, out, ntyp, inTyp, outTyp = parserMethodType(m.Type)
 	mtyp = resolveReflectType(totype(ntyp))
 	var ftyp reflect.Type
 	if m.Pointer {

@@ -462,12 +462,9 @@ func replaceType(typ reflect.Type, rmap map[reflect.Type]reflect.Type) reflect.T
 	return typ
 }
 
-func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
-	// Use cache only when rmap is nil
-	if rmap == nil {
-		if cached, ok := parserMethodTypeCache[mtyp]; ok {
-			return cached.in, cached.out, cached.ntyp, cached.inTyp, cached.outTyp
-		}
+func parserMethodType(mtyp reflect.Type) (in, out []reflect.Type, ntyp, inTyp, outTyp reflect.Type) {
+	if cached, ok := parserMethodTypeCache[mtyp]; ok {
+		return cached.in, cached.out, cached.ntyp, cached.inTyp, cached.outTyp
 	}
 
 	var inFields []reflect.StructField
@@ -476,9 +473,6 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 	numOut := mtyp.NumOut()
 	for i := 0; i < numIn; i++ {
 		t := mtyp.In(i)
-		if rmap != nil {
-			t = replaceType(t, rmap)
-		}
 		in = append(in, t)
 		inFields = append(inFields, reflect.StructField{
 			Name: fmt.Sprintf("Arg%v", i),
@@ -487,32 +481,22 @@ func parserMethodType(mtyp reflect.Type, rmap map[reflect.Type]reflect.Type) (in
 	}
 	for i := 0; i < numOut; i++ {
 		t := mtyp.Out(i)
-		if rmap != nil {
-			t = replaceType(t, rmap)
-		}
 		out = append(out, t)
 		outFields = append(outFields, reflect.StructField{
 			Name: fmt.Sprintf("Out%v", i),
 			Type: t,
 		})
 	}
-	if rmap == nil {
-		ntyp = mtyp
-	} else {
-		ntyp = reflect.FuncOf(in, out, mtyp.IsVariadic())
-	}
+	ntyp = mtyp
 	inTyp = reflect.StructOf(inFields)
 	outTyp = reflect.StructOf(outFields)
 
-	// Cache the result when rmap is nil
-	if rmap == nil {
-		parserMethodTypeCache[mtyp] = &parserMethodTypeResult{
-			in:     in,
-			out:    out,
-			ntyp:   ntyp,
-			inTyp:  inTyp,
-			outTyp: outTyp,
-		}
+	parserMethodTypeCache[mtyp] = &parserMethodTypeResult{
+		in:     in,
+		out:    out,
+		ntyp:   ntyp,
+		inTyp:  inTyp,
+		outTyp: outTyp,
 	}
 
 	return
