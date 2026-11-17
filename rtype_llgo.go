@@ -20,6 +20,9 @@ func NamedTypeOf(pkgpath string, name string, from reflect.Type) reflect.Type {
 	}
 	rt, _ := newType(pkgpath, name, from, 0, 0)
 	setTypeName(rt, pkgpath, name)
+	if pkgpath != "" || name != "" {
+		rt.Hash = dynamicNamedTypeHash(pkgpath, name)
+	}
 	if rt.IsClosure() {
 		ft := toFuncType(rt.StructType())
 		rt = &ft.Type
@@ -31,6 +34,7 @@ func setTypeName(t *rtype, pkgpath string, name string) {
 	if pkgpath == "" && name == "" {
 		return
 	}
+
 	if pkgpath != "" {
 		_, f := path.Split(pkgpath)
 		name = f + "." + name
@@ -277,6 +281,7 @@ func newType(pkg string, name string, styp reflect.Type, mcount int, xcount int)
 	}
 
 	rt = (*rtype)(unsafe.Pointer(tt.Elem().Field(0).UnsafeAddr()))
+	rt.Hash = ort.Hash
 	rt.Size_ = ort.Size_
 	rt.TFlag = ort.TFlag | tflagUncommon
 	rt.Kind_ = ort.Kind_
@@ -317,6 +322,9 @@ func newMethodSet(styp reflect.Type, maxmfunc, maxpfunc int) reflect.Type {
 	rt.PtrToThis_ = prt
 	(*ptrType)(unsafe.Pointer(prt)).Elem = rt
 	setTypeName(rt, styp.PkgPath(), styp.Name())
+	// Adding method storage preserves type identity, including hashes already
+	// derived for named functions and their pointer descriptors.
+	rt.Hash = totype(styp).Hash
 	prt.Uncommon().PkgPath_ = styp.PkgPath()
 	return toType(rt)
 }
@@ -578,4 +586,18 @@ func IcallCached() int {
 
 func (ctx *Context) IcallAlloc() int {
 	return 0
+}
+
+// Dynamic descriptors have their own identity. Use FNV-1, as runtime reflection
+// does for derived types, and preserve this hash when cloning method storage.
+func dynamicNamedTypeHash(pkgpath, name string) uint32 {
+	h := uint32(2166136261)
+	for i := 0; i < len(pkgpath); i++ {
+		h = h*16777619 ^ uint32(pkgpath[i])
+	}
+	h = h * 16777619 // Separate the package path from the type name with a zero byte.
+	for i := 0; i < len(name); i++ {
+		h = h*16777619 ^ uint32(name[i])
+	}
+	return h
 }

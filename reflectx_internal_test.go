@@ -1,7 +1,9 @@
 package reflectx
 
 import (
+	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -61,3 +63,113 @@ type helper int
 func (helper) String() string { return "" }
 
 func (h *helper) Set(v int) { *h = helper(v) }
+
+type dynamicHashStatic int
+
+func TestLLGoDynamicTypeHashes(t *testing.T) {
+	if runtime.Compiler != "llgo" {
+		t.Skip("llgo ABI hashes")
+	}
+	static := reflect.TypeOf(dynamicHashStatic(0))
+	staticClone := NewMethodSet(static, 0, 0)
+	if totype(staticClone).Hash != totype(static).Hash || totype(reflect.PointerTo(staticClone)).Hash != totype(reflect.PointerTo(static)).Hash {
+		t.Fatal("static method-set clone changed hash")
+	}
+	hashes := map[uint32]bool{}
+	for _, pkg := range []string{"main", "example.org/a/shared", "example.org/b/shared"} {
+		for _, name := range []string{"T", "Box[int]", "T$1"} {
+			typ := NamedTypeOf(pkg, name, reflect.TypeOf(int(0)))
+			if got, want := totype(typ).Hash, func() uint32 {
+				h := uint32(2166136261)
+				for _, v := range []byte(pkg + "\x00" + name) {
+					h = h*16777619 ^ uint32(v)
+				}
+				return h
+			}(); got != want {
+				t.Fatalf("%s.%s: hash %x, want %x", pkg, name, got, want)
+			}
+			hashes[totype(typ).Hash] = true
+			ptr := reflect.PointerTo(typ)
+			if got, want := totype(ptr).Hash, totype(typ).Hash*16777619^uint32('*'); got != want {
+				t.Fatalf("pointer hash %x, want %x", got, want)
+			}
+			cloned := NewMethodSet(typ, 0, 0)
+			if totype(cloned).Hash != totype(typ).Hash || totype(reflect.PointerTo(cloned)).Hash != totype(ptr).Hash {
+				t.Fatal("method-set clone changed hash")
+			}
+			f := reflect.FuncOf([]reflect.Type{ptr}, []reflect.Type{typ}, false)
+			if reflect.FuncOf([]reflect.Type{ptr}, []reflect.Type{typ}, false) != f {
+				t.Fatal("unstable FuncOf")
+			}
+			v := reflect.New(typ).Elem()
+			v.SetInt(42)
+			m := map[interface{}]int{v.Interface(): 7}
+			if m[v.Interface()] != 7 {
+				t.Fatal("dynamic map key lookup")
+			}
+		}
+	}
+	if len(hashes) != 9 {
+		t.Fatalf("unexpected hash collisions: %d", len(hashes))
+	}
+	for i, from := range []reflect.Type{reflect.TypeOf(struct{ N int }{}), reflect.TypeOf([]int{}), reflect.TypeOf(map[string]int{}), reflect.TypeOf((chan int)(nil)), reflect.TypeOf((func(int) int)(nil))} {
+		typ := NamedTypeOf("hashprobe", fmt.Sprintf("Kind%d", i), from)
+		clone := NewMethodSet(typ, 0, 0)
+		if totype(typ).Hash == 0 || totype(clone).Hash != totype(typ).Hash {
+			t.Fatalf("%v: invalid cloned hash", typ)
+		}
+		if typ.Kind() == reflect.Func {
+			if typ.NumIn() != 1 || typ.In(0) != reflect.TypeOf(0) || typ.NumOut() != 1 || typ.Out(0) != reflect.TypeOf(0) {
+				t.Fatal("named function signature changed")
+			}
+			fn := reflect.ValueOf(func(v int) int { return v + 1 }).Convert(typ)
+			if got := fn.Call([]reflect.Value{reflect.ValueOf(41)})[0].Int(); got != 42 {
+				t.Fatalf("named function call = %d", got)
+			}
+			clonedFn := fn.Convert(clone)
+			if got := clonedFn.Call([]reflect.Value{reflect.ValueOf(42)})[0].Int(); got != 43 {
+				t.Fatalf("cloned function call = %d", got)
+			}
+		}
+	}
+}
+
+func TestLLGoSetUnderlyingPreservesHash(t *testing.T) {
+	if runtime.Compiler != "llgo" {
+		t.Skip("llgo ABI hashes")
+	}
+	realType := reflect.TypeOf(struct{ Value int }{})
+	hashes := make(map[uint32]bool)
+	for _, name := range []string{"PlaceholderA", "PlaceholderB"} {
+		typ := NamedTypeOf("hashprobe", name, reflect.TypeOf(struct{}{}))
+		hash := totype(typ).Hash
+		ptr := reflect.PointerTo(typ)
+		pointerHash := totype(ptr).Hash
+		function := reflect.FuncOf([]reflect.Type{ptr}, nil, false)
+		SetUnderlying(typ, realType)
+		if got := totype(typ).Hash; got != hash {
+			t.Fatalf("%s: underlying update changed hash from %x to %x", name, hash, got)
+		}
+		if got := totype(ptr).Hash; got != pointerHash || got != hash*16777619^uint32('*') {
+			t.Fatalf("%s: pointer hash changed or is inconsistent", name)
+		}
+		if reflect.PointerTo(typ) != ptr || reflect.FuncOf([]reflect.Type{ptr}, nil, false) != function {
+			t.Fatal("underlying update changed cached type identity")
+		}
+		v := reflect.New(typ).Elem()
+		v.Field(0).SetInt(42)
+		key := v.Interface()
+		m := map[interface{}]int{key: 7}
+		if m[key] != 7 {
+			t.Fatal("map lookup after underlying update")
+		}
+		SetTypeName(typ, "hashprobe/renamed", name)
+		if totype(typ).Hash != hash || totype(ptr).Hash != pointerHash {
+			t.Fatal("renaming changed published hashes")
+		}
+		hashes[hash] = true
+	}
+	if len(hashes) != 2 {
+		t.Fatal("different names over the same underlying type have equal hashes")
+	}
+}
