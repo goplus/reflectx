@@ -60,11 +60,14 @@ Golang reflect package hack tools
 
 ### Method allocs (icall)
 Default gc path: each installed method needs a unique ifn stub.
+Built-in table size is 512 (`internal/icall512`). Import another table to add slots.
 
 * allocs
 ```
 import _ "github.com/goplus/reflectx/icall/icall[N]"
 ```
+N = 512, 1024, 2048, 4096, 8192, 10240, 20480.
+
 * install icall_gen
 ```
 go install github.com/goplus/reflectx/cmd/icall_gen@latest
@@ -72,6 +75,7 @@ go install github.com/goplus/reflectx/cmd/icall_gen@latest
 ```
 icall_gen -o icall1024.go -pkg main -size 1024
 ```
+Writes `icall1024.go` plus the matching `*_regabi*.go` and architecture `.s` files.
 
 ### ifacefuncval (optional)
 Alternative to icall: methods share `makeFuncStub` instead of an icall
@@ -104,6 +108,7 @@ You can `export GOFLAGS='-tags=goplus.ifacefuncval'`, or prefix a command:
 See [cmd/iface_patch/README.md](cmd/iface_patch/README.md).
 
 ### build linkname mode
+Go 1.23+:
 ```shell
 go build -tags linknamefix -ldflags="-checklinkname=0"
 ```
